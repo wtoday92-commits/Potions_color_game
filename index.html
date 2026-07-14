@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Зельеварня — прототип</title>
+<title>Р—РµР»СЊРµРІР°СЂРЅСЏ вЂ” РїСЂРѕС‚РѕС‚РёРї</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -241,52 +241,93 @@
   .leaderboard-list .lb-row{display:flex;justify-content:space-between;color:var(--parchment-dim);padding:3px 6px;border-radius:4px;}
   .leaderboard-list .lb-row.me{background:rgba(201,162,39,.15);color:var(--brass-light);}
   @media (prefers-reduced-motion:reduce){*{animation:none !important;}}
+
+  /* ---------- juice: animations ---------- */
+  .customer-card{opacity:0;transform:translateY(10px);animation:cardIn .35s ease forwards;}
+  .customer-card:nth-child(1){animation-delay:.05s;}
+  .customer-card:nth-child(2){animation-delay:.15s;}
+  .customer-card:nth-child(3){animation-delay:.25s;}
+  @keyframes cardIn{to{opacity:1;transform:translateY(0);}}
+  .customer-card:active{transform:scale(.97) !important;transition:transform .08s ease;}
+
+  #jarSvg{transition:transform .2s ease;}
+  #jarSvg.brewing{animation:brewWobble 2.4s ease-in-out infinite;}
+  @keyframes brewWobble{
+    0%,100%{transform:rotate(0deg);}
+    25%{transform:rotate(-1.3deg) translateY(-2px);}
+    75%{transform:rotate(1.3deg) translateY(-1px);}
+  }
+  #jarSvg.shake{animation:jarShake .5s cubic-bezier(.36,.07,.19,.97);}
+  @keyframes jarShake{
+    10%,90%{transform:translateX(-4px);}
+    20%,80%{transform:translateX(5px);}
+    30%,50%,70%{transform:translateX(-7px);}
+    40%,60%{transform:translateX(7px);}
+  }
+  #jarSvg.celebrate{animation:jarPop .55s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes jarPop{0%{transform:scale(1);}40%{transform:scale(1.08) rotate(2deg);}70%{transform:scale(.98) rotate(-1deg);}100%{transform:scale(1);}}
+
+  .window-frame.urgent{animation:framePulse .5s ease-in-out infinite;}
+  @keyframes framePulse{0%,100%{box-shadow:inset 0 0 46px rgba(0,0,0,.6);}50%{box-shadow:inset 0 0 46px rgba(0,0,0,.6), 0 0 26px rgba(209,80,63,.55);}}
+
+  button.brew-btn, .next-btn, .lb-open-btn{transition:transform .08s ease, filter .12s ease;}
+  button.brew-btn:active, .next-btn:active, .lb-open-btn:active{transform:scale(.95);}
+  button.brew-btn:hover, .next-btn:hover{filter:brightness(1.1);}
+
+  .order-bubble{animation:bubbleIn .3s ease;}
+  @keyframes bubbleIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+
+  .vslide-thumb{transition:box-shadow .15s ease;}
+  .vslide-wrap:active .vslide-thumb{box-shadow:0 0 12px rgba(236,207,109,.9);}
+
+  .result-overlay.show .result-card{animation:cardZoom .3s cubic-bezier(.34,1.56,.64,1);}
+  @keyframes cardZoom{from{transform:scale(.85);opacity:0;}to{transform:scale(1);opacity:1;}}
 </style>
 </head>
 <body>
 
-<div id="splashScreen"><h2>Добро пожаловать в место,<br>где зелья стали вашим домом</h2></div>
+<div id="splashScreen"><h2>Р”РѕР±СЂРѕ РїРѕР¶Р°Р»РѕРІР°С‚СЊ РІ РјРµСЃС‚Рѕ,<br>РіРґРµ Р·РµР»СЊСЏ СЃС‚Р°Р»Рё РІР°С€РёРј РґРѕРјРѕРј</h2></div>
 
 <div class="stage">
   <div class="topbar">
-    <div class="day-counter">День <b id="dayVal">1</b>/10</div>
-    <div class="streak">🔥 <span id="streakVal">0</span></div>
+    <div class="day-counter">Р”РµРЅСЊ <b id="dayVal">1</b>/10</div>
+    <div class="streak">рџ”Ґ <span id="streakVal">0</span></div>
     <div style="display:flex;align-items:center;gap:8px;">
-      <div class="score">РЕЙТИНГ: <span id="scoreVal">0</span></div>
-      <button id="lbBtn" class="lb-open-btn" title="Глобальный рейтинг">🏆</button>
+      <div class="score">Р Р•Р™РўРРќР“: <span id="scoreVal">0</span></div>
+      <button id="lbBtn" class="lb-open-btn" title="Р“Р»РѕР±Р°Р»СЊРЅС‹Р№ СЂРµР№С‚РёРЅРі">рџЏ†</button>
     </div>
   </div>
-  <h1 class="title">Зельеварня</h1>
-  <p class="subtitle">запомни зелье — сготовь по памяти</p>
+  <h1 class="title">Р—РµР»СЊРµРІР°СЂРЅСЏ</h1>
+  <p class="subtitle">Р·Р°РїРѕРјРЅРё Р·РµР»СЊРµ вЂ” СЃРіРѕС‚РѕРІСЊ РїРѕ РїР°РјСЏС‚Рё</p>
   <div class="sticker-tally" id="stickerTally"></div>
 
   <div class="select-screen" id="selectScreen">
-    <div class="select-title">Кто следующий у прилавка?</div>
+    <div class="select-title">РљС‚Рѕ СЃР»РµРґСѓСЋС‰РёР№ Сѓ РїСЂРёР»Р°РІРєР°?</div>
     <div class="customer-cards" id="customerCards"></div>
   </div>
 
   <div class="round-screen" id="roundScreen">
     <div class="order-bubble" id="orderBubble">
-      <div class="order-label">Заказ №<span id="orderNum">1</span></div>
-      <div class="order-text"><span class="av" id="orderAvatar">🧑‍🌾</span><span id="orderText">...</span></div>
+      <div class="order-label">Р—Р°РєР°Р· в„–<span id="orderNum">1</span></div>
+      <div class="order-text"><span class="av" id="orderAvatar">рџ§‘вЂЌрџЊѕ</span><span id="orderText">...</span></div>
     </div>
 
-    <div class="phase-label" id="phaseLabel">запоминай...</div>
+    <div class="phase-label" id="phaseLabel">Р·Р°РїРѕРјРёРЅР°Р№...</div>
 
     <div class="control-row">
       <div class="side-col left-col" id="leftCol">
         <div class="vslider-group" id="colorGroupA">
-          <div class="vslider-label" id="colorLabelA">Цвет</div>
+          <div class="vslider-label" id="colorLabelA">Р¦РІРµС‚</div>
           <div id="mColor"></div>
           <div class="vslider-value" id="lblColor"></div>
         </div>
         <div class="vslider-group hidden" id="colorGroupB">
-          <div class="vslider-label">Оттенок Б</div>
+          <div class="vslider-label">РћС‚С‚РµРЅРѕРє Р‘</div>
           <div id="mColorB"></div>
           <div class="vslider-value" id="lblColorB"></div>
         </div>
         <div class="vslider-group hidden" id="satGroup">
-          <div class="vslider-label">Насыщ.</div>
+          <div class="vslider-label">РќР°СЃС‹С‰.</div>
           <div id="mSat"></div>
           <div class="vslider-value" id="lblSat"></div>
         </div>
@@ -302,22 +343,22 @@
 
       <div class="side-col right-col" id="rightCol">
         <div class="vslider-group">
-          <div class="vslider-label">Размер банки</div>
+          <div class="vslider-label">Р Р°Р·РјРµСЂ Р±Р°РЅРєРё</div>
           <div id="mSize"></div>
           <div class="vslider-value" id="lblSize"></div>
         </div>
         <div class="vslider-group">
-          <div class="vslider-label">Пузырьки</div>
+          <div class="vslider-label">РџСѓР·С‹СЂСЊРєРё</div>
           <div id="mCount"></div>
           <div class="vslider-value" id="lblCount"></div>
         </div>
         <div class="vslider-group">
-          <div class="vslider-label">Разм. пуз.</div>
+          <div class="vslider-label">Р Р°Р·Рј. РїСѓР·.</div>
           <div id="mBsize"></div>
           <div class="vslider-value" id="lblBsize"></div>
         </div>
         <div class="vslider-group hidden" id="shapeGroup">
-          <div class="vslider-label">Форма</div>
+          <div class="vslider-label">Р¤РѕСЂРјР°</div>
           <div class="shape-preview-box"><svg id="shapePreviewSvg" width="34" height="46" viewBox="0 0 60 70"></svg></div>
           <div id="mShape"></div>
           <div class="vslider-value" id="lblShape"></div>
@@ -327,39 +368,39 @@
 
     <div class="panel" id="panel">
       <div class="ingredient-counter" id="ingCounter"></div>
-      <button class="brew-btn" id="brewBtn">Готово!</button>
+      <button class="brew-btn" id="brewBtn">Р“РѕС‚РѕРІРѕ!</button>
     </div>
   </div>
 </div>
 
 <div class="result-overlay" id="resultOverlay">
   <div class="result-card">
-    <div class="sticker" id="stickerEmoji">🐱</div>
-    <div class="result-title" id="resultTitle">Идеально!</div>
+    <div class="sticker" id="stickerEmoji">рџђ±</div>
+    <div class="result-title" id="resultTitle">РРґРµР°Р»СЊРЅРѕ!</div>
     <div class="delta" id="deltaVal">+0</div>
     <div class="speed-note" id="speedNote"></div>
     <div class="overall-score" id="overallScore">0%</div>
     <div class="score-breakdown" id="breakdown"></div>
-    <button class="next-btn" id="nextBtn">К прилавку →</button>
+    <button class="next-btn" id="nextBtn">Рљ РїСЂРёР»Р°РІРєСѓ в†’</button>
   </div>
 </div>
 
 <div class="week-overlay" id="weekOverlay">
   <div class="week-card">
-    <h3>Неделя завершена!</h3>
+    <h3>РќРµРґРµР»СЏ Р·Р°РІРµСЂС€РµРЅР°!</h3>
     <div class="final-score" id="finalScoreVal">0</div>
-    <input type="text" id="nameInput" placeholder="Впиши свой ник...">
-    <button class="next-btn" id="saveScoreBtn" style="border-color:var(--emerald-light);color:var(--emerald-light);">Сохранить результат</button>
+    <input type="text" id="nameInput" placeholder="Р’РїРёС€Рё СЃРІРѕР№ РЅРёРє...">
+    <button class="next-btn" id="saveScoreBtn" style="border-color:var(--emerald-light);color:var(--emerald-light);">РЎРѕС…СЂР°РЅРёС‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚</button>
     <div class="leaderboard-list" id="leaderboardList"></div>
-    <button class="next-btn" id="newWeekBtn">Начать новую неделю →</button>
+    <button class="next-btn" id="newWeekBtn">РќР°С‡Р°С‚СЊ РЅРѕРІСѓСЋ РЅРµРґРµР»СЋ в†’</button>
   </div>
 </div>
 
 <div class="week-overlay" id="lbOverlay">
   <div class="week-card">
-    <h3>🏆 Глобальный рейтинг</h3>
+    <h3>рџЏ† Р“Р»РѕР±Р°Р»СЊРЅС‹Р№ СЂРµР№С‚РёРЅРі</h3>
     <div class="leaderboard-list" id="lbOverlayList"></div>
-    <button class="next-btn" id="lbCloseBtn">Закрыть</button>
+    <button class="next-btn" id="lbCloseBtn">Р—Р°РєСЂС‹С‚СЊ</button>
   </div>
 </div>
 
@@ -367,6 +408,33 @@
 (function(){
   const $ = id => document.getElementById(id);
   const SVGNS = 'http://www.w3.org/2000/svg';
+
+  // ---------- ZzFX micro sound engine (public domain, zzfx.3d2k.com) ----------
+  let zzfxV=.3, zzfxX;
+  function zzfxEnsureCtx(){ if(!zzfxX){ try{ zzfxX = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
+  function zzfx(...t){
+    if(!zzfxX) return;
+    let [q=1,k=.05,c=220,e=0,t2=0,u=.1,r=0,F=1,v=0,z=0,w=0,A=0,l=0,B=0,x=0,G=0,d=0,y=1,m=0,C=0]=t;
+    let b=2*Math.PI,H=v*=500*b/zzfxX.sampleRate**2,I=(0<x?1:-1)*b/4,D=c*=(1+2*k*Math.random()-k)*b/zzfxX.sampleRate,Z=[],g=0,E=0,a=0,n=1,J=0,K=0,f=0,p,h;
+    e=99+zzfxX.sampleRate*e;m*=zzfxX.sampleRate;t2*=zzfxX.sampleRate;u*=zzfxX.sampleRate;d*=zzfxX.sampleRate;z*=500*b/zzfxX.sampleRate**3;x*=b/zzfxX.sampleRate;w*=b/zzfxX.sampleRate;A*=zzfxX.sampleRate;l=zzfxX.sampleRate*l|0;
+    for(h=e+m+t2+u+d|0;a<h;Z[a++]=f)++K%(100*G|0)||(f=r?1<r?2<r?3<r?Math.sin((g%b)**3):Math.max(Math.min(Math.tan(g),1),-1):1-(2*g/b%2+2)%2:1-4*Math.abs(Math.round(g/b)-g/b):Math.sin(g),f=(l?1-C+C*Math.sin(2*Math.PI*a/l):1)*(0<f?1:-1)*Math.abs(f)**F*q*zzfxV*(a<e?a/e:a<e+m?1-(a-e)/m*(1-y):a<e+m+t2?y:a<h-d?(h-a-d)/u*y:0),f=d?f/2+(d>a?0:(a<h-d?1:(h-a)/d)*Z[a-d|0]/2):f),p=(c+=v+=z)*Math.sin(E*x-I),g+=p-p*B*(1-1E9*(Math.sin(a)+1)%2),E+=p-p*B*(1-1E9*(Math.sin(a)**2+1)%2),n&&++n>A&&(c+=w,D+=w,n=0),!l||++J%l||(c=D,v=H,n=n||1);
+    p=zzfxX.createBuffer(1,h,zzfxX.sampleRate);p.getChannelData(0).set(Z);c=zzfxX.createBufferSource();c.buffer=p;c.connect(zzfxX.destination);c.start();
+  }
+  // sound palette: quiet UI vs louder moments
+  const SFX = {
+    tick:      ()=>zzfx(.15,.05,900,.005,.005,.008,0,2,0,0,0,0,0,0,0,0,0,.6,.002),
+    uiClick:   ()=>zzfx(.2,.05,520,.005,.01,.03,0,1.6,0,0,0,0,0,0,0,0,0,.7,.005),
+    cardPick:  ()=>zzfx(.3,.05,340,.01,.04,.09,0,1.4,0,20,0,0,0,0,0,0,0,.7,.01),
+    brew:      ()=>zzfx(.4,.05,160,.02,.08,.18,0,1.2,0,-30,0,0,0,0,0,0,0,.8,.03),
+    orderShow: ()=>zzfx(.3,.05,440,.01,.06,.12,0,1.5,0,60,150,.06,0,0,0,0,0,.7,.02),
+    countdown: ()=>zzfx(.45,.05,660,.005,.02,.06,0,2,0,0,0,0,0,0,0,0,0,.6,.01),
+    perfect:   ()=>zzfx(.7,.05,520,.02,.2,.3,0,1.3,0,0,260,.08,.05,0,0,0,0,.8,.08),
+    good:      ()=>zzfx(.55,.05,420,.02,.12,.22,0,1.4,0,0,130,.07,0,0,0,0,0,.75,.05),
+    bad:       ()=>zzfx(.55,.05,220,.03,.15,.35,1,1.6,0,0,-60,.1,0,0,0,0,0,.8,.1),
+    weekEnd:   ()=>zzfx(.6,.05,392,.03,.25,.4,0,1.2,0,0,196,.12,.08,0,0,0,0,.85,.12)
+  };
+  // browsers require a user gesture before audio can start
+  window.addEventListener('pointerdown', zzfxEnsureCtx, {once:true});
 
   function mulberry32(a){
     return function(){
@@ -420,7 +488,7 @@
       let raw = _min + p*(_max-_min);
       raw = Math.round(raw/_step)*_step;
       raw = Math.min(_max, Math.max(_min, raw));
-      if(raw !== _value){ _value = raw; render(); if(onChange) onChange(_value); }
+      if(raw !== _value){ _value = raw; render(); SFX.tick(); if(onChange) onChange(_value); }
     }
     let dragging = false;
     wrap.addEventListener('pointerdown', e=>{
@@ -456,30 +524,30 @@
 
   // ---------- Difficulty presets ----------
   const DIFFICULTIES = [
-    { tier:1, type:'normal', emoji:'🧑‍🌾', flavors:['Просто зелёное, пожалуйста.','Мне бы что-нибудь обычное.','Свари, что попроще.'],
+    { tier:1, type:'normal', emoji:'рџ§‘вЂЌрџЊѕ', flavors:['РџСЂРѕСЃС‚Рѕ Р·РµР»С‘РЅРѕРµ, РїРѕР¶Р°Р»СѓР№СЃС‚Р°.','РњРЅРµ Р±С‹ С‡С‚Рѕ-РЅРёР±СѓРґСЊ РѕР±С‹С‡РЅРѕРµ.','РЎРІР°СЂРё, С‡С‚Рѕ РїРѕРїСЂРѕС‰Рµ.'],
       memorizeMs:6000, craftMs:22000, colorSteps:6, sizeSteps:5, countMax:5, bsizeSteps:5, reward:50 },
-    { tier:2, type:'normal', emoji:'🙋', flavors:['Хочу зелье с изюминкой.','Нужно кое-что поинтереснее.','Покажи класс!'],
+    { tier:2, type:'normal', emoji:'рџ™‹', flavors:['РҐРѕС‡Сѓ Р·РµР»СЊРµ СЃ РёР·СЋРјРёРЅРєРѕР№.','РќСѓР¶РЅРѕ РєРѕРµ-С‡С‚Рѕ РїРѕРёРЅС‚РµСЂРµСЃРЅРµРµ.','РџРѕРєР°Р¶Рё РєР»Р°СЃСЃ!'],
       memorizeMs:5500, craftMs:17000, colorSteps:9, sizeSteps:7, countMax:7, bsizeSteps:7, reward:85 },
-    { tier:3, type:'normal', emoji:'💁', flavors:['У меня особые вкусы.','Сделай точно, как я показал.','Тонкая работа нужна.'],
+    { tier:3, type:'normal', emoji:'рџ’Ѓ', flavors:['РЈ РјРµРЅСЏ РѕСЃРѕР±С‹Рµ РІРєСѓСЃС‹.','РЎРґРµР»Р°Р№ С‚РѕС‡РЅРѕ, РєР°Рє СЏ РїРѕРєР°Р·Р°Р».','РўРѕРЅРєР°СЏ СЂР°Р±РѕС‚Р° РЅСѓР¶РЅР°.'],
       memorizeMs:5000, craftMs:13800, colorSteps:14, sizeSteps:11, countMax:10, bsizeSteps:11, reward:130 },
-    { tier:4, type:'normal', emoji:'🤵', flavors:['Я разбираюсь в зельях. Не подведи.','Ошибок не потерплю.','Жду безупречный результат.'],
+    { tier:4, type:'normal', emoji:'рџ¤µ', flavors:['РЇ СЂР°Р·Р±РёСЂР°СЋСЃСЊ РІ Р·РµР»СЊСЏС…. РќРµ РїРѕРґРІРµРґРё.','РћС€РёР±РѕРє РЅРµ РїРѕС‚РµСЂРїР»СЋ.','Р–РґСѓ Р±РµР·СѓРїСЂРµС‡РЅС‹Р№ СЂРµР·СѓР»СЊС‚Р°С‚.'],
       memorizeMs:4500, craftMs:10000, colorSteps:24, sizeSteps:19, countMax:12, bsizeSteps:19, reward:180 },
-    { tier:5, type:'normal', emoji:'👑', flavors:['Идеал или ничего.','Только совершенство.','Разочаруешь — и лавка закрыта.'],
+    { tier:5, type:'normal', emoji:'рџ‘‘', flavors:['РРґРµР°Р» РёР»Рё РЅРёС‡РµРіРѕ.','РўРѕР»СЊРєРѕ СЃРѕРІРµСЂС€РµРЅСЃС‚РІРѕ.','Р Р°Р·РѕС‡Р°СЂСѓРµС€СЊ вЂ” Рё Р»Р°РІРєР° Р·Р°РєСЂС‹С‚Р°.'],
       memorizeMs:4000, craftMs:7500, colorSteps:37, sizeSteps:26, countMax:14, bsizeSteps:26, reward:240 }
   ];
 
   const SPECIAL_ORDERS = [
-    { tier:5, type:'shape', emoji:'👨‍🍳', flavors:['Бутылка должна быть точь-в-точь такой формы!','Форма — моя визитная карточка, не перепутай.','Форму запоминай внимательнее всего!'],
+    { tier:5, type:'shape', emoji:'рџ‘ЁвЂЌрџЌі', flavors:['Р‘СѓС‚С‹Р»РєР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ С‚РѕС‡СЊ-РІ-С‚РѕС‡СЊ С‚Р°РєРѕР№ С„РѕСЂРјС‹!','Р¤РѕСЂРјР° вЂ” РјРѕСЏ РІРёР·РёС‚РЅР°СЏ РєР°СЂС‚РѕС‡РєР°, РЅРµ РїРµСЂРµРїСѓС‚Р°Р№.','Р¤РѕСЂРјСѓ Р·Р°РїРѕРјРёРЅР°Р№ РІРЅРёРјР°С‚РµР»СЊРЅРµРµ РІСЃРµРіРѕ!'],
       memorizeMs:6500, craftMs:20000, colorSteps:10, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300 },
-    { tier:5, type:'gradient', emoji:'🧙‍♀️', flavors:['Зелье должно переливаться двумя цветами!','Оттенки должны перетекать один в другой.','Я сразу почувствую фальшь в неверных цветах.'],
+    { tier:5, type:'gradient', emoji:'рџ§™вЂЌв™ЂпёЏ', flavors:['Р—РµР»СЊРµ РґРѕР»Р¶РЅРѕ РїРµСЂРµР»РёРІР°С‚СЊСЃСЏ РґРІСѓРјСЏ С†РІРµС‚Р°РјРё!','РћС‚С‚РµРЅРєРё РґРѕР»Р¶РЅС‹ РїРµСЂРµС‚РµРєР°С‚СЊ РѕРґРёРЅ РІ РґСЂСѓРіРѕР№.','РЇ СЃСЂР°Р·Сѓ РїРѕС‡СѓРІСЃС‚РІСѓСЋ С„Р°Р»СЊС€СЊ РІ РЅРµРІРµСЂРЅС‹С… С†РІРµС‚Р°С….'],
       memorizeMs:7000, craftMs:20000, colorSteps:14, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300 },
-    { tier:5, type:'moving', emoji:'🍺', flavors:['Пузырьки у меня никогда не сидят на месте!','Уследи-ка за юркими пузырьками!','Мои пузырьки любят полетать по банке!'],
+    { tier:5, type:'moving', emoji:'рџЌє', flavors:['РџСѓР·С‹СЂСЊРєРё Сѓ РјРµРЅСЏ РЅРёРєРѕРіРґР° РЅРµ СЃРёРґСЏС‚ РЅР° РјРµСЃС‚Рµ!','РЈСЃР»РµРґРё-РєР° Р·Р° СЋСЂРєРёРјРё РїСѓР·С‹СЂСЊРєР°РјРё!','РњРѕРё РїСѓР·С‹СЂСЊРєРё Р»СЋР±СЏС‚ РїРѕР»РµС‚Р°С‚СЊ РїРѕ Р±Р°РЅРєРµ!'],
       memorizeMs:7500, craftMs:18100, colorSteps:12, sizeSteps:8, countMax:10, bsizeSteps:8, reward:300 }
   ];
 
   const TIER_COLORS = {1:'var(--t1)',2:'var(--t2)',3:'var(--t3)',4:'var(--t4)',5:'var(--t5)'};
 
-  const SHAPE_NAMES = ['Круглая','Квадратная','Узкая','Бочонок','Песочные часы','Колба-конус','Колба круглая','Гранёная','Капля','Кубышка'];
+  const SHAPE_NAMES = ['РљСЂСѓРіР»Р°СЏ','РљРІР°РґСЂР°С‚РЅР°СЏ','РЈР·РєР°СЏ','Р‘РѕС‡РѕРЅРѕРє','РџРµСЃРѕС‡РЅС‹Рµ С‡Р°СЃС‹','РљРѕР»Р±Р°-РєРѕРЅСѓСЃ','РљРѕР»Р±Р° РєСЂСѓРіР»Р°СЏ','Р“СЂР°РЅС‘РЅР°СЏ','РљР°РїР»СЏ','РљСѓР±С‹С€РєР°'];
   const SHAPE_PROFILES = [
     { points:[[0,0.85],[0.25,1],[0.5,1],[0.75,1],[1,0.9]], smooth:true },
     { points:[[0,0.9],[0.08,1],[0.5,1],[0.92,1],[1,0.9]], smooth:false },
@@ -510,9 +578,9 @@
 
   function updateStickerTally(){
     $('stickerTally').innerHTML = `
-      <span class="tally-item">✨🐱 <b>${stickerCounts.perfect}</b></span>
-      <span class="tally-item">🐱 <b>${stickerCounts.good}</b></span>
-      <span class="tally-item">💩 <b>${stickerCounts.bad}</b></span>
+      <span class="tally-item">вњЁрџђ± <b>${stickerCounts.perfect}</b></span>
+      <span class="tally-item">рџђ± <b>${stickerCounts.good}</b></span>
+      <span class="tally-item">рџ’© <b>${stickerCounts.bad}</b></span>
     `;
   }
 
@@ -534,11 +602,19 @@
   function runTimer(durationMs, onDone){
     cancelAnimationFrame(rafId);
     const start = performance.now();
+    let lastCountdownSec = -1;
+    $('windowFrame').classList.remove('urgent');
     function frame(now){
       const elapsed = now - start;
       const frac = Math.min(1, elapsed/durationMs);
       setRingFraction(frac);
-      if(frac >= 1){ onDone(); return; }
+      const remaining = durationMs - elapsed;
+      if(remaining <= 3000 && remaining > 0){
+        $('windowFrame').classList.add('urgent');
+        const sec = Math.ceil(remaining/1000);
+        if(sec !== lastCountdownSec){ lastCountdownSec = sec; SFX.countdown(); }
+      }
+      if(frac >= 1){ $('windowFrame').classList.remove('urgent'); onDone(); return; }
       rafId = requestAnimationFrame(frame);
     }
     rafId = requestAnimationFrame(frame);
@@ -805,11 +881,11 @@
       card.innerHTML = `
         <div class="avatar">${cfg.emoji}</div>
         <div class="info">
-          <div class="quote">«${flavor}»</div>
-          <div class="reward">за идеал: +${cfg.reward}</div>
+          <div class="quote">В«${flavor}В»</div>
+          <div class="reward">Р·Р° РёРґРµР°Р»: +${cfg.reward}</div>
         </div>
       `;
-      card.addEventListener('click', ()=> startOrder(cfg, flavor));
+      card.addEventListener('click', ()=>{ SFX.cardPick(); startOrder(cfg, flavor); });
       wrap.appendChild(card);
     });
   }
@@ -823,6 +899,7 @@
     $('orderAvatar').textContent = cfg.emoji;
     $('orderText').textContent = flavor;
     $('orderBubble').style.borderLeftColor = TIER_COLORS[cfg.tier];
+    SFX.orderShow();
 
     const flags = computeFlags(cfg);
     const hueIdx = randInt(0, cfg.colorSteps-1);
@@ -864,7 +941,7 @@
     $('panel').classList.remove('hidden');
     $('leftCol').classList.remove('show');
     $('rightCol').classList.remove('show');
-    $('phaseLabel').textContent = 'запоминай...';
+    $('phaseLabel').textContent = 'Р·Р°РїРѕРјРёРЅР°Р№...';
     $('brewBtn').disabled = false;
     craftLocked = false;
 
@@ -877,7 +954,8 @@
     const cfg = target.cfg, flags = target.flags;
     $('fog').classList.add('show');
     setTimeout(()=>{ $('fog').classList.remove('show'); }, 450);
-    $('phaseLabel').textContent = 'твоя очередь — сготовь по памяти!';
+    $('jarSvg').classList.add('brewing');
+    $('phaseLabel').textContent = 'С‚РІРѕСЏ РѕС‡РµСЂРµРґСЊ вЂ” СЃРіРѕС‚РѕРІСЊ РїРѕ РїР°РјСЏС‚Рё!';
     $('panel').classList.add('show');
     $('leftCol').classList.add('show');
     $('rightCol').classList.add('show');
@@ -888,11 +966,11 @@
     S.count.configure({ min:1, max:cfg.countMax, step:1, value:Math.ceil(cfg.countMax/2) });
 
     if(flags.hasGradient){
-      $('colorLabelA').textContent = 'Оттенок А';
+      $('colorLabelA').textContent = 'РћС‚С‚РµРЅРѕРє Рђ';
       $('colorGroupB').classList.remove('hidden');
       S.colorB.configure({ min:0, max:cfg.colorSteps-1, step:1, value:Math.floor((cfg.colorSteps-1)/2) });
     } else {
-      $('colorLabelA').textContent = 'Цвет';
+      $('colorLabelA').textContent = 'Р¦РІРµС‚';
       $('colorGroupB').classList.add('hidden');
     }
 
@@ -924,7 +1002,7 @@
       if(used>=totalDots) clearInterval(ingTimerHandle);
     }, tickMs);
 
-    $('brewBtn').onclick = () => finishCraft();
+    $('brewBtn').onclick = () => { SFX.brew(); finishCraft(); };
 
     setRingFraction(0);
     craftStartTime = performance.now();
@@ -958,7 +1036,7 @@
     let hue2 = null, sat = 70;
     if(flags.hasGradient){
       hue2 = idxToVal(S.colorB.value, cfg.colorSteps, 360);
-      $('lblColorB').textContent = Math.round(hue2) + '°';
+      $('lblColorB').textContent = Math.round(hue2) + 'В°';
     }
     if(flags.hasSat){
       sat = satFromIdx(S.sat.value);
@@ -971,7 +1049,7 @@
       renderShapePreview(shapeIdx);
       $('lblShape').textContent = SHAPE_NAMES[shapeIdx];
     }
-    $('lblColor').textContent = Math.round(hue) + '°';
+    $('lblColor').textContent = Math.round(hue) + 'В°';
     $('lblSize').textContent = Math.round(size) + '%';
     $('lblCount').textContent = count;
     $('lblBsize').textContent = Math.round(bsize) + '%';
@@ -1001,11 +1079,11 @@
       const colorAScore = curveScore(1 - hueDist(guess.hue, target.hue)/180);
       const colorBScore = curveScore(1 - hueDist(hue2, target.hue2)/180);
       components = [
-        {label:'Оттенок А', score:colorAScore, weight:0.225},
-        {label:'Оттенок Б', score:colorBScore, weight:0.225},
-        {label:'Размер банки', score:sizeScore, weight:0.15},
-        {label:'Число пузырьков', score:countScore, weight:0.25},
-        {label:'Размер пузырьков', score:bsizeScore, weight:0.15}
+        {label:'РћС‚С‚РµРЅРѕРє Рђ', score:colorAScore, weight:0.225},
+        {label:'РћС‚С‚РµРЅРѕРє Р‘', score:colorBScore, weight:0.225},
+        {label:'Р Р°Р·РјРµСЂ Р±Р°РЅРєРё', score:sizeScore, weight:0.15},
+        {label:'Р§РёСЃР»Рѕ РїСѓР·С‹СЂСЊРєРѕРІ', score:countScore, weight:0.25},
+        {label:'Р Р°Р·РјРµСЂ РїСѓР·С‹СЂСЊРєРѕРІ', score:bsizeScore, weight:0.15}
       ];
     } else if(flags.hasShape){
       const colorScore = curveScore(1 - hueDist(guess.hue, target.hue)/180);
@@ -1013,30 +1091,30 @@
       const shapeIdx = S.shape.value;
       const shapeScore = curveScore(shapeIdx === target.shapeIdx ? 1 : Math.max(0, 1 - Math.abs(shapeIdx-target.shapeIdx)/4));
       components = [
-        {label:'Цвет', score:colorScore, weight:0.15},
-        {label:'Насыщенность', score:satScore, weight:0.1},
-        {label:'Форма', score:shapeScore, weight:0.25},
-        {label:'Размер банки', score:sizeScore, weight:0.15},
-        {label:'Число пузырьков', score:countScore, weight:0.2},
-        {label:'Размер пузырьков', score:bsizeScore, weight:0.15}
+        {label:'Р¦РІРµС‚', score:colorScore, weight:0.15},
+        {label:'РќР°СЃС‹С‰РµРЅРЅРѕСЃС‚СЊ', score:satScore, weight:0.1},
+        {label:'Р¤РѕСЂРјР°', score:shapeScore, weight:0.25},
+        {label:'Р Р°Р·РјРµСЂ Р±Р°РЅРєРё', score:sizeScore, weight:0.15},
+        {label:'Р§РёСЃР»Рѕ РїСѓР·С‹СЂСЊРєРѕРІ', score:countScore, weight:0.2},
+        {label:'Р Р°Р·РјРµСЂ РїСѓР·С‹СЂСЊРєРѕРІ', score:bsizeScore, weight:0.15}
       ];
     } else if(flags.hasSat){
       const colorScore = curveScore(1 - hueDist(guess.hue, target.hue)/180);
       const satScore = curveScore(1 - Math.abs(satFromIdx(S.sat.value) - target.sat)/70);
       components = [
-        {label:'Цвет', score:colorScore, weight:0.3},
-        {label:'Насыщенность', score:satScore, weight:0.15},
-        {label:'Размер банки', score:sizeScore, weight:0.15},
-        {label:'Число пузырьков', score:countScore, weight:0.2},
-        {label:'Размер пузырьков', score:bsizeScore, weight:0.2}
+        {label:'Р¦РІРµС‚', score:colorScore, weight:0.3},
+        {label:'РќР°СЃС‹С‰РµРЅРЅРѕСЃС‚СЊ', score:satScore, weight:0.15},
+        {label:'Р Р°Р·РјРµСЂ Р±Р°РЅРєРё', score:sizeScore, weight:0.15},
+        {label:'Р§РёСЃР»Рѕ РїСѓР·С‹СЂСЊРєРѕРІ', score:countScore, weight:0.2},
+        {label:'Р Р°Р·РјРµСЂ РїСѓР·С‹СЂСЊРєРѕРІ', score:bsizeScore, weight:0.2}
       ];
     } else {
       const colorScore = curveScore(1 - hueDist(guess.hue, target.hue)/180);
       components = [
-        {label:'Цвет', score:colorScore, weight:0.35},
-        {label:'Размер банки', score:sizeScore, weight:0.2},
-        {label:'Число пузырьков', score:countScore, weight:0.25},
-        {label:'Размер пузырьков', score:bsizeScore, weight:0.2}
+        {label:'Р¦РІРµС‚', score:colorScore, weight:0.35},
+        {label:'Р Р°Р·РјРµСЂ Р±Р°РЅРєРё', score:sizeScore, weight:0.2},
+        {label:'Р§РёСЃР»Рѕ РїСѓР·С‹СЂСЊРєРѕРІ', score:countScore, weight:0.25},
+        {label:'Р Р°Р·РјРµСЂ РїСѓР·С‹СЂСЊРєРѕРІ', score:bsizeScore, weight:0.2}
       ];
     }
     const overall = components.reduce((s,c)=>s+c.score*c.weight, 0);
@@ -1048,6 +1126,8 @@
     cancelAnimationFrame(rafId);
     stopMovingAnim();
     clearInterval(ingTimerHandle);
+    $('windowFrame').classList.remove('urgent');
+    $('jarSvg').classList.remove('brewing');
     $('brewBtn').disabled = true;
     $('panel').classList.add('locked');
     Object.values(S).forEach(s=>s.setDisabled(true));
@@ -1095,20 +1175,29 @@
       else { goodStreakAtMax++; perfectStreakAtMax = 0; }
     }
 
-    $('stickerEmoji').textContent = perfect ? '✨🐱' : good ? '🐱' : '💩';
-    $('resultTitle').textContent = perfect ? 'Идеальное зелье!' : good ? 'Неплохое зелье!' : 'Мимо...';
+    $('stickerEmoji').textContent = perfect ? 'вњЁрџђ±' : good ? 'рџђ±' : 'рџ’©';
+    $('resultTitle').textContent = perfect ? 'РРґРµР°Р»СЊРЅРѕРµ Р·РµР»СЊРµ!' : good ? 'РќРµРїР»РѕС…РѕРµ Р·РµР»СЊРµ!' : 'РњРёРјРѕ...';
     $('resultTitle').className = 'result-title ' + (good ? 'good' : 'bad');
     $('deltaVal').textContent = (delta>=0?'+':'') + delta;
     $('deltaVal').className = 'delta ' + (good ? 'good' : 'bad');
-    $('speedNote').textContent = speedBonusPct >= 1 ? `⚡ бонус за скорость: +${speedBonusPct}%` : '';
+    $('speedNote').textContent = speedBonusPct >= 1 ? `вљЎ Р±РѕРЅСѓСЃ Р·Р° СЃРєРѕСЂРѕСЃС‚СЊ: +${speedBonusPct}%` : '';
     $('overallScore').textContent = overallPct + '%';
     $('breakdown').innerHTML = components.map(c=>
       `<div class="row"><span>${c.label}</span><span class="val">${Math.round(c.score*100)}%</span></div>`
     ).join('');
-    setTimeout(()=> $('resultOverlay').classList.add('show'), 150);
+
+    // result feedback: sound + jar animation, then overlay
+    const jar = $('jarSvg');
+    jar.classList.remove('shake','celebrate');
+    void jar.offsetWidth; // restart animation
+    if(perfect){ SFX.perfect(); jar.classList.add('celebrate'); }
+    else if(good){ SFX.good(); jar.classList.add('celebrate'); }
+    else { SFX.bad(); jar.classList.add('shake'); }
+    setTimeout(()=> $('resultOverlay').classList.add('show'), 450);
   }
 
   $('nextBtn').addEventListener('click', ()=>{
+    SFX.uiClick();
     Object.values(S).forEach(s=>s.setDisabled(false));
     if(dayNum >= 10){
       showWeekOverlay();
@@ -1123,7 +1212,7 @@
   // create a free Firebase Realtime Database and paste its URL below.
   // See README.md for the 5-minute setup. Leave empty and the game still works,
   // it just keeps the leaderboard only in this browser (localStorage).
-  const FIREBASE_DB_URL = 'https://potion-shop2-default-rtdb.europe-west1.firebasedatabase.app'; // e.g. 'https://potion-shop2-default-rtdb.europe-west1.firebasedatabase.app'
+  const FIREBASE_DB_URL = 'https://potion-shop2-default-rtdb.europe-west1.firebasedatabase.app/'; // e.g. 'https://your-project-default-rtdb.firebaseio.com'
   const LOCAL_LB_KEY = 'potionshop_leaderboard_v1';
 
   async function loadLeaderboard(){
@@ -1139,7 +1228,7 @@
   }
   async function saveLeaderboardEntry(name, finalScore){
     const list = await loadLeaderboard();
-    list.push({ name: name || 'Аноним', score: finalScore, date: new Date().toLocaleDateString('ru-RU') });
+    list.push({ name: name || 'РђРЅРѕРЅРёРј', score: finalScore, date: new Date().toLocaleDateString('ru-RU') });
     list.sort((a,b)=>b.score-a.score);
     const top = list.slice(0,50);
     if(FIREBASE_DB_URL){
@@ -1156,18 +1245,20 @@
   function renderLeaderboard(list, highlightScore, elId){
     list.sort((a,b)=>b.score-a.score);
     $(elId).innerHTML = list.map(e=>
-      `<div class="lb-row ${e.score===highlightScore?'me':''}"><span>${e.name}</span><span>${e.score} · ${e.date}</span></div>`
-    ).join('') || '<div style="color:var(--parchment-dim);text-align:center;">Пока пусто — будь первым!</div>';
+      `<div class="lb-row ${e.score===highlightScore?'me':''}"><span>${e.name}</span><span>${e.score} В· ${e.date}</span></div>`
+    ).join('') || '<div style="color:var(--parchment-dim);text-align:center;">РџРѕРєР° РїСѓСЃС‚Рѕ вЂ” Р±СѓРґСЊ РїРµСЂРІС‹Рј!</div>';
   }
 
   $('lbBtn').addEventListener('click', async ()=>{
+    SFX.uiClick();
     const list = await loadLeaderboard();
     renderLeaderboard(list, null, 'lbOverlayList');
     $('lbOverlay').classList.add('show');
   });
-  $('lbCloseBtn').addEventListener('click', ()=>{ $('lbOverlay').classList.remove('show'); });
+  $('lbCloseBtn').addEventListener('click', ()=>{ SFX.uiClick(); $('lbOverlay').classList.remove('show'); });
 
   async function showWeekOverlay(){
+    SFX.weekEnd();
     $('resultOverlay').classList.remove('show');
     $('finalScoreVal').textContent = score;
     $('nameInput').value = '';
@@ -1176,18 +1267,20 @@
     $('weekOverlay').classList.add('show');
   }
   $('saveScoreBtn').addEventListener('click', async ()=>{
+    SFX.uiClick();
     const name = $('nameInput').value.trim().slice(0,20);
     const list = await saveLeaderboardEntry(name, score);
     renderLeaderboard(list, score, 'leaderboardList');
     $('saveScoreBtn').disabled = true;
-    $('saveScoreBtn').textContent = 'Сохранено ✓';
+    $('saveScoreBtn').textContent = 'РЎРѕС…СЂР°РЅРµРЅРѕ вњ“';
   });
   $('newWeekBtn').addEventListener('click', ()=>{
+    SFX.uiClick();
     dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0;
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
     $('saveScoreBtn').disabled = false;
-    $('saveScoreBtn').textContent = 'Сохранить результат';
+    $('saveScoreBtn').textContent = 'РЎРѕС…СЂР°РЅРёС‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚';
     $('weekOverlay').classList.remove('show');
     showSelectScreen();
   });
