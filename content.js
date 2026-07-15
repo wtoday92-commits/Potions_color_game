@@ -8,7 +8,7 @@
 const CONFIG = {
   // Вставь сюда URL своей Firebase Realtime Database, чтобы рейтинг
   // стал общим для всех игроков (см. README.md):
-  FIREBASE_DB_URL: '', // например 'https://your-project-default-rtdb.firebaseio.com'
+  FIREBASE_DB_URL: 'https://potion-shop2-default-rtdb.europe-west1.firebasedatabase.app', // например 'https://your-project-default-rtdb.firebaseio.com'
 };
 
 // ---------- СТИКЕРЫ РЕЗУЛЬТАТА ----------
