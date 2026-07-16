@@ -27,7 +27,7 @@ const STICKERS = { perfect:'✨🐱', good:'🐱', bad:'💩' };
 */
 // ---------- NPCs & difficulty ----------
   const DIFFICULTIES = [
-    { tier:1, type:'normal', emoji:'🛰', name:'Служебный дрон',
+    { tier:1, type:'normal', emoji:'🛰', img:'assets/npc/drone.png', name:'Служебный дрон',
       flavors:[
         'Жидкость для омывателя звездолёта. Любая сойдёт.',
         'Смесь для протирки палубы. Без изысков.',
