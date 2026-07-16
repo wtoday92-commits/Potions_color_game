@@ -444,4 +444,45 @@ body:after{
    живой градиент. Картинкой можно украсить только их рамку:
    .vslide-track.colorstrip{ border:2px solid rgba(53,224,255,.6); }
 --------------------------------------------------------------------------- */
+/* ============================================================
+   ПАТЧ-2: центровка композиции + ровные ползунки + заметная
+   анимация фона. Вставить В КОНЕЦ style.css, после патча-1.
+   ВАЖНО: удали из файла свои старые правила с !important
+   (body::before display:none и т.п.) — иначе звёзды не появятся.
+   ============================================================ */
+
+/* ---------- симметричная сетка: баночка строго по центру ---------- */
+.control-row{grid-template-columns:216px auto 216px;}
+
+/* панели обнимают контент, а не растягиваются на всю колонку */
+.side-col{width:fit-content;justify-content:center;}
+.side-col.left-col{justify-self:end;}
+.side-col.right-col{justify-self:start;}
+
+/* одинаковая ширина каждой группы — рейки встают с равным шагом */
+.vslider-group{width:66px;}
+.vslider-label{width:66px;max-width:66px;}
+
+/* ---------- фон: звёзды мерцают заметнее ---------- */
+body:before{
+  animation: twinkle 3.2s ease-in-out infinite;
+}
+@keyframes twinkle{
+  0%,100%{opacity:1;}
+  50%{opacity:.12;}
+}
+
+/* ---------- фон: туманность плывёт заметнее ---------- */
+body:after{
+  background:
+    radial-gradient(ellipse 45% 34% at 22% 72%, rgba(53,224,255,.17), transparent 70%),
+    radial-gradient(ellipse 40% 30% at 78% 26%, rgba(255,77,210,.15), transparent 70%),
+    radial-gradient(ellipse 34% 26% at 55% 88%, rgba(125,255,106,.10), transparent 70%);
+  animation: nebulaDrift 38s ease-in-out infinite alternate;
+}
+@keyframes nebulaDrift{
+  0%{transform:translate(-4%, 2%) scale(1);}
+  50%{transform:translate(3%, -3%) scale(1.1);}
+  100%{transform:translate(5%, 3%) scale(1.02);}
+}
 body{ background: url('assets/bg/space.png') center/cover fixed; }
