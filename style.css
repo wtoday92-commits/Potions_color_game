@@ -492,3 +492,8 @@ body{ background: url('assets/bg/space.png') center/cover fixed; }
 /* крупнее иконки-стикеры в счётчике под заголовком */
 .tally-item img.tally-img{width:40px;height:40px;vertical-align:-14px;}
 .sticker-tally{font-size:15px;gap:18px;}
+
+.streak-img{width:26px;height:26px;vertical-align:-8px;}
+
+.lb-open-btn img{width:32px;height:32px;display:block;}
+.lb-open-btn{padding:6px 12px;}
