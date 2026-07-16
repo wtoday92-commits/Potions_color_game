@@ -145,7 +145,11 @@ const STICKERS = {
   ];
 
   const TIER_COLORS = {1:'var(--t1)',2:'var(--t2)',3:'var(--t3)',4:'var(--t4)',5:'var(--t5)'};
-  const FOCUS_ICONS = { bubbles:'🫧', color:'🎨', size:'📐' };
+  const FOCUS_ICONS = {
+  bubbles: 'assets/ui/bubble.png',
+  color: 'assets/ui/color.png',
+  size: 'assets/ui/size.png'
+};
   const FOCUS_NAMES = { bubbles:'сгустки', color:'спектр', size:'габариты' };
   const FOCUS_KEYS = {
     bubbles:['count','bsize'],
