@@ -31,7 +31,7 @@
       (поле img у пришельца / пути в STICKERS) — game.js подхватит сам.
    =====================================================================
 */
-body{ background: url('assets/bg/space.png') center/cover fixed; }
+body{ background: url('wtoday92-commits/Potions_color_game/refs/heads/main/assets/bg/space.png') center/cover fixed; }
 body:before{ display:none; }
 
 /* стили для картинок-аватаров и стикеров (работают, когда добавишь img в content.js) */
