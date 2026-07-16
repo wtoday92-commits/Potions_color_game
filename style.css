@@ -31,13 +31,6 @@
       (поле img у пришельца / пути в STICKERS) — game.js подхватит сам.
    =====================================================================
 */
-body::before { 
-  display: none !important; 
-}
-
-body { 
-  background: url('assets/bg/space.png') center/cover fixed !important; 
-}
 
 /* стили для картинок-аватаров и стикеров (работают, когда добавишь img в content.js) */
 .customer-card .avatar img.npc-img{width:46px;height:46px;object-fit:contain;display:block;}
@@ -361,3 +354,94 @@ body {
   @keyframes bubbleIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
 
   @media (prefers-reduced-motion:reduce){*{animation:none !important;}}
+/* ============================================================
+   ПАТЧ: анимация фона + крупные плашки + заметные ползунки.
+   Вставить ЦЕЛИКОМ В КОНЕЦ style.css (после всего).
+   ============================================================ */
+
+/* ---------- 1. Живой фон: мерцающие звёзды + плывущая дымка ---------- */
+body:before{
+  content:""; display:block; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 14% 24%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 76% 12%, #9ff2ff 50%, transparent 51%),
+    radial-gradient(2px 2px at 52% 64%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 32% 82%, #ff4dd2 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 88% 48%, #fff 50%, transparent 51%),
+    radial-gradient(1px 1px at 8% 58%, #7dff6a 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 64% 90%, #9ff2ff 50%, transparent 51%);
+  animation: twinkle 4.5s ease-in-out infinite;
+}
+@keyframes twinkle{
+  0%,100%{opacity:.9;}
+  50%{opacity:.25;}
+}
+body:after{
+  content:""; position:fixed; inset:-25%; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(ellipse 40% 30% at 25% 70%, rgba(53,224,255,.10), transparent 70%),
+    radial-gradient(ellipse 35% 28% at 75% 30%, rgba(255,77,210,.09), transparent 70%),
+    radial-gradient(ellipse 30% 22% at 55% 85%, rgba(125,255,106,.06), transparent 70%);
+  animation: nebulaDrift 70s ease-in-out infinite alternate;
+}
+@keyframes nebulaDrift{
+  0%{transform:translate(0,0) scale(1);}
+  50%{transform:translate(3%, -2%) scale(1.06);}
+  100%{transform:translate(-3%, 2%) scale(1);}
+}
+
+/* ---------- 2. Крупнее плашки заданий ---------- */
+.customer-cards{max-width:560px;gap:14px;}
+.customer-card{padding:18px 20px;gap:16px;border-width:3.5px;}
+.customer-card .avatar{font-size:44px;}
+.customer-card .avatar img.npc-img{width:64px;height:64px;}
+.customer-card .npc-name{font-size:12.5px;}
+.customer-card .quote{font-size:15px;}
+.customer-card .reward{font-size:14.5px;margin-top:6px;}
+.select-title{font-size:17px;}
+.focus-badge{font-size:14px;padding:3px 11px;}
+
+/* ---------- 3. Крупнее шапка: дни, рейтинг, кнопка ---------- */
+.topbar{font-size:15px;}
+.lb-open-btn{font-size:18px;padding:5px 12px;}
+
+/* ---------- 4. Ползунки: подложки-панели, чтобы не тонули в фоне ---------- */
+.control-row{grid-template-columns:176px auto 216px;}
+.side-col{
+  background:rgba(5,8,20,.8);
+  border:1px solid rgba(53,224,255,.3);
+  border-radius:16px;
+  padding:14px 12px;
+  box-shadow:0 0 26px -10px rgba(53,224,255,.55), inset 0 0 20px rgba(0,0,0,.5);
+}
+
+/* дорожки и бегунки — контрастнее */
+.vslide-track.plain{
+  background:linear-gradient(180deg, rgba(53,224,255,.38), rgba(53,224,255,.12));
+  border:1px solid rgba(53,224,255,.55);
+  box-shadow:inset 0 0 8px rgba(0,0,0,.75), 0 0 12px -3px rgba(53,224,255,.6);
+}
+.vslide-thumb{
+  background:radial-gradient(circle at 35% 35%, #ffffff, var(--neon) 55%, #0a7d97);
+  border:2px solid #031017;
+  box-shadow:0 0 14px rgba(53,224,255,1);
+}
+.vslider-label{color:#c7d5ff;}
+.vslider-value{font-size:14px;}
+
+/* ---------- 5. Хуки под КАРТИНОЧНЫЕ ползунки (когда сгенеришь ассеты) ----------
+   Дорожка (вертикальная, ~64x520px, PNG с прозрачностью):
+   .vslide-track.plain{
+     background:url('assets/ui/slider_track.png') center/100% 100% no-repeat;
+     border:none; box-shadow:none;
+   }
+   Бегунок (круглый, ~96x96px):
+   .vslide-thumb{
+     background:url('assets/ui/slider_thumb.png') center/contain no-repeat;
+     border:none; box-shadow:none; border-radius:0;
+   }
+   ВАЖНО: цветные шкалы (спектр/накал) остаются кодовыми — они показывают
+   живой градиент. Картинкой можно украсить только их рамку:
+   .vslide-track.colorstrip{ border:2px solid rgba(53,224,255,.6); }
+--------------------------------------------------------------------------- */
+body{ background: url('assets/bg/space.png') center/cover fixed; }
