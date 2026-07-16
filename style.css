@@ -547,3 +547,18 @@ body:after{
 }
 
 
+/* сплэш: арт лавки + надпись в правом верхнем секторе */
+#splashScreen{
+  background: url('assets/bg/splash.png') center/cover no-repeat;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 8vh 6vw 0 0;
+}
+#splashScreen .splash-inner{
+  max-width: 520px;
+  text-align: right;
+  background: rgba(4,5,13,.38);
+  border-radius: 16px;
+  padding: 22px 26px;
+  backdrop-filter: blur(2px);
+}
