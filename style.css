@@ -486,3 +486,7 @@ body:after{
   100%{transform:translate(5%, 3%) scale(1.02);}
 }
 body{ background: url('assets/bg/space.png') center/cover fixed; }
+ 
+.vslide-thumb{
+     background:url('assets/ui/slider_thumb.png') center/contain no-repeat;
+     border:none; box-shadow:none; border-radius:0;
