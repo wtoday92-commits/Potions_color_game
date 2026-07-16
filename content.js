@@ -14,16 +14,23 @@ const CONFIG = {
 // ---------- СТИКЕРЫ РЕЗУЛЬТАТА ----------
 // Чтобы заменить на картинку: sticker может быть путём к файлу,
 // например perfect: 'assets/ui/sticker_perfect.png' — game.js поймёт сам.
-const STICKERS = { perfect: [
-       'assets/ui/perfect1.png',
-       'assets/ui/perfect2.png',
-       'assets/ui/perfect3.png',], good:[
-       'assets/ui/good1.png',
-       'assets/ui/good2.png',
-       'assets/ui/good3.png',]', bad:[
-       'assets/ui/bad1.png',
-       'assets/ui/bad2.png',
-       'assets/ui/bad3.png',]' };
+const STICKERS = {
+  perfect: [
+    'assets/ui/perfect1.png',
+    'assets/ui/perfect2.png',
+    'assets/ui/perfect3.png',
+  ],
+  good: [
+    'assets/ui/good1.png',
+    'assets/ui/good2.png',
+    'assets/ui/good3.png',
+  ],
+  bad: [
+    'assets/ui/bad1.png',
+    'assets/ui/bad2.png',
+    'assets/ui/bad3.png',
+  ]
+};
 
 /* ---------- ПРИШЕЛЬЦЫ ----------
    Каждому НПС можно добавить поле img: 'assets/npc/имя.png' —
