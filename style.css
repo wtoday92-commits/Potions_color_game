@@ -501,3 +501,14 @@ body{ background: url('assets/bg/space.png') center/cover fixed; }
 /* иконки-картинки фокус-заказов */
 img.focus-img{width:22px;height:22px;object-fit:contain;vertical-align:-6px;}
 .focus-badge img.focus-img{width:20px;height:20px;vertical-align:-5px;}
+
+/* фокус-бейджи и иконки — крупные, читаемые */
+img.focus-img{width:32px;height:32px;vertical-align:-10px;}
+.focus-badge{font-size:15px;padding:5px 14px;top:-18px;}
+.focus-badge img.focus-img{width:28px;height:28px;vertical-align:-8px;}
+.order-focus-tag{font-size:14px;}
+
+.tally-item img.tally-img{width:56px;height:56px;vertical-align:-20px;}
+.sticker-tally{gap:22px;font-size:16px;}
+
+
