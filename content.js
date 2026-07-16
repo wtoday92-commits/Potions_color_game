@@ -31,7 +31,18 @@ const STICKERS = { perfect:'✨🐱', good:'🐱', bad:'💩' };
 */
 // ---------- NPCs & difficulty ----------
   const DIFFICULTIES = [
-    { tier:1, type:'normal', emoji:'🛰', img: 'assets/npc/drone.png', name:'Служебный дрон',
+    { tier:1, type:'normal', emoji:'🛰', img: [
+       'assets/npc/drone.png',
+       'assets/npc/drone1.png',
+       'assets/npc/drone2.png',
+       'assets/npc/drone3.png',
+       'assets/npc/drone4.png',
+       'assets/npc/drone5.png',
+       'assets/npc/drone6.png',
+       'assets/npc/drone7.png',
+       'assets/npc/drone8.png',
+       'assets/npc/drone9.png'],
+       name:'Служебный дрон',
       flavors:[
         'Жидкость для омывателя звездолёта. Любая сойдёт.',
         'Смесь для протирки палубы. Без изысков.',
