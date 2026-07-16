@@ -511,4 +511,39 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 .tally-item img.tally-img{width:56px;height:56px;vertical-align:-20px;}
 .sticker-tally{gap:22px;font-size:16px;}
 
+/* ===== ПАТЧ-3: анимация фона, видимая поверх арта ===== */
+
+/* звёзды: замощены по всему экрану, со свечением */
+body:before{
+  background-image:
+    radial-gradient(6px 6px at 20px 30px, rgba(159,242,255,.55), transparent 70%),
+    radial-gradient(2px 2px at 20px 30px, #fff 50%, transparent 51%),
+    radial-gradient(5px 5px at 150px 140px, rgba(255,77,210,.5), transparent 70%),
+    radial-gradient(1.6px 1.6px at 150px 140px, #ffd9f4 50%, transparent 51%),
+    radial-gradient(2.2px 2.2px at 220px 60px, #fff 50%, transparent 51%),
+    radial-gradient(1.6px 1.6px at 80px 210px, #9ff2ff 50%, transparent 51%),
+    radial-gradient(5px 5px at 260px 230px, rgba(125,255,106,.45), transparent 70%),
+    radial-gradient(1.8px 1.8px at 260px 230px, #eaffe6 50%, transparent 51%);
+  background-size:320px 320px;
+  animation: twinkle 2.6s ease-in-out infinite;
+}
+@keyframes twinkle{
+  0%,100%{opacity:1;}
+  50%{opacity:.1;}
+}
+
+/* туманность: режим screen — светится поверх любого арта */
+body:after{
+  background:
+    radial-gradient(ellipse 50% 40% at 20% 70%, rgba(53,224,255,.32), transparent 70%),
+    radial-gradient(ellipse 45% 35% at 80% 25%, rgba(255,77,210,.28), transparent 70%),
+    radial-gradient(ellipse 40% 30% at 55% 90%, rgba(125,255,106,.18), transparent 70%);
+  mix-blend-mode: screen;
+  animation: nebulaDrift 26s ease-in-out infinite alternate;
+}
+@keyframes nebulaDrift{
+  0%{transform:translate(-6%, 3%) scale(1);}
+  100%{transform:translate(6%, -4%) scale(1.14);}
+}
+
 
