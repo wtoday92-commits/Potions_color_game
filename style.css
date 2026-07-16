@@ -488,3 +488,7 @@ body:after{
 body{ background: url('assets/bg/space.png') center/cover fixed; }
  
 .window-frame{ background: url('assets/ui/clockface1.png') center/cover; }
+
+/* крупнее иконки-стикеры в счётчике под заголовком */
+.tally-item img.tally-img{width:40px;height:40px;vertical-align:-14px;}
+.sticker-tally{font-size:15px;gap:18px;}
