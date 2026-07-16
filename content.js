@@ -8,7 +8,7 @@
 const CONFIG = {
   // Вставь сюда URL своей Firebase Realtime Database, чтобы рейтинг
   // стал общим для всех игроков (см. README.md):
-  FIREBASE_DB_URL: '', // например 'https://your-project-default-rtdb.firebaseio.com'
+  FIREBASE_DB_URL: 'https://potion-shop2-default-rtdb.europe-west1.firebasedatabase.app', // например 'https://your-project-default-rtdb.firebaseio.com'
 };
 
 // ---------- СТИКЕРЫ РЕЗУЛЬТАТА ----------
@@ -31,7 +31,7 @@ const STICKERS = { perfect:'✨🐱', good:'🐱', bad:'💩' };
 */
 // ---------- NPCs & difficulty ----------
   const DIFFICULTIES = [
-    { tier:1, type:'normal', emoji:'🛰', name:'Служебный дрон',
+    { tier:1, type:'normal', emoji:'🛰', img: 'assets/npc/drone.png', name:'Служебный дрон',
       flavors:[
         'Жидкость для омывателя звездолёта. Любая сойдёт.',
         'Смесь для протирки палубы. Без изысков.',
