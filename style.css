@@ -497,3 +497,7 @@ body{ background: url('assets/bg/space.png') center/cover fixed; }
 
 .lb-open-btn img{width:32px;height:32px;display:block;}
 .lb-open-btn{padding:2px 6px;}
+
+/* иконки-картинки фокус-заказов */
+img.focus-img{width:22px;height:22px;object-fit:contain;vertical-align:-6px;}
+.focus-badge img.focus-img{width:20px;height:20px;vertical-align:-5px;}
