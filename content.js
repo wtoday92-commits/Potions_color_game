@@ -71,6 +71,7 @@ const STICKERS = {
       },
       memorizeMs:6000, craftMs:22000, colorSteps:6, sizeSteps:5, countMax:5, bsizeSteps:5, reward:50 },
     { tier:2, type:'normal', emoji:'🐙', name:'Тентаклоид',
+     img: 'assets/npc/tentacloid.png',
       flavors:[
         'Моим щупальцам нравится, когда красиво. Сделай красиво.',
         'Смесь для настроения. Удиви меня, торговец.',
@@ -83,6 +84,7 @@ const STICKERS = {
       },
       memorizeMs:5500, craftMs:17000, colorSteps:9, sizeSteps:7, countMax:7, bsizeSteps:7, reward:85 },
     { tier:3, type:'normal', emoji:'👾', name:'Гурман с Веги',
+     img: 'assets/npc/gurman.png',
       flavors:[
         'Это приправа к ужину. Ошибёшься — ужин обидится.',
         'Тонкий вкус требует тонкой работы. Приступай.',
@@ -95,6 +97,7 @@ const STICKERS = {
       },
       memorizeMs:5000, craftMs:13800, colorSteps:14, sizeSteps:11, countMax:10, bsizeSteps:11, reward:130 },
     { tier:4, type:'normal', emoji:'🤖', name:'Логик-9',
+      img: 'assets/npc/kai-9.png',
       flavors:[
         'СМЕСЬ. ОХЛАЖДЕНИЕ. РЕАКТОР. ТОЧНОСТЬ. ОБЯЗАТЕЛЬНА.',
         'ОТКЛОНЕНИЕ. НЕДОПУСТИМО. ПОВТОРЯЮ. НЕДОПУСТИМО.',
@@ -107,6 +110,7 @@ const STICKERS = {
       },
       memorizeMs:4500, craftMs:10000, colorSteps:24, sizeSteps:19, countMax:12, bsizeSteps:19, reward:180 },
     { tier:5, type:'normal', emoji:'👁', name:'Последний из Ир',
+      img: 'assets/npc/ir.png',
       flavors:[
         'Моя раса угасает. Эта смесь — наш последний рассвет.',
         'Ты держишь в руках память миллиона поколений. Не урони.',
@@ -122,6 +126,7 @@ const STICKERS = {
 
   const SPECIAL_ORDERS = [
     { tier:5, type:'shape', emoji:'🦑', name:'Шеф туманности',
+      img: 'assets/npc/chef.png',
       flavors:[
         'Форма сосуда — часть рецепта. Мой соус этого требует!',
         'В моей кухне геометрия — это специя. Не перепутай силуэт!',
@@ -129,6 +134,7 @@ const STICKERS = {
       ],
       memorizeMs:6500, craftMs:20000, colorSteps:10, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300 },
     { tier:5, type:'gradient', emoji:'🧿', name:'Двуликая жрица',
+      img: 'assets/npc/twofaced.png',
       flavors:[
         'Смесь должна переливаться, как двойной закат моего мира.',
         'Два спектра. Одно целое. Я почувствую фальшь кожей.',
@@ -136,6 +142,7 @@ const STICKERS = {
       ],
       memorizeMs:7000, craftMs:20000, colorSteps:14, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300 },
     { tier:5, type:'moving', emoji:'🍹', name:'Бармен плазма-бара',
+      img: 'assets/npc/barmen.png',
       flavors:[
         'Сгустки у меня в баре не сидят на месте! Лови ритм!',
         'Живая смесь! Живая! Считай на лету, торговец!',
