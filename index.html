@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Зельеварня — лавка на краю вселенной</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Jura:wght@500;700&family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+
+<div id="splashScreen">
+  <div class="splash-inner">
+    <h2>Добро пожаловать в место,<br>где зелья стали вашим домом</h2>
+    <div class="splash-sub">лавка пришвартована у самого края вселенной</div>
+  </div>
+  <button class="dock-btn" id="dockBtn">Пришвартоваться</button>
+</div>
+
+<!-- ЭМБИЕНТ: положи трек в assets/audio/ и укажи путь в src ниже (например assets/audio/ambient.mp3) -->
+<audio id="ambientAudio" loop preload="auto">
+  <source src="assets/audio/ambient.mp3" type="audio/mpeg">
+</audio>
+
+<div class="stage">
+  <div class="topbar">
+    <div class="day-counter">День <b id="dayVal">1</b>/10</div>
+    <div class="streak"><img src="assets/ui/streak.png" class="streak-img" alt=""><span id="streakVal">0</span></div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="score">РЕЙТИНГ: <span id="scoreVal">0</span></div>
+      <button id="lbBtn" class="lb-open-btn" title="Глобальный рейтинг"><img src="assets/ui/lb-open-btn.png" class="rating-img" alt=""></button>
+      <div class="volume-control" title="Громкость эмбиента">
+        <span class="volume-icon" id="volumeIcon">🔊</span>
+        <input type="range" id="volumeSlider" min="0" max="100" value="60" step="1">
+      </div>
+    </div>
+  </div>
+  <h1 class="title">Зельеварня</h1>
+  <p class="subtitle">лавка смесей // сектор Ω // край вселенной</p>
+  <div class="sticker-tally" id="stickerTally"></div>
+
+  <div class="select-screen" id="selectScreen">
+    <div class="select-title">Кто пришвартовался к лавке?</div>
+    <div class="customer-cards" id="customerCards"></div>
+  </div>
+
+  <div class="round-screen" id="roundScreen">
+    <div class="order-bubble" id="orderBubble">
+      <div class="order-label">
+        <span>Заявка №<span id="orderNum">1</span></span>
+        <span class="order-focus-tag" id="orderFocusTag"></span>
+      </div>
+      <div class="order-text"><span class="av" id="orderAvatar">🛰</span><span id="orderText">...</span></div>
+    </div>
+
+    <div class="phase-label" id="phaseLabel">сканируй образец...</div>
+
+    <div class="control-row">
+      <div class="side-col left-col" id="leftCol">
+        <div class="vslider-group" id="colorGroupA">
+          <div class="vslider-label" id="colorLabelA">Спектр</div>
+          <div id="mColor"></div>
+          <div class="vslider-value" id="lblColor"></div>
+        </div>
+        <div class="vslider-group hidden" id="colorGroupB">
+          <div class="vslider-label">Спектр Б</div>
+          <div id="mColorB"></div>
+          <div class="vslider-value" id="lblColorB"></div>
+        </div>
+        <div class="vslider-group hidden" id="satGroup">
+          <div class="vslider-label">Накал</div>
+          <div id="mSat"></div>
+          <div class="vslider-value" id="lblSat"></div>
+        </div>
+      </div>
+
+      <div class="window-wrap">
+        <div class="window-frame" id="windowFrame">
+          <svg class="ring-svg" id="ringSvg" viewBox="0 0 460 460"></svg>
+          <svg id="jarSvg" viewBox="0 0 200 260"></svg>
+          <div class="fog" id="fog"><div><div class="qmark">?</div></div></div>
+        </div>
+      </div>
+
+      <div class="side-col right-col" id="rightCol">
+        <div class="vslider-group">
+          <div class="vslider-label">Объём</div>
+          <div id="mSize"></div>
+          <div class="vslider-value" id="lblSize"></div>
+        </div>
+        <div class="vslider-group">
+          <div class="vslider-label">Сгустки</div>
+          <div id="mCount"></div>
+          <div class="vslider-value" id="lblCount"></div>
+        </div>
+        <div class="vslider-group">
+          <div class="vslider-label">Разм. сгуст.</div>
+          <div id="mBsize"></div>
+          <div class="vslider-value" id="lblBsize"></div>
+        </div>
+        <div class="vslider-group hidden" id="shapeGroup">
+          <div class="vslider-label">Форма</div>
+          <div class="shape-preview-box"><svg id="shapePreviewSvg" width="34" height="46" viewBox="0 0 60 70"></svg></div>
+          <div id="mShape"></div>
+          <div class="vslider-value" id="lblShape"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="ingredient-counter" id="ingCounter"></div>
+      <button class="brew-btn" id="brewBtn">Готово!</button>
+    </div>
+  </div>
+</div>
+
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-card">
+    <div class="sticker" id="stickerEmoji">🐱</div>
+    <div class="result-title" id="resultTitle">Идеальная смесь!</div>
+    <div class="delta" id="deltaVal">+0</div>
+    <div class="speed-note" id="speedNote"></div>
+    <div class="overall-score" id="overallScore">0%</div>
+    <div class="score-breakdown" id="breakdown"></div>
+    <button class="next-btn" id="nextBtn">К шлюзу →</button>
+  </div>
+</div>
+
+<div class="week-overlay" id="weekOverlay">
+  <div class="week-card">
+    <h3>Цикл завершён!</h3>
+    <div class="final-score" id="finalScoreVal">0</div>
+    <input type="text" id="nameInput" placeholder="Впиши свой позывной...">
+    <button class="next-btn" id="saveScoreBtn" style="border-color:var(--good);color:var(--good);">Сохранить результат</button>
+    <div class="leaderboard-list" id="leaderboardList"></div>
+    <button class="next-btn" id="newWeekBtn">Начать новый цикл →</button>
+  </div>
+</div>
+
+<div class="week-overlay" id="lbOverlay">
+  <div class="week-card">
+    <h3>🏆 Глобальный рейтинг</h3>
+    <div class="leaderboard-list" id="lbOverlayList"></div>
+    <button class="next-btn" id="lbCloseBtn">Закрыть</button>
+  </div>
+</div>
+<!-- порядок важен: сначала контент, потом логика -->
+<script src="content.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
