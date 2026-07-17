@@ -1304,8 +1304,17 @@
     const stickerIdx = Array.isArray(stickerArr) ? randInt(0, stickerArr.length-1) : 0;
     const stickerVal = Array.isArray(stickerArr) ? stickerArr[stickerIdx] : stickerArr;
 
+    // Фаза G (доп.): вес этого зелья для "коллекционного" прогресса — см.
+    // подробный комментарий у PROGRESS_DIFF_WEIGHT в content.js. Считаем
+    // всегда (даже для бракованных — profile.js всё равно использует его
+    // только при perfect), чтобы формула жила в одном месте.
+    const tierWeight = (typeof BASELINE_TIER_REWARD !== 'undefined' && BASELINE_TIER_REWARD)
+      ? cfg.reward / BASELINE_TIER_REWARD : 1;
+    const diffWeight = (typeof PROGRESS_DIFF_WEIGHT !== 'undefined' && PROGRESS_DIFF_WEIGHT[target.regLevel]) || 1;
+    const progressWeight = tierWeight * diffWeight;
+
     // Фаза F/G: тихо копим статистику/стрики/ленту идеалов/репутацию/альбом в профиль игрока
-    if(window.PotionProfile) window.PotionProfile.recordOrderResult({ npcId: cfg.id, perfect, good, delta, stickerCat, stickerIdx });
+    if(window.PotionProfile) window.PotionProfile.recordOrderResult({ npcId: cfg.id, perfect, good, delta, stickerCat, stickerIdx, progressWeight });
 
     // cached so a language switch can re-translate the overlay without recomputing scores
     lastResult = { perfect, good, delta, speedBonusPct, overallPct, components, focus: target.focus };
@@ -1407,12 +1416,21 @@
     return { level: Math.floor(v/step), progress: (v % step)/step };
   }
 
+  // count может быть дробным (Фаза G доп.: вес сложности) — рисуем целые
+  // заполненные слоты, а следующий слот показываем частично залитым, чтобы
+  // прогресс было видно даже между целыми стикерами
   function renderRibbonDots(count, total, iconVal, filledCls){
+    const full = Math.floor(count);
+    const frac = Math.max(0, Math.min(1, count - full));
     let html = '';
     for(let i=0;i<total;i++){
-      html += i < count
-        ? `<div class="ribbon-dot filled ${filledCls||''}">${visualHTML(iconVal,'ribbon-icon')}</div>`
-        : `<div class="ribbon-dot"></div>`;
+      if(i < full){
+        html += `<div class="ribbon-dot filled ${filledCls||''}">${visualHTML(iconVal,'ribbon-icon')}</div>`;
+      } else if(i === full && frac > 0.02){
+        html += `<div class="ribbon-dot partial ${filledCls||''}" style="--fill:${Math.round(frac*100)}%"></div>`;
+      } else {
+        html += `<div class="ribbon-dot"></div>`;
+      }
     }
     return html;
   }
@@ -1431,21 +1449,31 @@
     `;
 
     // ---- лента идеалов (20 позиций, сброс) + платиновая лента ----
+    // (Фаза G доп.): необязательная своя картинка для платины —
+    // STICKERS.platinum в content.js, иначе используем обычный "идеал"
     const perfectIcon = Array.isArray(STICKERS.perfect) ? STICKERS.perfect[0] : STICKERS.perfect;
+    const platinumIcon = STICKERS.platinum
+      ? (Array.isArray(STICKERS.platinum) ? STICKERS.platinum[0] : STICKERS.platinum)
+      : perfectIcon;
     $('perfectRibbon').innerHTML = renderRibbonDots(p.perfectRibbon.count, 20, perfectIcon);
+    $('perfectRibbonCaption').textContent = `${p.perfectRibbon.count.toFixed(1)} / 20`;
     const platCount = p.perfectRibbon.platinumCount || 0;
     $('platinumBlock').style.display = platCount > 0 ? '' : 'none';
-    $('platinumRibbon').innerHTML = renderRibbonDots(Math.min(platCount,20), Math.min(Math.max(platCount,1),20), perfectIcon, 'platinum')
+    $('platinumRibbon').innerHTML = renderRibbonDots(Math.min(platCount,20), Math.min(Math.max(platCount,1),20), platinumIcon, 'platinum')
       + (platCount > 20 ? `<div class="ribbon-overflow">+${platCount-20}</div>` : '');
 
     // ---- альбом стикеров: силуэт для ещё не выбитых вариантов ----
+    // (Фаза G доп.): необязательная своя картинка для замка —
+    // ALBUM_LOCK_ICON в content.js, иначе рисуется просто "?"
     const seen = (st.stickersSeen) || { perfect:[], good:[], bad:[] };
+    const lockIcon = (typeof ALBUM_LOCK_ICON !== 'undefined') ? ALBUM_LOCK_ICON : null;
     const albumRow = (cat, labelKey)=>{
       const arr = STICKERS[cat];
       const variants = Array.isArray(arr) ? arr : [arr];
       const cells = variants.map((v,i)=>{
         const unlocked = (seen[cat]||[]).includes(i);
-        return `<div class="album-cell ${unlocked?'unlocked':'locked'}">${unlocked ? visualHTML(v,'album-img') : '<span class="album-lock">?</span>'}</div>`;
+        const lockedHtml = lockIcon ? visualHTML(lockIcon,'album-img') : '<span class="album-lock">?</span>';
+        return `<div class="album-cell ${unlocked?'unlocked':'locked'}">${unlocked ? visualHTML(v,'album-img') : lockedHtml}</div>`;
       }).join('');
       return `<div class="album-row"><div class="album-row-label">${LT(UI_TEXT[labelKey])}</div><div class="album-row-cells">${cells}</div></div>`;
     };

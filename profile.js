@@ -34,9 +34,13 @@
        badCurrent, badBest              // "брак" подряд — для будущих ачивок вида "N какашек подряд"
      },
      perfectRibbon: { count, platinumCount },
-       // count 0..19 — текущая лента идеальных (см. п.7 ТЗ); при 20-ой
-       // сбрасывается в 0 и platinumCount++ (лента платиновых стикеров).
-       // Точный УИ и потолок платиновой ленты — забота Фазы G.
+       // count — дробное число 0..19.99 (Фаза G доп.: каждое идеальное
+       // зелье добавляет не ровно 1, а "вес сложности" — тир НПС × уровень
+       // сложности регуляторов, см. PROGRESS_DIFF_WEIGHT в content.js —
+       // так лёгкая игра на 1-ой сложности заполняет ленту НАМНОГО
+       // медленнее, чем игра на высоких тирах/сложностях). При достижении
+       // 20 остаток переносится в новую ленту (не обнуляется без остатка)
+       // и platinumCount++ (лента платиновых стикеров). УИ — Фаза G.
      npcReputation: { [npcId]: { value, level } },
        // value растёт/падает от результатов с этим НПС, level появится
        // в Фазе J (нужны пороги повышения — там же).
@@ -164,7 +168,11 @@
     // вызывается из finalizeResult() в game.js после каждого заказа.
     // stickerCat/stickerIdx (Фаза G) — какой именно вариант стикера был
     // показан игроку в этот раз, для альбома в Коллекции.
-    recordOrderResult({ npcId, perfect, good, delta, stickerCat, stickerIdx }){
+    // progressWeight (Фаза G доп.) — вес сложности этого конкретного
+    // зелья (тир НПС × уровень сложности регуляторов), см. подробности в
+    // PROGRESS_DIFF_WEIGHT в content.js. Без него (старый вызов / не
+    // передали) считаем вес = 1, как раньше.
+    recordOrderResult({ npcId, perfect, good, delta, stickerCat, stickerIdx, progressWeight }){
       load();
       const st = profile.stats;
       st.totalOrders++;
@@ -192,8 +200,12 @@
 
       if(perfect){
         const r = profile.perfectRibbon;
-        r.count++;
-        if(r.count >= 20){ r.count = 0; r.platinumCount++; }
+        const w = (typeof progressWeight === 'number' && progressWeight > 0) ? progressWeight : 1;
+        r.count += w;
+        while(r.count >= 20){
+          r.platinumCount++;
+          r.count -= 20; // остаток переносим в новую ленту, а не теряем (см. Фазу G доп.)
+        }
       }
 
       // черновой баланс репутации — точные цифры и пороги уровней уточним
