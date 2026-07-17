@@ -33,9 +33,9 @@ const UI_TEXT = {
   VOLUME_TITLE:      { ru:'Громкость эмбиента', en:'Ambient volume' },
   LANG_BTN_TITLE:    { ru:'Сменить язык', en:'Switch language' },
   DIFF_BTN_LABEL:    { ru:'УР.', en:'LV.' },
-  DIFF_BTN_TITLE_1:  { ru:'Сложность регуляторов: 1 — доступен только цвет. Нажми, чтобы сменить.', en:'Regulator difficulty: 1 — only color available. Click to change.' },
-  DIFF_BTN_TITLE_2:  { ru:'Сложность регуляторов: 2 — цвет, оттенок и размер банки. Нажми, чтобы сменить.', en:'Regulator difficulty: 2 — color, tint and jar size. Click to change.' },
-  DIFF_BTN_TITLE_3:  { ru:'Сложность регуляторов: 3 — все регуляторы. Нажми, чтобы сменить.', en:'Regulator difficulty: 3 — all regulators. Click to change.' },
+  DIFF_BTN_TITLE_1:  { ru:'Сложность 1 — доступен только цвет.', en:'Difficulty 1 — only color available.' },
+  DIFF_BTN_TITLE_2:  { ru:'Сложность 2 — цвет, оттенок и размер банки.', en:'Difficulty 2 — color, tint and jar size.' },
+  DIFF_BTN_TITLE_3:  { ru:'Сложность 3 — все регуляторы.', en:'Difficulty 3 — all regulators.' },
   SELECT_TITLE:      { ru:'Кто пришвартовался к лавке?', en:"Who's docked at the shop?" },
   ORDER_LABEL:       { ru:'Заявка №', en:'Order #' },
   FOCUS_PREFIX:      { ru:'фокус:', en:'focus:' },
@@ -258,6 +258,13 @@ const STICKERS = {
   ];
 
   const TIER_COLORS = {1:'var(--t1)',2:'var(--t2)',3:'var(--t3)',4:'var(--t4)',5:'var(--t5)'};
+
+  // ---------- Фаза D: сложность регуляторов выбирается ТЕПЕРЬ на заказ ----------
+  // (раньше — глобальная кнопка "УР.N" в шапке; теперь три плашки при клике
+  // по карточке НПС). Множитель применяется к cfg.reward: чем меньше
+  // регуляторов активно, тем легче задание — и тем ниже награда.
+  // Правь смело — это просто коэффициенты.
+  const REG_DIFF_REWARD_MULT = { 1:0.6, 2:0.8, 3:1.0 };
   const FOCUS_ICONS = {
     bubbles: 'assets/ui/bubble.png',
     color: 'assets/ui/color.png',

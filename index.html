@@ -32,7 +32,6 @@
       <div class="score"><span data-i18n="RATING_LABEL">РЕЙТИНГ:</span> <span id="scoreVal">0</span></div>
       <button id="lbBtn" class="lb-open-btn" data-i18n-title="LB_BTN_TITLE" title="Глобальный рейтинг"><img src="assets/ui/lb-open-btn.png" class="rating-img" alt=""></button>
       <button id="langBtn" class="lang-btn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
-      <button id="diffBtn" class="diff-btn" title="Сложность регуляторов">УР.3</button>
       <div class="volume-control" data-i18n-title="VOLUME_TITLE" title="Громкость эмбиента">
         <span class="volume-icon" id="volumeIcon">🔊</span>
         <input type="range" id="volumeSlider" min="0" max="100" value="60" step="1">
@@ -52,7 +51,10 @@
     <div class="order-bubble" id="orderBubble">
       <div class="order-label">
         <span><span data-i18n="ORDER_LABEL">Заявка №</span><span id="orderNum">1</span></span>
-        <span class="order-focus-tag" id="orderFocusTag"></span>
+        <span class="order-tags">
+          <span class="order-focus-tag" id="orderFocusTag"></span>
+          <span class="order-level-tag" id="orderLevelTag"></span>
+        </span>
       </div>
       <div class="order-text"><span class="av" id="orderAvatar">🛰</span><span id="orderText">...</span></div>
     </div>

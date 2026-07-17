@@ -33,7 +33,6 @@
 */
 
 /* стили для картинок-аватаров и стикеров (работают, когда добавишь img в content.js) */
-.customer-card .avatar img.npc-img{width:46px;height:46px;object-fit:contain;display:block;}
 .order-text .av img.npc-img{width:26px;height:26px;object-fit:contain;display:block;}
 .sticker img.sticker-img{width:72px;height:72px;object-fit:contain;}
 .tally-item img.tally-img{width:20px;height:20px;object-fit:contain;vertical-align:-4px;}
@@ -150,12 +149,6 @@
     letter-spacing:.04em;color:var(--neon-light);cursor:pointer;line-height:1;
   }
   .lang-btn:hover{background:rgba(53,224,255,.25);box-shadow:0 0 10px rgba(53,224,255,.4);}
-  .diff-btn{
-    background:rgba(255,77,210,.1);border:1px solid rgba(255,77,210,.55);border-radius:8px;
-    padding:4px 9px;font-size:12px;font-family:'IBM Plex Mono',monospace;font-weight:600;
-    letter-spacing:.04em;color:var(--magenta);cursor:pointer;line-height:1;
-  }
-  .diff-btn:hover{background:rgba(255,77,210,.25);box-shadow:0 0 10px rgba(255,77,210,.4);}
   .title{
     text-align:center;font-family:'Russo One',sans-serif;font-weight:400;font-size:24px;
     letter-spacing:.14em;color:var(--neon-light);margin:0 0 4px;text-transform:uppercase;
@@ -179,29 +172,73 @@
     text-align:center;font-family:'Jura',sans-serif;font-weight:700;font-size:15px;
     color:var(--neon-light);margin-bottom:16px;letter-spacing:.12em;text-transform:uppercase;
   }
-  .customer-cards{display:flex;flex-direction:column;gap:12px;max-width:500px;margin:0 auto;}
+  .customer-cards{display:flex;flex-direction:column;gap:18px;max-width:500px;margin:0 auto;}
   .customer-card{
-    display:flex;align-items:center;gap:14px;position:relative;
-    background:linear-gradient(180deg,#101530,#0a0d20);
-    border:3px solid var(--t1);
-    border-radius:12px;padding:14px 16px;cursor:pointer;
-    transition:transform .12s ease, box-shadow .12s ease;
+    display:flex;align-items:flex-start;gap:10px;position:relative;
     text-align:left;
   }
-  .customer-card:hover{transform:translateY(-2px);box-shadow:0 0 18px -4px currentColor;}
-  .customer-card .avatar{font-size:34px;flex:0 0 auto;filter:drop-shadow(0 0 6px rgba(53,224,255,.5));}
-  .customer-card .info{flex:1;}
-  .customer-card .npc-name{
-    font-family:'Jura',sans-serif;font-weight:700;font-size:11px;color:var(--ink-dim);
-    letter-spacing:.14em;text-transform:uppercase;margin-bottom:3px;
+
+  /* ---- иконка непися: круг со свечением по цвету tier + имя полукругом ---- */
+  .npc-icon{
+    flex:0 0 auto;width:78px;display:flex;flex-direction:column;align-items:center;
+    cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;
   }
-  .customer-card .quote{font-size:13px;color:var(--ink);line-height:1.4;}
-  .customer-card .reward{
-    font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--good);
-    margin-top:5px;
+  .icon-glow{
+    width:64px;height:64px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 35% 30%, #171c38, #0a0d20 72%);
+    border:2px solid var(--tier-color, var(--t1));
+    box-shadow:0 0 14px 1px var(--tier-color, var(--t1)), inset 0 0 10px rgba(0,0,0,.5);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+    transition:box-shadow .25s ease, transform .25s ease;
   }
+  .npc-icon:hover .icon-glow{box-shadow:0 0 20px 4px var(--tier-color, var(--t1)), inset 0 0 10px rgba(0,0,0,.5);}
+  .customer-card.expanded .icon-glow{box-shadow:0 0 26px 6px var(--tier-color, var(--t1)), inset 0 0 10px rgba(0,0,0,.5);transform:scale(1.04);}
+  .icon-img{font-size:28px;line-height:1;filter:drop-shadow(0 0 6px rgba(0,0,0,.5));}
+  .icon-img img.npc-img{width:46px;height:46px;object-fit:contain;display:block;}
+  .icon-name-svg{width:78px;height:28px;margin-top:-9px;overflow:visible;}
+  .icon-name-svg path{fill:none;stroke:none;}
+  .icon-name-svg text{
+    font-family:'Jura',sans-serif;font-weight:700;font-size:9.5px;
+    fill:var(--tier-color, var(--ink-dim));letter-spacing:.03em;text-transform:uppercase;
+  }
+
+  /* ---- плашка: текст, который прячется под иконку, и 3 плашки уровней ---- */
+  .plaque-stack{flex:1;display:grid;position:relative;min-height:58px;}
+  .plaque-quote, .plaque-levels{grid-column:1;grid-row:1;align-self:center;}
+  .plaque-quote{
+    background:linear-gradient(180deg,#101530,#0a0d20);
+    border:1px solid rgba(53,224,255,.3);border-left:4px solid var(--tier-color, var(--t1));
+    border-radius:12px;padding:12px 14px;cursor:pointer;
+    transition:transform .32s cubic-bezier(.4,0,.2,1), opacity .26s ease;
+  }
+  .plaque-quote:hover{box-shadow:0 0 14px -3px var(--tier-color, var(--t1));}
+  .plaque-quote .quote{font-size:13px;color:var(--ink);line-height:1.4;}
+  .customer-card.expanded .plaque-quote{
+    opacity:0;pointer-events:none;transform:translateX(-52px) scale(.55);
+  }
+  .plaque-levels{
+    display:flex;gap:8px;opacity:0;pointer-events:none;
+    transform:translateX(12px) scale(.96);
+    transition:transform .32s cubic-bezier(.4,0,.2,1), opacity .3s ease .02s;
+  }
+  .customer-card.expanded .plaque-levels{opacity:1;pointer-events:auto;transform:translateX(0) scale(1);}
+  .level-card{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    background:linear-gradient(180deg,#101530,#0a0d20);
+    border:2px solid var(--tier-color, var(--t1));border-radius:10px;
+    padding:10px 4px;cursor:pointer;color:var(--ink);font-family:inherit;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .level-card:hover{transform:translateY(-2px);box-shadow:0 0 14px -3px var(--tier-color, var(--t1));}
+  .level-card:active{transform:scale(.95);transition:transform .08s ease;}
+  .level-card .level-tag{
+    font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:12px;
+    letter-spacing:.05em;color:var(--tier-color, var(--t1));
+  }
+  .level-card .level-reward{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--good);}
+
   .focus-badge{
-    position:absolute;top:-11px;right:14px;
+    position:absolute;top:-11px;right:14px;z-index:1;
     background:#0a0d20;border:1.5px solid var(--magenta);border-radius:999px;
     font-size:13px;padding:2px 9px;line-height:1.3;
     font-family:'IBM Plex Mono',monospace;color:var(--magenta);
@@ -222,7 +259,11 @@
     text-transform:uppercase;letter-spacing:.16em;margin-bottom:4px;
     display:flex;justify-content:space-between;align-items:center;
   }
+  .order-tags{display:flex;align-items:center;gap:8px;}
   .order-focus-tag{color:var(--magenta);letter-spacing:.05em;}
+  .order-focus-tag:empty{display:none;}
+  .order-level-tag{color:var(--neon-light);letter-spacing:.08em;font-family:'IBM Plex Mono',monospace;}
+  .order-level-tag:empty{display:none;}
   .order-text{font-size:14px;line-height:1.45;color:var(--ink);display:flex;gap:8px;align-items:flex-start;}
   .order-text .av{font-size:20px;flex:0 0 auto;}
 
@@ -400,7 +441,7 @@
   .customer-card:nth-child(2){animation-delay:.15s;}
   .customer-card:nth-child(3){animation-delay:.25s;}
   @keyframes cardIn{to{opacity:1;transform:translateY(0);}}
-  .customer-card:active{transform:scale(.97) !important;transition:transform .08s ease;}
+  .plaque-quote:active{transform:scale(.97);transition:transform .08s ease;}
   .order-bubble{animation:bubbleIn .3s ease;}
   @keyframes bubbleIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
 
@@ -442,13 +483,17 @@ body:after{
 }
 
 /* ---------- 2. Крупнее плашки заданий ---------- */
-.customer-cards{max-width:560px;gap:14px;}
-.customer-card{padding:18px 20px;gap:16px;border-width:3.5px;}
-.customer-card .avatar{font-size:44px;}
-.customer-card .avatar img.npc-img{width:64px;height:64px;}
-.customer-card .npc-name{font-size:12.5px;}
-.customer-card .quote{font-size:15px;}
-.customer-card .reward{font-size:14.5px;margin-top:6px;}
+.customer-cards{max-width:560px;gap:20px;}
+.npc-icon{width:86px;}
+.icon-glow{width:72px;height:72px;}
+.icon-img{font-size:32px;}
+.icon-img img.npc-img{width:54px;height:54px;}
+.icon-name-svg{width:86px;height:30px;}
+.icon-name-svg text{font-size:10.5px;}
+.plaque-quote{padding:14px 16px;}
+.plaque-quote .quote{font-size:15px;}
+.level-card .level-tag{font-size:13px;}
+.level-card .level-reward{font-size:12.5px;}
 .select-title{font-size:17px;}
 .focus-badge{font-size:14px;padding:3px 11px;}
 

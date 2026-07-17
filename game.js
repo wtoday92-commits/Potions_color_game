@@ -12,11 +12,11 @@
   const LANG_KEY = 'potionshop_lang';
   let LANG = localStorage.getItem(LANG_KEY) || (typeof CONFIG !== 'undefined' && CONFIG.DEFAULT_LANG) || 'ru';
 
-  // ---------- сложность регуляторов (Фаза C) ----------
-  // 1 = только цвет; 2 = цвет+оттенок+размер банки; 3 = всё как раньше (по умолчанию)
-  const REG_DIFF_KEY = 'potionshop_regdiff';
-  let regDifficulty = parseInt(localStorage.getItem(REG_DIFF_KEY), 10);
-  if(![1,2,3].includes(regDifficulty)) regDifficulty = 3;
+  // ---------- сложность регуляторов (Фаза C, выбор — Фаза D) ----------
+  // 1 = только цвет; 2 = цвет+оттенок+размер банки; 3 = всё как раньше.
+  // С Фазы D это больше не глобальная настройка в шапке — игрок выбирает
+  // уровень под каждый конкретный заказ, кликая одну из трёх плашек,
+  // которые выезжают из-под иконки НПС (см. renderCustomerCards/startOrder).
 
   // достаёт нужный язык из объекта {ru:..., en:...}; голые строки/массивы
   // (старый формат, например у пользовательских EXTRA_NPCS без перевода)
@@ -658,25 +658,82 @@
   // cached so a language switch can re-render the same cards without rerolling them
   let currentOrders = [];
 
+  // Фаза D: карточка теперь состоит из иконки непися (слева, свечение =
+  // цвет уровня/tier) и плашки с художественным текстом (справа). Клик по
+  // плашке "прячет" её под иконку и раскрывает три уровня сложности
+  // регуляторов на выбор — каждый со своей наградой (см. REG_DIFF_REWARD_MULT
+  // в content.js). Клик по иконке разэкспандленной карточки сворачивает её
+  // обратно к тексту.
   function renderCustomerCards(orders){
     const wrap = $('customerCards');
     wrap.innerHTML = '';
-    orders.forEach(ord=>{
+    orders.forEach((ord, i)=>{
       const { cfg, focus, flavor, avatar } = ord;
+      const tierColor = TIER_COLORS[cfg.tier];
+      const namePathId = `npcNamePath${i}`;
+      const npcNameStr = LT(cfg.name);
+      // подгонка длинного имени под дугу иконки: шрифт мельче для длинных
+      // имён, а совсем длинные (например английские "Perfumer of a
+      // Thousand Moons") ещё и принудительно сжимаются по ширине дуги
+      // через textLength, чтобы никогда не вылезать за края иконки
+      const nameLen = npcNameStr.length;
+      const nameFontSize = Math.max(6.5, Math.min(9.5, 9.5 - Math.max(0, nameLen - 14) * 0.22));
+      const nameTextLengthAttr = nameLen > 17 ? `textLength="118" lengthAdjust="spacingAndGlyphs"` : '';
+
       const card = document.createElement('div');
       card.className = 'customer-card';
-      card.style.borderColor = TIER_COLORS[cfg.tier];
-      card.style.color = TIER_COLORS[cfg.tier];
+      card.style.setProperty('--tier-color', tierColor);
+
+      const levelCardsHTML = [1,2,3].map(lvl=>{
+        const reward = Math.round(cfg.reward * (REG_DIFF_REWARD_MULT[lvl]||1) * (focus?1.25:1));
+        return `
+          <button type="button" class="level-card" data-level="${lvl}" title="${LT(UI_TEXT['DIFF_BTN_TITLE_'+lvl])}">
+            <span class="level-tag">${LT(UI_TEXT.DIFF_BTN_LABEL)}${lvl}</span>
+            <span class="level-reward">${LT(UI_TEXT.REWARD_PREFIX)}${reward}</span>
+          </button>`;
+      }).join('');
+
       card.innerHTML = `
-        ${focus ? `<div class="focus-badge">${visualHTML(FOCUS_ICONS[focus],'focus-img')} ${LT(FOCUS_NAMES[focus])}</div>` : ''}
-        <div class="avatar">${visualHTML(avatar,'npc-img')}</div>
-        <div class="info">
-          <div class="npc-name">${LT(cfg.name)}</div>
-          <div class="quote">«${LT(flavor)}»</div>
-          <div class="reward">${LT(UI_TEXT.REWARD_PREFIX)}${Math.round(cfg.reward * (focus?1.25:1))}</div>
+        <div class="npc-icon" tabindex="0">
+          <div class="icon-glow">
+            <div class="icon-img">${visualHTML(avatar,'npc-img')}</div>
+          </div>
+          <svg class="icon-name-svg" viewBox="0 0 100 46">
+            <path id="${namePathId}" d="M 8,10 A 42,42 0 0 0 92,10" fill="none"></path>
+            <text style="font-size:${nameFontSize}px"><textPath href="#${namePathId}" startOffset="50%" text-anchor="middle" ${nameTextLengthAttr}>${npcNameStr}</textPath></text>
+          </svg>
+        </div>
+        <div class="plaque-stack">
+          ${focus ? `<div class="focus-badge">${visualHTML(FOCUS_ICONS[focus],'focus-img')} ${LT(FOCUS_NAMES[focus])}</div>` : ''}
+          <div class="plaque-quote"><div class="quote">«${LT(flavor)}»</div></div>
+          <div class="plaque-levels">${levelCardsHTML}</div>
         </div>
       `;
-      card.addEventListener('click', ()=>{ SFX.cardPick(); startOrder(ord); });
+
+      const icon = card.querySelector('.npc-icon');
+      const quote = card.querySelector('.plaque-quote');
+
+      function expand(){
+        wrap.querySelectorAll('.customer-card.expanded').forEach(c=>{ if(c!==card) c.classList.remove('expanded'); });
+        card.classList.add('expanded');
+      }
+      function collapse(){ card.classList.remove('expanded'); }
+
+      quote.addEventListener('click', ()=>{
+        SFX.uiClick();
+        expand();
+      });
+      icon.addEventListener('click', ()=>{
+        if(card.classList.contains('expanded')){ SFX.uiClick(); collapse(); }
+      });
+      card.querySelectorAll('.level-card').forEach(btn=>{
+        btn.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          SFX.cardPick();
+          startOrder(ord, parseInt(btn.dataset.level,10));
+        });
+      });
+
       wrap.appendChild(card);
     });
   }
@@ -697,9 +754,11 @@
   let currentPhase = null; // 'scan' | 'craft' — so a language switch re-translates the phase label
   let lastResult = null; // last finalizeResult() output — so a language switch can re-translate the result overlay
 
-  function startOrder(ord){
+  function startOrder(ord, level){
     const { cfg, focus, flavor, avatar } = ord;
+    const regLevel = [1,2,3].includes(level) ? level : 3;
     currentOrd = ord;
+    currentOrd.regLevel = regLevel;
     orderNum++;
     stopMovingAnim();
     $('selectScreen').classList.remove('show');
@@ -709,6 +768,8 @@
     $('orderText').textContent = LT(flavor);
     $('orderBubble').style.borderLeftColor = TIER_COLORS[cfg.tier];
     $('orderFocusTag').innerHTML = focus ? `${visualHTML(FOCUS_ICONS[focus],'focus-img')} ${LT(UI_TEXT.FOCUS_PREFIX)} ${LT(FOCUS_NAMES[focus])}` : '';
+    const levelTag = $('orderLevelTag');
+    if(levelTag) levelTag.textContent = LT(UI_TEXT.DIFF_BTN_LABEL) + regLevel;
     SFX.orderShow();
 
     const flags = computeFlags(cfg);
@@ -718,7 +779,7 @@
     let count = randInt(1, cfg.countMax);
 
     target = {
-      cfg, type: cfg.type, flags, focus,
+      cfg, type: cfg.type, flags, focus, regLevel,
       hue: idxToVal(hueIdx, cfg.colorSteps, 360),
       size: idxToVal(sizeIdx, cfg.sizeSteps, 100),
       bsize: idxToVal(bsizeIdx, cfg.bsizeSteps, 100),
@@ -840,7 +901,7 @@
   // (серые + перечёркнутые) и фиксирует их на случайной величине
   function applyDifficultyGating(){
     const flags = target.flags;
-    const active = computeActiveKeys(regDifficulty, target);
+    const active = computeActiveKeys(target.regLevel, target);
     target.activeKeys = active;
 
     const relevant = ['color','size','count','bsize'];
@@ -1014,8 +1075,10 @@
     const timeFactor = timeFrac <= third ? 1 : Math.max(0, 1 - (timeFrac - third)/(1 - third));
     const speedBonusFrac = 0.5 * overall * timeFactor;
 
-    // focus raises the stakes both ways
-    const effReward = Math.round(cfg.reward * (target.focus ? 1.25 : 1));
+    // focus raises the stakes both ways; the regulator-difficulty level chosen
+    // for this order (Фаза D — выбор на плашках) scales the reward as well
+    const regMult = (typeof REG_DIFF_REWARD_MULT !== 'undefined' && REG_DIFF_REWARD_MULT[target.regLevel]) || 1;
+    const effReward = Math.round(cfg.reward * regMult * (target.focus ? 1.25 : 1));
 
     let delta, speedBonusPct = 0;
     if(good){
@@ -1189,6 +1252,8 @@
       $('orderFocusTag').innerHTML = currentOrd.focus
         ? `${visualHTML(FOCUS_ICONS[currentOrd.focus],'focus-img')} ${LT(UI_TEXT.FOCUS_PREFIX)} ${LT(FOCUS_NAMES[currentOrd.focus])}`
         : '';
+      const levelTag = $('orderLevelTag');
+      if(levelTag && currentOrd.regLevel) levelTag.textContent = LT(UI_TEXT.DIFF_BTN_LABEL) + currentOrd.regLevel;
       $('phaseLabel').textContent = currentPhase === 'craft' ? LT(UI_TEXT.PHASE_CRAFT) : LT(UI_TEXT.PHASE_SCAN);
       $('colorLabelA').textContent = LT(target.flags.hasGradient ? UI_TEXT.LABEL_SPECTRUM_A : UI_TEXT.LABEL_SPECTRUM);
       if(target.flags.hasShape) $('lblShape').textContent = LT(SHAPE_NAMES[S.shape.value]);
@@ -1206,7 +1271,6 @@
       renderLeaderboard(list, highlightScore, elId);
     });
     if($('saveScoreBtn').disabled) $('saveScoreBtn').textContent = LT(UI_TEXT.SAVE_SCORE_DONE);
-    updateDiffBtn();
   }
   const langBtn = $('langBtn');
   if(langBtn){
@@ -1218,26 +1282,6 @@
       refreshVisibleScreen();
     });
   }
-
-  // ---------- сложность регуляторов: переключатель 1→2→3 ----------
-  function updateDiffBtn(){
-    const btn = $('diffBtn');
-    if(!btn) return;
-    btn.textContent = LT(UI_TEXT.DIFF_BTN_LABEL) + regDifficulty;
-    btn.title = LT(UI_TEXT['DIFF_BTN_TITLE_'+regDifficulty]);
-  }
-  const diffBtn = $('diffBtn');
-  if(diffBtn){
-    diffBtn.addEventListener('click', ()=>{
-      SFX.uiClick();
-      regDifficulty = regDifficulty >= 3 ? 1 : regDifficulty + 1;
-      localStorage.setItem(REG_DIFF_KEY, regDifficulty);
-      updateDiffBtn();
-      // применяется со следующего заказа — чтобы не сбрасывать уже
-      // выставленные значения регуляторов посреди текущей попытки
-    });
-  }
-  updateDiffBtn();
 
   // ---------- стартовый экран: кнопка "Пришвартоваться" ----------
   const dockBtn = $('dockBtn');
