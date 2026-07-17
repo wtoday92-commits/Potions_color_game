@@ -83,6 +83,8 @@
     good:      ()=>zzfx(.55,.05,420,.02,.12,.22,0,1.4,0,0,130,.07,0,0,0,0,0,.75,.05),
     bad:       ()=>zzfx(.55,.05,220,.03,.15,.35,1,1.6,0,0,-60,.1,0,0,0,0,0,.8,.1),
     weekEnd:   ()=>zzfx(.6,.05,392,.03,.25,.4,0,1.2,0,0,196,.12,.08,0,0,0,0,.85,.12),
+    // Фаза H: получение ачивки
+    achieve:   ()=>zzfx(.55,.05,500,.02,.16,.24,0,1.4,0,40,220,.09,.04,0,0,0,0,.8,.06),
     dock:      ()=>zzfx(.5,.05,180,.02,.1,.22,0,1.3,0,-40,80,.05,0,0,0,0,0,.8,.02),
     // Фаза E: "плохие" пузыри — badClear звучит, когда игрок успел убрать
     // пузырь кликом; badPop — когда пузырь лопнул сам и сбил регулятор
@@ -1316,6 +1318,14 @@
     // Фаза F/G: тихо копим статистику/стрики/ленту идеалов/репутацию/альбом в профиль игрока
     if(window.PotionProfile) window.PotionProfile.recordOrderResult({ npcId: cfg.id, perfect, good, delta, stickerCat, stickerIdx, progressWeight });
 
+    // Фаза H: общие ачивки — автопроверка после каждого заказа + "ручная"
+    // ачивка за молниеносный идеал на максимальной сложности регуляторов
+    // тира 5 (первая треть таймера, timeFrac уже посчитан выше по стеку)
+    checkGeneralAchievements();
+    if(perfect && cfg.tier >= 5 && target.regLevel >= 3 && timeFrac <= 1/3){
+      unlockManualAchievement('speedrun_master');
+    }
+
     // cached so a language switch can re-translate the overlay without recomputing scores
     lastResult = { perfect, good, delta, speedBonusPct, overallPct, components, focus: target.focus };
 
@@ -1435,6 +1445,75 @@
     return html;
   }
 
+  // ============================================================
+  // Фаза H: общие ачивки — проверка + всплывающие уведомления.
+  // Список определений — GENERAL_ACHIEVEMENTS в content.js. Большинство
+  // проверяются автоматически (check(profileData)); три "ручные" (речь про
+  // молниеносный идеал на макс. сложности и место в глобальном рейтинге)
+  // открываются напрямую из finalizeResult()/saveScoreBtn — их неудобно
+  // выразить как чистую функцию от одного профиля.
+  // ============================================================
+  let achToastQueue = [];
+  let achToastShowing = false;
+  function achDef(id){
+    return (typeof GENERAL_ACHIEVEMENTS !== 'undefined') ? GENERAL_ACHIEVEMENTS.find(a=>a.id===id) : null;
+  }
+  function showAchievementToast(ach){
+    achToastQueue.push(ach);
+    if(!achToastShowing) drainAchToastQueue();
+  }
+  function drainAchToastQueue(){
+    const ach = achToastQueue.shift();
+    if(!ach){ achToastShowing = false; return; }
+    achToastShowing = true;
+    SFX.achieve();
+    let host = $('achToastHost');
+    if(!host){
+      host = document.createElement('div');
+      host.id = 'achToastHost';
+      document.body.appendChild(host);
+    }
+    const toast = document.createElement('div');
+    toast.className = 'ach-toast';
+    toast.innerHTML = `
+      <div class="ach-toast-icon">${ach.icon||'🏆'}</div>
+      <div class="ach-toast-body">
+        <div class="ach-toast-prefix">${LT(UI_TEXT.ACH_TOAST_PREFIX)}</div>
+        <div class="ach-toast-name">${LT(ach.name)}</div>
+      </div>`;
+    host.appendChild(toast);
+    requestAnimationFrame(()=> toast.classList.add('show'));
+    setTimeout(()=>{
+      toast.classList.remove('show');
+      toast.addEventListener('transitionend', ()=>{ toast.remove(); drainAchToastQueue(); }, {once:true});
+    }, 3200);
+  }
+  // прогоняет все НЕ-ручные ачивки против текущего профиля, открывает новые
+  function checkGeneralAchievements(){
+    if(!window.PotionProfile || typeof GENERAL_ACHIEVEMENTS === 'undefined') return;
+    const p = window.PotionProfile.data;
+    const unlocked = p.achievements.general || {};
+    GENERAL_ACHIEVEMENTS.forEach(ach=>{
+      if(ach.manual) return;
+      if(unlocked[ach.id]) return;
+      try{
+        if(ach.check && ach.check(p)){
+          window.PotionProfile.unlockGeneralAchievement(ach.id);
+          showAchievementToast(ach);
+        }
+      }catch(e){ /* защитно — плохая ачивка не должна ронять игру */ }
+    });
+  }
+  // открывает конкретную "ручную" ачивку по id, если ещё не открыта
+  function unlockManualAchievement(id){
+    if(!window.PotionProfile) return;
+    const p = window.PotionProfile.data;
+    if(p.achievements.general && p.achievements.general[id]) return;
+    const ach = achDef(id);
+    window.PotionProfile.unlockGeneralAchievement(id);
+    if(ach) showAchievementToast(ach);
+  }
+
   function renderCollection(){
     if(!window.PotionProfile) return;
     const p = window.PotionProfile.data;
@@ -1482,6 +1561,23 @@
       albumRow('good', 'ALBUM_LABEL_GOOD') +
       albumRow('bad', 'ALBUM_LABEL_BAD');
 
+    // ---- Фаза H: общие ачивки ----
+    if(typeof GENERAL_ACHIEVEMENTS !== 'undefined'){
+      const unlocked = p.achievements.general || {};
+      const unlockedCount = GENERAL_ACHIEVEMENTS.filter(a=>unlocked[a.id]).length;
+      $('achProgressLabel').textContent = `${LT(UI_TEXT.ACH_PROGRESS_LABEL)}: ${unlockedCount}/${GENERAL_ACHIEVEMENTS.length}`;
+      $('achievementsGrid').innerHTML = GENERAL_ACHIEVEMENTS.map(ach=>{
+        const isUnlocked = !!unlocked[ach.id];
+        return `<div class="ach-card ${isUnlocked?'unlocked':'locked'}" title="${isUnlocked ? '' : LT(UI_TEXT.ACH_LOCKED_HINT)}">
+          <div class="ach-icon">${ach.icon||'🏆'}</div>
+          <div class="ach-info">
+            <div class="ach-name">${LT(ach.name)}</div>
+            <div class="ach-desc">${LT(ach.desc)}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
     // ---- репутация по каждому НПС (заготовка на будущее, см. Фазу J) ----
     const npcs = (typeof ALL_NPCS !== 'undefined') ? ALL_NPCS : [];
     $('reputationList').innerHTML = npcs.map(n=>{
@@ -1509,6 +1605,7 @@
     SFX.weekEnd();
     // Фаза F: фиксируем лучший результат цикла и счётчик пройденных циклов
     if(window.PotionProfile) window.PotionProfile.recordCycleEnd(score);
+    checkGeneralAchievements();
     $('resultOverlay').classList.remove('show');
     $('finalScoreVal').textContent = score;
     $('nameInput').value = '';
@@ -1523,6 +1620,13 @@
     renderLeaderboard(list, score, 'leaderboardList');
     $('saveScoreBtn').disabled = true;
     $('saveScoreBtn').textContent = LT(UI_TEXT.SAVE_SCORE_DONE);
+    // Фаза H: "ручные" ачивки за место в глобальном рейтинге — рейтинг уже
+    // отсортирован по убыванию в renderLeaderboard(); ищем нашу свежесохранённую
+    // запись по очкам (приближённо — при равенстве очков берём самую первую)
+    const sorted = [...list].sort((a,b)=>b.score-a.score);
+    const rank = sorted.findIndex(e=>e.score === score);
+    if(rank === 0) unlockManualAchievement('leaderboard_king');
+    if(rank >= 0 && rank < 10) unlockManualAchievement('leaderboard_top10');
   });
   $('newWeekBtn').addEventListener('click', ()=>{
     SFX.uiClick();
@@ -1552,9 +1656,26 @@
       setVolumeIcon(v);
     });
   }
+  // диагностика: если трек не грузится (неверный путь/имя файла —
+  // самая частая причина "музыка не играет"), пишем в консоль, чтобы
+  // это было видно в devtools вместо тихого молчания
+  if(ambientAudio){
+    ambientAudio.addEventListener('error', ()=>{
+      console.warn('[ambient] Не удалось загрузить трек — проверь, что файл действительно лежит по пути из <source src="..."> в index.html (регистр букв и путь важны на большинстве хостингов).');
+    });
+  }
   function ambientTryPlay(){
     if(!ambientAudio) return;
-    ambientAudio.play().catch(()=>{}); // трека может ещё не быть в assets/audio/ — тогда просто тишина
+    const p = ambientAudio.play();
+    if(p && p.catch){
+      p.catch(err=>{
+        // автоплей мог не пройти (редко — клик уже даёт "жест пользователя"),
+        // либо трек ещё не подгрузился к моменту клика — пробуем ещё раз
+        // на следующее взаимодействие со страницей
+        console.warn('[ambient] play() отклонён, повторим при следующем клике:', err && err.message);
+        window.addEventListener('pointerdown', ()=> ambientAudio.play().catch(()=>{}), {once:true});
+      });
+    }
   }
 
   // ---------- переключатель языка ----------
@@ -1612,6 +1733,17 @@
   }
 
   if(window.PotionProfile) window.PotionProfile.load();
+  // Фаза H: догоняющая проверка при загрузке — если профиль уже
+  // соответствует порогам (например, апдейт игры добавил новые ачивки
+  // задним числом), они откроются тихо, без тоста-спама при заходе
+  if(window.PotionProfile && typeof GENERAL_ACHIEVEMENTS !== 'undefined'){
+    const p = window.PotionProfile.data;
+    const unlocked = p.achievements.general || {};
+    GENERAL_ACHIEVEMENTS.forEach(ach=>{
+      if(ach.manual || unlocked[ach.id]) return;
+      try{ if(ach.check && ach.check(p)) window.PotionProfile.unlockGeneralAchievement(ach.id); }catch(e){}
+    });
+  }
   applyI18n();
   initSliders();
   updateStickerTally();

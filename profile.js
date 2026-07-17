@@ -80,7 +80,13 @@
         bestCycleScore: 0,
         totalOrders: 0,
         stickersLifetime: { perfect: 0, good: 0, bad: 0 },
-        stickersSeen: { perfect: [], good: [], bad: [] }
+        stickersSeen: { perfect: [], good: [], bad: [] },
+        // Фаза H: общая "валюта прогресса" — сумма progressWeight по всем
+        // не-браковым заказам (см. блок "Сложность → прогресс" в roadmap.md).
+        // Пороги общих ачивок опираются на это число, а не на totalOrders,
+        // чтобы фарм на лёгкой сложности не давал такой же прогресс, как
+        // игра на высоких тирах/сложностях.
+        weightedProgress: 0
       },
       streaks: {
         perfectCurrent: 0, perfectBest: 0,
@@ -185,6 +191,12 @@
         if(!st.stickersSeen) st.stickersSeen = { perfect:[], good:[], bad:[] };
         const arr = st.stickersSeen[stickerCat];
         if(arr && !arr.includes(stickerIdx)) arr.push(stickerIdx);
+      }
+
+      // Фаза H: копим "валюту прогресса" — только на good/perfect (брак не даёт прогресса)
+      if(good){
+        const w = (typeof progressWeight === 'number' && progressWeight > 0) ? progressWeight : 1;
+        st.weightedProgress = (st.weightedProgress || 0) + w;
       }
 
       const s = profile.streaks;

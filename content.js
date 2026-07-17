@@ -87,6 +87,12 @@ const UI_TEXT = {
   ALBUM_LABEL_BAD:        { ru:'Брак', en:'Reject' },
   REPUTATION_SECTION_TITLE: { ru:'Репутация', en:'Reputation' },
   REP_LEVEL_LABEL:        { ru:'ур.', en:'lv.' },
+
+  // ---------- Фаза H: общие ачивки ----------
+  ACH_SECTION_TITLE:  { ru:'Ачивки', en:'Achievements' },
+  ACH_PROGRESS_LABEL: { ru:'Открыто', en:'Unlocked' },
+  ACH_LOCKED_HINT:    { ru:'Ещё не открыто', en:'Not unlocked yet' },
+  ACH_TOAST_PREFIX:   { ru:'Ачивка получена:', en:'Achievement unlocked:' },
 };
 
 // ---------- СТИКЕРЫ РЕЗУЛЬТАТА ----------
@@ -400,6 +406,136 @@ const STICKERS = {
   // пассивкам, проектируются отдельно в Фазе J — там это число может
   // измениться или стать разным для каждого НПС.
   const REP_LEVEL_STEP = 50;
+
+  // ---------- Фаза H: общие ачивки (20-30 шт., см. roadmap.md) ----------
+  // Каждая запись: id (стабильный ключ, хранится в profile.achievements.general),
+  // icon (эмодзи-заглушка — потом можно заменить на img так же, как везде),
+  // name/desc — { ru, en }.
+  // Есть два вида проверки:
+  //  - check(p): чистая функция от window.PotionProfile.data — game.js гоняет
+  //    её после каждого заказа/цикла сам, автоматически. Используй для всего,
+  //    что уже есть готовым числом в профиле (стрики/суммы/счётчики).
+  //  - manual:true — ачивка не проверяется автоматически; её вручную
+  //    открывает game.js в конкретный момент (см. checkGeneralAchievements()
+  //    и вызовы unlockGeneralAchievement() в finalizeResult()/renderLeaderboard()
+  //    для "самый быстрый идеал на макс. сложности" и "топ глобального рейтинга" —
+  //    их неудобно/невозможно выразить как чистую функцию от одного профиля).
+  const GENERAL_ACHIEVEMENTS = [
+    // ---- прогресс (взвешенная "валюта", см. stats.weightedProgress) ----
+    { id:'weighted_50', icon:'🌱',
+      name:{ ru:'Первые смеси', en:'First mixtures' },
+      desc:{ ru:'Накопи 50 очков взвешенного прогресса.', en:'Accumulate 50 weighted progress points.' },
+      check:p => (p.stats.weightedProgress||0) >= 50 },
+    { id:'weighted_300', icon:'🧪',
+      name:{ ru:'Мастер смесей', en:'Mixture master' },
+      desc:{ ru:'Накопи 300 очков взвешенного прогресса.', en:'Accumulate 300 weighted progress points.' },
+      check:p => (p.stats.weightedProgress||0) >= 300 },
+    { id:'weighted_1000', icon:'👑',
+      name:{ ru:'Легенда лавки', en:'Legend of the shop' },
+      desc:{ ru:'Накопи 1000 очков взвешенного прогресса.', en:'Accumulate 1000 weighted progress points.' },
+      check:p => (p.stats.weightedProgress||0) >= 1000 },
+
+    // ---- серии идеальных зелий подряд ----
+    { id:'pstreak_3', icon:'✨',
+      name:{ ru:'Тройной идеал', en:'Triple perfect' },
+      desc:{ ru:'3 идеальных зелья подряд.', en:'3 perfect mixtures in a row.' },
+      check:p => (p.streaks.perfectBest||0) >= 3 },
+    { id:'pstreak_5', icon:'✨',
+      name:{ ru:'Пятерня', en:'High five' },
+      desc:{ ru:'5 идеальных зелий подряд.', en:'5 perfect mixtures in a row.' },
+      check:p => (p.streaks.perfectBest||0) >= 5 },
+    { id:'pstreak_10', icon:'💫',
+      name:{ ru:'Без права на ошибку', en:'No room for error' },
+      desc:{ ru:'10 идеальных зелий подряд.', en:'10 perfect mixtures in a row.' },
+      check:p => (p.streaks.perfectBest||0) >= 10 },
+    { id:'pstreak_20', icon:'🌟',
+      name:{ ru:'Безупречность', en:'Flawlessness' },
+      desc:{ ru:'20 идеальных зелий подряд.', en:'20 perfect mixtures in a row.' },
+      check:p => (p.streaks.perfectBest||0) >= 20 },
+
+    // ---- серии "годно или лучше" подряд ----
+    { id:'gstreak_10', icon:'⚙️',
+      name:{ ru:'Стабильность', en:'Stability' },
+      desc:{ ru:'10 смесей подряд без брака.', en:'10 mixtures in a row without a reject.' },
+      check:p => (p.streaks.goodPlusBest||0) >= 10 },
+    { id:'gstreak_25', icon:'🔧',
+      name:{ ru:'Конвейер', en:'Assembly line' },
+      desc:{ ru:'25 смесей подряд без брака.', en:'25 mixtures in a row without a reject.' },
+      check:p => (p.streaks.goodPlusBest||0) >= 25 },
+
+    // ---- серии брака подряд (юмористические) ----
+    { id:'bstreak_3', icon:'💩',
+      name:{ ru:'Чёрная полоса', en:'Rough patch' },
+      desc:{ ru:'3 брака подряд. Бывает.', en:'3 rejects in a row. It happens.' },
+      check:p => (p.streaks.badBest||0) >= 3 },
+    { id:'bstreak_5', icon:'☠️',
+      name:{ ru:'Кризис профессии', en:'Career crisis' },
+      desc:{ ru:'5 браков подряд.', en:'5 rejects in a row.' },
+      check:p => (p.streaks.badBest||0) >= 5 },
+
+    // ---- суммарный рейтинг за всю историю ----
+    { id:'score_1000', icon:'💠',
+      name:{ ru:'Первая тысяча', en:'First thousand' },
+      desc:{ ru:'Суммарный рейтинг 1000.', en:'Total rating 1000.' },
+      check:p => (p.stats.totalScoreEarned||0) >= 1000 },
+    { id:'score_5000', icon:'💠',
+      name:{ ru:'Пять тысяч', en:'Five thousand' },
+      desc:{ ru:'Суммарный рейтинг 5000.', en:'Total rating 5000.' },
+      check:p => (p.stats.totalScoreEarned||0) >= 5000 },
+    { id:'score_20000', icon:'💎',
+      name:{ ru:'Двадцать тысяч', en:'Twenty thousand' },
+      desc:{ ru:'Суммарный рейтинг 20 000.', en:'Total rating 20,000.' },
+      check:p => (p.stats.totalScoreEarned||0) >= 20000 },
+    { id:'score_50000', icon:'💎',
+      name:{ ru:'Полтинник', en:'Fifty thousand' },
+      desc:{ ru:'Суммарный рейтинг 50 000.', en:'Total rating 50,000.' },
+      check:p => (p.stats.totalScoreEarned||0) >= 50000 },
+
+    // ---- лучший результат ОДНОГО цикла ----
+    { id:'cycle_score_800', icon:'📈',
+      name:{ ru:'Хороший цикл', en:'A good cycle' },
+      desc:{ ru:'800 рейтинга за один цикл.', en:'800 rating in a single cycle.' },
+      check:p => (p.stats.bestCycleScore||0) >= 800 },
+    { id:'cycle_score_1500', icon:'📈',
+      name:{ ru:'Рекордный цикл', en:'Record cycle' },
+      desc:{ ru:'1500 рейтинга за один цикл.', en:'1500 rating in a single cycle.' },
+      check:p => (p.stats.bestCycleScore||0) >= 1500 },
+
+    // ---- завершённые циклы ----
+    { id:'cycles_5', icon:'🔁',
+      name:{ ru:'Постоянный клиент', en:'Regular' },
+      desc:{ ru:'Заверши 5 циклов.', en:'Complete 5 cycles.' },
+      check:p => (p.stats.cyclesCompleted||0) >= 5 },
+    { id:'cycles_20', icon:'🔁',
+      name:{ ru:'Ветеран лавки', en:'Shop veteran' },
+      desc:{ ru:'Заверши 20 циклов.', en:'Complete 20 cycles.' },
+      check:p => (p.stats.cyclesCompleted||0) >= 20 },
+
+    // ---- заказов выполнено всего ----
+    { id:'orders_50', icon:'📦',
+      name:{ ru:'Полсотни заказов', en:'Fifty orders' },
+      desc:{ ru:'Выполни 50 заказов.', en:'Complete 50 orders.' },
+      check:p => (p.stats.totalOrders||0) >= 50 },
+    { id:'orders_200', icon:'📦',
+      name:{ ru:'Двести заказов', en:'Two hundred orders' },
+      desc:{ ru:'Выполни 200 заказов.', en:'Complete 200 orders.' },
+      check:p => (p.stats.totalOrders||0) >= 200 },
+    { id:'orders_500', icon:'📦',
+      name:{ ru:'Пятьсот заказов', en:'Five hundred orders' },
+      desc:{ ru:'Выполни 500 заказов.', en:'Complete 500 orders.' },
+      check:p => (p.stats.totalOrders||0) >= 500 },
+
+    // ---- ручные (открываются game.js в конкретный момент) ----
+    { id:'speedrun_master', icon:'⚡', manual:true,
+      name:{ ru:'Молния на пределе', en:'Lightning at the limit' },
+      desc:{ ru:'Идеальное зелье тира 5 на максимальной сложности регуляторов, уложившись в первую треть таймера.', en:'A perfect tier-5 mixture at max regulator difficulty, finished within the first third of the timer.' } },
+    { id:'leaderboard_top10', icon:'🏅', manual:true,
+      name:{ ru:'Топ-10 галактики', en:'Galactic top 10' },
+      desc:{ ru:'Попади в топ-10 глобального рейтинга.', en:'Reach the top 10 of the global leaderboard.' } },
+    { id:'leaderboard_king', icon:'🏆', manual:true,
+      name:{ ru:'Король лавки', en:'King of the shop' },
+      desc:{ ru:'Займи 1-е место в глобальном рейтинге.', en:'Take 1st place on the global leaderboard.' } }
+  ];
 
 /* ============================================================
    ПАК ПРИШЕЛЬЦЕВ: 12 новых НПС (по 2-3 на каждый уровень).

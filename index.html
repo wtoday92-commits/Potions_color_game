@@ -15,8 +15,8 @@
   <div class="splash-inner">
     <h2 data-i18n-html="SPLASH_TITLE">Добро пожаловать в место,<br>где зелья стали вашим домом</h2>
     <div class="splash-sub" data-i18n="SPLASH_SUB">лавка пришвартована у самого края вселенной</div>
+    <button class="dock-btn" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
   </div>
-  <button class="dock-btn" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
 </div>
 
 <!-- ЭМБИЕНТ: положи трек в assets/audio/ и укажи путь в src ниже (например assets/audio/ambient.mp3) -->
@@ -161,17 +161,29 @@
 
     <div class="collection-section">
       <div class="collection-section-title" data-i18n="RIBBON_SECTION_TITLE">Лента идеальных</div>
-      <div class="perfect-ribbon" id="perfectRibbon"></div>
-      <div class="ribbon-caption" id="perfectRibbonCaption"></div>
-      <div class="platinum-block" id="platinumBlock">
-        <div class="ribbon-subtitle" data-i18n="PLATINUM_RIBBON_TITLE">Платиновая лента</div>
-        <div class="platinum-ribbon" id="platinumRibbon"></div>
+      <div class="ribbon-showcase">
+        <span class="ribbon-sparkle s1">✦</span><span class="ribbon-sparkle s2">✧</span>
+        <span class="ribbon-sparkle s3">✦</span><span class="ribbon-sparkle s4">✧</span>
+        <div class="perfect-ribbon" id="perfectRibbon"></div>
+        <div class="ribbon-caption" id="perfectRibbonCaption"></div>
+        <div class="platinum-block" id="platinumBlock">
+          <div class="ribbon-subtitle" data-i18n="PLATINUM_RIBBON_TITLE">Платиновая лента</div>
+          <div class="platinum-ribbon" id="platinumRibbon"></div>
+        </div>
       </div>
     </div>
 
     <div class="collection-section">
       <div class="collection-section-title" data-i18n="STICKERS_SECTION_TITLE">Альбом стикеров</div>
       <div class="sticker-album" id="stickerAlbum"></div>
+    </div>
+
+    <div class="collection-section">
+      <div class="collection-section-title ach-section-title-row">
+        <span data-i18n="ACH_SECTION_TITLE">Ачивки</span>
+        <span class="ach-progress" id="achProgressLabel"></span>
+      </div>
+      <div class="ach-grid" id="achievementsGrid"></div>
     </div>
 
     <div class="collection-section">
