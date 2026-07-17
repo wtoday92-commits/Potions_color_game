@@ -36,6 +36,8 @@ const UI_TEXT = {
   DIFF_BTN_TITLE_1:  { ru:'Сложность 1 — доступен только цвет.', en:'Difficulty 1 — only color available.' },
   DIFF_BTN_TITLE_2:  { ru:'Сложность 2 — цвет, оттенок и размер банки.', en:'Difficulty 2 — color, tint and jar size.' },
   DIFF_BTN_TITLE_3:  { ru:'Сложность 3 — все регуляторы.', en:'Difficulty 3 — all regulators.' },
+  DIFF_BTN_TITLE_4:  { ru:'Сложность 4 — все регуляторы, плюс "плохие" пузыри: растут сами по себе, убирай их кликом, иначе лопнут и собьют случайный ползунок. Больше времени, больше награда.', en:'Difficulty 4 — all regulators, plus "bad" bubbles: they grow on their own, click to clear them or they pop and knock a random slider off. More time, more reward.' },
+  BAD_BUBBLE_BADGE:  { ru:'риск', en:'risk' },
   SELECT_TITLE:      { ru:'Кто пришвартовался к лавке?', en:"Who's docked at the shop?" },
   ORDER_LABEL:       { ru:'Заявка №', en:'Order #' },
   FOCUS_PREFIX:      { ru:'фокус:', en:'focus:' },
@@ -136,7 +138,13 @@ const STICKERS = {
         size:{ ru:['Объём — критичен. В мой бак другое не влезет.','Габариты по накладной, пожалуйста.'],
                en:['Volume is critical. Nothing else fits my tank.','Dimensions per the invoice, please.'] }
       },
-      memorizeMs:6000, craftMs:22000, colorSteps:6, sizeSteps:5, countMax:5, bsizeSteps:5, reward:50 },
+      memorizeMs:6000, craftMs:22000, colorSteps:6, sizeSteps:5, countMax:5, bsizeSteps:5, reward:50,
+      // ---------- Фаза E ----------
+      // Только у ЭТОГО конкретного НПС (стартовый служебный дрон) есть
+      // 4-й уровень сложности регуляторов. Остальные тайтл-1 (и другие)
+      // НПС его пока не получают — level4 НЕ наследуется в EXTRA_NPCS
+      // (см. tierPool() в game.js, тот же приём что и с img).
+      level4:true },
     { tier:2, type:'normal', emoji:'🐙', img: 'assets/npc/tentacloid.png',
       name:{ ru:'Тентаклоид', en:'Tentacloid' },
       flavors:{ ru:[
@@ -265,7 +273,10 @@ const STICKERS = {
   // по карточке НПС). Множитель применяется к cfg.reward: чем меньше
   // регуляторов активно, тем легче задание — и тем ниже награда.
   // Правь смело — это просто коэффициенты.
-  const REG_DIFF_REWARD_MULT = { 1:0.3, 2:0.6, 3:1.0 };
+  // 4 — только у стартового дрона (level4:true), см. Фазу E. Награда выше,
+  // чем на 3-ем — регуляторов столько же, но добавляется механика "плохих"
+  // пузырей, которая требует постоянного отвлечения внимания.
+  const REG_DIFF_REWARD_MULT = { 1:0.3, 2:0.6, 3:1.0, 4:1.4 };
 
   // ---------- бонус за скорость по уровням ----------
   // На 1-ом уровне активен всего один регулятор (обычно только цвет) —
@@ -273,7 +284,26 @@ const STICKERS = {
   // На 3-ем уровне (все регуляторы) — самый большой потолок бонуса.
   // Число — это МАКСИМАЛЬНАЯ добавка к очкам (в долях), при 100% точности
   // и укладывании в первую треть таймера; см. SPEED_BONUS_MULT в game.js.
-  const SPEED_BONUS_MULT = { 1:0, 2:0.35, 3:0.65 };
+  // на 4-ом потолок бонуса чуть ниже, чем на 3-ем — внимание делится
+  // между регуляторами и "плохими" пузырями, быть быстрым труднее
+  const SPEED_BONUS_MULT = { 1:0, 2:0.35, 3:0.65, 4:0.5 };
+
+  // ---------- Фаза E: "плохие" пузыри (только уровень сложности 4) ----------
+  // minSpawnMs/maxSpawnMs — пауза между появлением новых пузырей (мс).
+  // growMs — сколько пузырь растёт от startRadius до popRadius, прежде
+  // чем лопнет сам. maxAlive — сколько их может существовать одновременно
+  // (больше двух — игрок не будет успевать следить за основными ползунками).
+  const BAD_BUBBLE_CONFIG = {
+    minSpawnMs: 1700,
+    maxSpawnMs: 2300,
+    growMs: 3000,
+    startRadius: 3,
+    popRadius: 15,
+    maxAlive: 2
+  };
+  // сколько миллисекунд добавляется к таймеру "воссоздай смесь" на 4-ом
+  // уровне сложности — компенсация за постоянные отвлечения на пузыри
+  const LEVEL4_TIME_BONUS_MS = 4000;
   const FOCUS_ICONS = {
     bubbles: 'assets/ui/bubble.png',
     color: 'assets/ui/color.png',

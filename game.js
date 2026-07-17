@@ -83,7 +83,11 @@
     good:      ()=>zzfx(.55,.05,420,.02,.12,.22,0,1.4,0,0,130,.07,0,0,0,0,0,.75,.05),
     bad:       ()=>zzfx(.55,.05,220,.03,.15,.35,1,1.6,0,0,-60,.1,0,0,0,0,0,.8,.1),
     weekEnd:   ()=>zzfx(.6,.05,392,.03,.25,.4,0,1.2,0,0,196,.12,.08,0,0,0,0,.85,.12),
-    dock:      ()=>zzfx(.5,.05,180,.02,.1,.22,0,1.3,0,-40,80,.05,0,0,0,0,0,.8,.02)
+    dock:      ()=>zzfx(.5,.05,180,.02,.1,.22,0,1.3,0,-40,80,.05,0,0,0,0,0,.8,.02),
+    // Фаза E: "плохие" пузыри — badClear звучит, когда игрок успел убрать
+    // пузырь кликом; badPop — когда пузырь лопнул сам и сбил регулятор
+    badClear:  ()=>zzfx(.35,.05,700,.005,.03,.05,0,1.8,0,10,80,.03,0,0,0,0,0,.7,.01),
+    badPop:    ()=>zzfx(.5,.2,140,.01,.05,.12,2,1.8,0,-10,-200,.15,0,0,0,0,0,.7,.02)
   };
   window.addEventListener('pointerdown', zzfxEnsureCtx, {once:true});
 
@@ -166,6 +170,11 @@
     return {
       get value(){ return _value; },
       set value(v){ _value=v; render(); },
+      // Фаза E: границы нужны, чтобы "плохой" пузырь, сбивая регулятор,
+      // не вытолкнул значение за пределы допустимого диапазона
+      get min(){ return _min; },
+      get max(){ return _max; },
+      get step(){ return _step; },
       configure({min,max,step,value}){ _min=min; _max=max; _step=step||1; _value=value; render(); },
       setDisabled(d){ wrap.classList.toggle('disabled', !!d); },
       // отдельный "серый и перечёркнутый" вид для регулятора, недоступного
@@ -199,6 +208,15 @@
   const stickerCounts = { perfect:0, good:0, bad:0 };
 
   let movingBubbles=null, movingGeom=null, movingProfile=null, movingR=0, movingLastT=0, movingRafId=null;
+
+  // ---------- Фаза E: "плохие" пузыри (только уровень сложности 4) ----------
+  let badBubbles = [];          // живые пузыри: {id, x, y, born, seed}
+  let currentBadBubbles = [];   // то же самое, но с посчитанным на этот кадр r/pct — уходит в drawJar
+  let badBubbleRafId = null;
+  let badBubbleLastT = 0;
+  let badBubbleElapsed = 0;     // время с начала фазы "воссоздай" для этого заказа
+  let nextBadBubbleSpawnAt = 0;
+  let badBubbleIdSeq = 1;
 
   function updateStickerTally(){
     // tally always shows the first variant for stability; the result overlay stays random
@@ -381,8 +399,24 @@
     return d + 'Z';
   }
 
+  // Фаза E: угловатый, "колючий" контур — визуально отличает "плохой"
+  // пузырь от обычных мягких эктоплазменных сгустков
+  function badBlobPath(cx, cy, r, seed){
+    const rng = mulberry32((seed*104729+7)>>>0);
+    const n = 6;
+    const pts = [];
+    for(let i=0;i<n;i++){
+      const a = i/n*Math.PI*2;
+      const rr = r*(i%2===0 ? (0.95+rng()*0.3) : (0.5+rng()*0.22));
+      pts.push({x:cx+Math.cos(a)*rr, y:cy+Math.sin(a)*rr});
+    }
+    let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)} `;
+    for(let i=1;i<=n;i++){ const p = pts[i%n]; d += `L ${p.x.toFixed(1)} ${p.y.toFixed(1)} `; }
+    return d + 'Z';
+  }
+
   function drawJar(opts){
-    const { hue, hue2=null, sat=70, sizePct, bubbleCount, bubbleR, seed, shapeIdx=0, overridePositions=null } = opts;
+    const { hue, hue2=null, sat=70, sizePct, bubbleCount, bubbleR, seed, shapeIdx=0, overridePositions=null, badBubbles=[] } = opts;
     const svg = $('jarSvg');
     const w = 60 + (sizePct/100)*60;
     const h = 140 + (sizePct/100)*70;
@@ -416,6 +450,20 @@
     const blobShadows = pts.map(p=>{
       const r = p.r || bubbleR;
       return `<ellipse cx="${(p.x+r*0.35).toFixed(1)}" cy="${(p.y+r*0.85).toFixed(1)}" rx="${(r*0.95).toFixed(1)}" ry="${(r*0.4).toFixed(1)}" fill="url(#inkDots)" opacity=".8"/>`;
+    }).join('');
+
+    // Фаза E: "плохие" пузыри — рисуются ПОСЛЕ clip-path'а (не внутри
+    // <g clip-path>), чтобы клик по ним не зависел от обрезки контейнера
+    const badBubbleEls = badBubbles.map(b=>{
+      const glowOpacity = (0.22 + 0.5*b.pct).toFixed(2);
+      const glowR = (b.r*(1.7+0.5*b.pct)).toFixed(1);
+      return `
+        <g class="bad-bubble" data-bad-id="${b.id}">
+          <circle cx="${b.x.toFixed(1)}" cy="${b.y.toFixed(1)}" r="${glowR}" fill="rgba(255,93,106,${glowOpacity})"/>
+          <path d="${badBlobPath(b.x,b.y,b.r,b.seed)}" fill="#ff5d6a" stroke="#3d0209" stroke-width="2"/>
+          <path d="${badBlobPath(b.x,b.y,b.r,b.seed)}" fill="none" stroke="rgba(255,205,208,.75)" stroke-width="0.8"/>
+          <circle cx="${b.x.toFixed(1)}" cy="${b.y.toFixed(1)}" r="${Math.max(1.4,b.r*0.22).toFixed(1)}" fill="#2a0106"/>
+        </g>`;
     }).join('');
 
     svg.innerHTML = `
@@ -465,6 +513,7 @@
       <!-- thick manga ink outline with neon core -->
       <path d="${bodyPath}" fill="none" stroke="#0a0d18" stroke-width="5"/>
       <path d="${bodyPath}" fill="none" stroke="#35e0ff" stroke-width="1.8"/>
+      ${badBubbleEls}
     `;
   }
 
@@ -550,6 +599,106 @@
     movingRafId = requestAnimationFrame(frame);
   }
 
+  // ---------- Фаза E: логика "плохих" пузырей ----------
+  // Работают только когда target.regLevel === 4 и мы в фазе "craft".
+  // Растут сами по себе; если игрок не успевает кликнуть — лопаются и
+  // дёргают случайный АКТИВНЫЙ регулятор на одно деление в случайную сторону.
+  function stopBadBubbles(){
+    if(badBubbleRafId){ cancelAnimationFrame(badBubbleRafId); badBubbleRafId = null; }
+    badBubbles = [];
+    currentBadBubbles = [];
+    badBubbleLastT = 0;
+    badBubbleElapsed = 0;
+  }
+  function scheduleNextBadBubble(){
+    nextBadBubbleSpawnAt = badBubbleElapsed + rand(BAD_BUBBLE_CONFIG.minSpawnMs, BAD_BUBBLE_CONFIG.maxSpawnMs);
+  }
+  function spawnBadBubble(){
+    const geom = computeJarGeom(target.size);
+    const profile = SHAPE_PROFILES[target.shapeIdx || 0].points;
+    const r0 = BAD_BUBBLE_CONFIG.startRadius;
+    const yTop = geom.topY + 18, yMinAll = yTop + r0 + 6, yMaxAll = geom.baseY - r0 - 6;
+    let x = geom.cx, y = (yMinAll + yMaxAll) / 2, tries = 0, placed = false;
+    while(tries < 24 && !placed){
+      tries++;
+      const yy = rand(yMinAll, yMaxAll);
+      const yFrac = Math.min(1, Math.max(0, (yy - yTop) / (geom.baseY - yTop)));
+      const hw = (geom.w/2) * shapeHalfWidthFrac(yFrac, profile) - r0 - 6;
+      if(hw <= 0) continue;
+      const xx = geom.cx + rand(-hw, hw);
+      const clashes = badBubbles.some(b => Math.hypot(b.x-xx, b.y-yy) < (b.r||r0) + r0 + 8);
+      if(!clashes){ x = xx; y = yy; placed = true; }
+    }
+    badBubbles.push({ id: badBubbleIdSeq++, x, y, born: badBubbleElapsed, seed: randInt(1,99999) });
+  }
+  function jarGlitchFlash(){
+    const wf = $('windowFrame');
+    if(!wf) return;
+    wf.classList.remove('glitch'); void wf.offsetWidth; wf.classList.add('glitch');
+    setTimeout(()=>wf.classList.remove('glitch'), 350);
+  }
+  // сбивает случайный АКТИВНЫЙ на этой сложности регулятор на одно деление
+  function jitterRandomRegulator(){
+    if(!target || !target.activeKeys) return;
+    const keys = [...target.activeKeys].filter(k => S[k]);
+    if(!keys.length) return;
+    const slider = S[pick(keys)];
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    let v = slider.value + dir*(slider.step||1);
+    v = Math.min(slider.max, Math.max(slider.min, v));
+    slider.value = v;
+    updatePlayerJar();
+    SFX.badPop();
+    jarGlitchFlash();
+  }
+  function popBadBubble(b, byPlayer){
+    badBubbles = badBubbles.filter(x => x !== b);
+    if(byPlayer) SFX.badClear();
+    else jitterRandomRegulator();
+  }
+  function badBubbleFrame(now){
+    if(!target || target.regLevel !== 4 || currentPhase !== 'craft' || craftLocked){ badBubbleRafId = null; return; }
+    if(!badBubbleLastT) badBubbleLastT = now;
+    const dt = now - badBubbleLastT;
+    badBubbleLastT = now;
+    badBubbleElapsed += dt;
+
+    if(badBubbleElapsed >= nextBadBubbleSpawnAt && badBubbles.length < BAD_BUBBLE_CONFIG.maxAlive){
+      spawnBadBubble();
+      scheduleNextBadBubble();
+    }
+
+    const toRender = [];
+    badBubbles.slice().forEach(b=>{
+      const age = badBubbleElapsed - b.born;
+      const pct = Math.min(1, age / BAD_BUBBLE_CONFIG.growMs);
+      if(pct >= 1){
+        popBadBubble(b, false);
+      } else {
+        const r = BAD_BUBBLE_CONFIG.startRadius + pct*(BAD_BUBBLE_CONFIG.popRadius - BAD_BUBBLE_CONFIG.startRadius);
+        toRender.push({ id:b.id, x:b.x, y:b.y, seed:b.seed, r, pct });
+      }
+    });
+    currentBadBubbles = toRender;
+    updatePlayerJar();
+
+    badBubbleRafId = requestAnimationFrame(badBubbleFrame);
+  }
+  // клик/тап по "плохому" пузырю — делегирование на весь jarSvg, т.к.
+  // сами элементы пересоздаются каждый кадр
+  const jarSvgEl = $('jarSvg');
+  if(jarSvgEl){
+    jarSvgEl.addEventListener('pointerdown', e=>{
+      if(!target || target.regLevel !== 4 || currentPhase !== 'craft' || craftLocked) return;
+      const g = e.target.closest ? e.target.closest('[data-bad-id]') : null;
+      if(!g) return;
+      e.stopPropagation();
+      const id = Number(g.getAttribute('data-bad-id'));
+      const b = badBubbles.find(x => x.id === id);
+      if(b) popBadBubble(b, true);
+    });
+  }
+
   // ---------- сложность регуляторов (Фаза C) ----------
   // Возвращает Set ключей регуляторов, доступных игроку на данном уровне
   // сложности (1/2/3) для конкретного заказа (target уже собран в startOrder:
@@ -629,6 +778,9 @@
       .map(n => {
         const merged = { ...base, ...n, type:'normal' };
         if(!n.img) delete merged.img; // картинка НЕ наследуется — только своя
+        // Фаза E: 4-й уровень сложности пока есть только у стартового дрона —
+        // остальные НПС того же тира его не наследуют (добавим позже, отдельно)
+        if(!n.level4) delete merged.level4;
         return merged;
       });
     return [base, ...extras];
@@ -676,11 +828,14 @@
       card.className = 'customer-card';
       card.style.setProperty('--tier-color', tierColor);
 
-      const levelCardsHTML = [1,2,3].map(lvl=>{
+      // Фаза E: 4-й уровень сложности показывается только у НПС с cfg.level4
+      // (пока — только у стартового дрона)
+      const levels = cfg.level4 ? [1,2,3,4] : [1,2,3];
+      const levelCardsHTML = levels.map(lvl=>{
         const reward = Math.round(cfg.reward * (REG_DIFF_REWARD_MULT[lvl]||1) * (focus?1.25:1));
         return `
-          <button type="button" class="level-card" data-level="${lvl}" title="${LT(UI_TEXT['DIFF_BTN_TITLE_'+lvl])}">
-            <span class="level-tag">${LT(UI_TEXT.DIFF_BTN_LABEL)}${lvl}</span>
+          <button type="button" class="level-card ${lvl===4?'level-4':''}" data-level="${lvl}" title="${LT(UI_TEXT['DIFF_BTN_TITLE_'+lvl])}">
+            <span class="level-tag">${LT(UI_TEXT.DIFF_BTN_LABEL)}${lvl}${lvl===4?' ⚠':''}</span>
             <span class="level-reward">${LT(UI_TEXT.REWARD_PREFIX)}${reward}</span>
           </button>`;
       }).join('');
@@ -752,11 +907,13 @@
 
   function startOrder(ord, level){
     const { cfg, focus, flavor, avatar } = ord;
-    const regLevel = [1,2,3].includes(level) ? level : 3;
+    let regLevel = [1,2,3,4].includes(level) ? level : 3;
+    if(regLevel === 4 && !cfg.level4) regLevel = 3; // защита: 4 доступен только там, где явно разрешён
     currentOrd = ord;
     currentOrd.regLevel = regLevel;
     orderNum++;
     stopMovingAnim();
+    stopBadBubbles(); // сбрасываем "плохие" пузыри прошлого заказа, если были
     $('selectScreen').classList.remove('show');
     $('roundScreen').classList.add('show');
     $('orderNum').textContent = orderNum;
@@ -874,9 +1031,14 @@
     updatePlayerJar();
     updateIngredientCounter(0);
 
+    // Фаза E: на 4-ом уровне сложности время на "воссоздай" немного больше —
+    // компенсация за то, что внимание постоянно отвлекается на "плохие" пузыри
+    const craftDuration = cfg.craftMs + (target.regLevel === 4 ? (typeof LEVEL4_TIME_BONUS_MS !== 'undefined' ? LEVEL4_TIME_BONUS_MS : 0) : 0);
+    target.craftDuration = craftDuration;
+
     let used = 0;
     const totalDots = 20;
-    const tickMs = cfg.craftMs/totalDots;
+    const tickMs = craftDuration/totalDots;
     ingTimerHandle = setInterval(()=>{
       used++;
       updateIngredientCounter(used);
@@ -887,7 +1049,17 @@
 
     setRingFraction(0);
     craftStartTime = performance.now();
-    runTimer(cfg.craftMs, ()=>{ if(!craftLocked) finishCraft(); });
+    runTimer(craftDuration, ()=>{ if(!craftLocked) finishCraft(); });
+
+    // запускаем "плохие" пузыри только на 4-ом уровне сложности
+    if(target.regLevel === 4){
+      badBubbleElapsed = 0;
+      badBubbles = [];
+      currentBadBubbles = [];
+      badBubbleLastT = 0;
+      scheduleNextBadBubble();
+      badBubbleRafId = requestAnimationFrame(badBubbleFrame);
+    }
   }
 
   // регулятор, недоступный на текущей сложности, замирает РОВНО на том
@@ -969,7 +1141,7 @@
     const noBubbles = target.activeKeys && !target.activeKeys.has('count') && !target.activeKeys.has('bsize');
     const effCount = noBubbles ? 0 : count;
     drawJar({ hue, hue2, sat, sizePct:size, bubbleCount:effCount, bubbleR:r, shapeIdx,
-      seed: target.seed + 5000 + count*7 + Math.round(r*13) });
+      seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles });
   }
 
   function hueDist(a,b){ const d = Math.abs(a-b)%360; return d>180 ? 360-d : d; }
@@ -1059,6 +1231,7 @@
     craftLocked = true;
     cancelAnimationFrame(rafId);
     stopMovingAnim();
+    stopBadBubbles();
     clearInterval(ingTimerHandle);
     $('windowFrame').classList.remove('urgent');
     $('jarSvg').classList.remove('brewing');
@@ -1068,7 +1241,8 @@
 
     const scoreData = computeScoreComponents();
     const elapsed = performance.now() - craftStartTime;
-    const timeFrac = Math.min(1, elapsed/scoreData.cfg.craftMs);
+    const craftDuration = target.craftDuration || scoreData.cfg.craftMs;
+    const timeFrac = Math.min(1, elapsed/craftDuration);
     finalizeResult(scoreData, timeFrac);
   }
 
