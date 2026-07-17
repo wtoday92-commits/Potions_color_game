@@ -150,6 +150,12 @@
     letter-spacing:.04em;color:var(--neon-light);cursor:pointer;line-height:1;
   }
   .lang-btn:hover{background:rgba(53,224,255,.25);box-shadow:0 0 10px rgba(53,224,255,.4);}
+  .diff-btn{
+    background:rgba(255,77,210,.1);border:1px solid rgba(255,77,210,.55);border-radius:8px;
+    padding:4px 9px;font-size:12px;font-family:'IBM Plex Mono',monospace;font-weight:600;
+    letter-spacing:.04em;color:var(--magenta);cursor:pointer;line-height:1;
+  }
+  .diff-btn:hover{background:rgba(255,77,210,.25);box-shadow:0 0 10px rgba(255,77,210,.4);}
   .title{
     text-align:center;font-family:'Russo One',sans-serif;font-weight:400;font-size:24px;
     letter-spacing:.14em;color:var(--neon-light);margin:0 0 4px;text-transform:uppercase;
@@ -241,6 +247,15 @@
 
   .vslide-wrap{position:relative;touch-action:none;cursor:pointer;}
   .vslide-wrap.disabled{opacity:.5;pointer-events:none;}
+  /* регулятор, недоступный на текущей сложности: серый и перечёркнутый */
+  .vslide-wrap.diff-locked{filter:grayscale(1);opacity:.4;pointer-events:none;}
+  .vslide-wrap.diff-locked::after{
+    content:'';position:absolute;left:-6px;right:-6px;top:50%;height:2px;
+    background:rgba(255,255,255,.55);transform:rotate(14deg);
+    box-shadow:0 0 4px rgba(0,0,0,.6);
+  }
+  .vslider-group:has(.vslide-wrap.diff-locked) .vslider-label,
+  .vslider-group:has(.vslide-wrap.diff-locked) .vslider-value{color:var(--ink-dim);opacity:.55;}
   .vslide-track{position:absolute;left:50%;top:0;transform:translateX(-50%);}
   .vslide-track.plain{background:rgba(53,224,255,.12);box-shadow:inset 0 0 6px rgba(0,0,0,.6);}
   .vslide-track.colorstrip{border-radius:10px;border:2px solid rgba(53,224,255,.25);box-shadow:inset 0 0 10px rgba(0,0,0,.5), 0 0 12px -4px rgba(53,224,255,.5);}

@@ -12,6 +12,12 @@
   const LANG_KEY = 'potionshop_lang';
   let LANG = localStorage.getItem(LANG_KEY) || (typeof CONFIG !== 'undefined' && CONFIG.DEFAULT_LANG) || 'ru';
 
+  // ---------- сложность регуляторов (Фаза C) ----------
+  // 1 = только цвет; 2 = цвет+оттенок+размер банки; 3 = всё как раньше (по умолчанию)
+  const REG_DIFF_KEY = 'potionshop_regdiff';
+  let regDifficulty = parseInt(localStorage.getItem(REG_DIFF_KEY), 10);
+  if(![1,2,3].includes(regDifficulty)) regDifficulty = 3;
+
   // достаёт нужный язык из объекта {ru:..., en:...}; голые строки/массивы
   // (старый формат, например у пользовательских EXTRA_NPCS без перевода)
   // проходят насквозь без изменений
@@ -162,6 +168,9 @@
       set value(v){ _value=v; render(); },
       configure({min,max,step,value}){ _min=min; _max=max; _step=step||1; _value=value; render(); },
       setDisabled(d){ wrap.classList.toggle('disabled', !!d); },
+      // отдельный "серый и перечёркнутый" вид для регулятора, недоступного
+      // на текущей сложности (отличается от .disabled — блокировки после варки)
+      setDiffLocked(d){ wrap.classList.toggle('diff-locked', !!d); },
       setTrackBackground(css){ track.style.background = css; }
     };
   }
@@ -541,6 +550,55 @@
     movingRafId = requestAnimationFrame(frame);
   }
 
+  // ---------- сложность регуляторов (Фаза C) ----------
+  // Возвращает Set ключей регуляторов, доступных игроку на данном уровне
+  // сложности (1/2/3) для конкретного заказа (target уже собран в startOrder:
+  // содержит cfg, flags, focus).
+  // Правила (см. roadmap.md / фаза C):
+  //  - 3: всё доступно, как раньше (полный набор из flags)
+  //  - без модификатора и без "усложнения" (обычный normal-заказ):
+  //      1: только цвет
+  //      2: цвет (+оттенок, если есть) + размер банки
+  //  - с модификатором (focus): 1 — только регуляторы модификатора;
+  //      2 — плюс цвет (если модификатор не цвет) либо плюс размер банки
+  //      (если модификатор — цвет)
+  //  - с "усложнением" 5-го уровня (type: gradient/shape/moving, фокуса
+  //    у них не бывает): 1 — только регуляторы усложнения; 2 — плюс ещё
+  //    один регулятор по тому же принципу (цвет, если его не было)
+  function computeActiveKeys(level, target){
+    const flags = target.flags, focus = target.focus, cfg = target.cfg;
+    const allKeys = ['color','size','count','bsize'];
+    if(flags.hasSat) allKeys.push('sat');
+    if(flags.hasGradient) allKeys.push('colorB');
+    if(flags.hasShape) allKeys.push('shape');
+    const allSet = new Set(allKeys);
+
+    if(level >= 3) return allSet;
+
+    let base;
+    if(focus){
+      base = FOCUS_KEYS[focus].filter(k => allSet.has(k));
+    } else if(cfg.type === 'gradient'){
+      base = ['color','colorB'];
+    } else if(cfg.type === 'shape'){
+      base = ['shape','size'];
+    } else if(cfg.type === 'moving'){
+      base = ['count','bsize'];
+    } else {
+      base = ['color'];
+    }
+    const set1 = new Set(base);
+    if(level === 1) return set1;
+
+    // level === 2: добавляем цвет, если его ещё нет; если он уже есть —
+    // добавляем размер банки. Оттенок (sat) всегда идёт вместе с цветом.
+    const set2 = new Set(set1);
+    if(!set2.has('color')) set2.add('color');
+    else set2.add('size');
+    if(set2.has('color') && flags.hasSat) set2.add('sat');
+    return set2;
+  }
+
   function computeFlags(cfg){
     return {
       hasGradient: cfg.type === 'gradient',
@@ -742,7 +800,8 @@
       $('shapeGroup').classList.add('hidden');
     }
 
-    Object.values(S).forEach(s=>s.setDisabled(false));
+    Object.values(S).forEach(s=>{ s.setDisabled(false); s.setDiffLocked(false); });
+    applyDifficultyGating();
     updatePlayerJar();
     updateIngredientCounter(0);
 
@@ -760,6 +819,42 @@
     setRingFraction(0);
     craftStartTime = performance.now();
     runTimer(cfg.craftMs, ()=>{ if(!craftLocked) finishCraft(); });
+  }
+
+  // регулятор, недоступный на текущей сложности, замирает на случайной
+  // (но валидной) величине — игрок его больше не трогает
+  function randomizeLockedValue(key){
+    const cfg = target.cfg;
+    switch(key){
+      case 'color':  S.color.value = randInt(0, cfg.colorSteps-1); break;
+      case 'colorB': S.colorB.value = randInt(0, cfg.colorSteps-1); break;
+      case 'sat':    S.sat.value = randInt(0,9); break;
+      case 'size':   S.size.value = randInt(0, cfg.sizeSteps-1); break;
+      case 'count':  S.count.value = randInt(1, cfg.countMax); break;
+      case 'bsize':  S.bsize.value = randInt(0, cfg.bsizeSteps-1); break;
+      case 'shape':  S.shape.value = randInt(0, SHAPE_PROFILES.length-1); break;
+    }
+  }
+  // применяет систему сложности регуляторов (Фаза C) к текущему заказу:
+  // считает, какие регуляторы доступны, блокирует остальные визуально
+  // (серые + перечёркнутые) и фиксирует их на случайной величине
+  function applyDifficultyGating(){
+    const flags = target.flags;
+    const active = computeActiveKeys(regDifficulty, target);
+    target.activeKeys = active;
+
+    const relevant = ['color','size','count','bsize'];
+    if(flags.hasSat) relevant.push('sat');
+    if(flags.hasGradient) relevant.push('colorB');
+    if(flags.hasShape) relevant.push('shape');
+
+    relevant.forEach(key=>{
+      const slider = S[key];
+      if(!slider) return;
+      const isActive = active.has(key);
+      slider.setDiffLocked(!isActive);
+      if(!isActive) randomizeLockedValue(key);
+    });
   }
 
   function updateIngredientCounter(used){
@@ -797,7 +892,11 @@
     $('lblCount').textContent = count;
     $('lblBsize').textContent = Math.round(bsize) + '%';
     const r = 3 + (bsize/100)*9;
-    drawJar({ hue, hue2, sat, sizePct:size, bubbleCount:count, bubbleR:r, shapeIdx,
+    // если и число, и размер сгустков недоступны на текущей сложности —
+    // игра вообще их не генерирует (нечего показывать/угадывать)
+    const noBubbles = target.activeKeys && !target.activeKeys.has('count') && !target.activeKeys.has('bsize');
+    const effCount = noBubbles ? 0 : count;
+    drawJar({ hue, hue2, sat, sizePct:size, bubbleCount:effCount, bubbleR:r, shapeIdx,
       seed: target.seed + 5000 + count*7 + Math.round(r*13) });
   }
 
@@ -859,6 +958,14 @@
         {key:'count', label:UI_TEXT.LABEL_COUNT_QTY, score:countScore, weight:0.25},
         {key:'bsize', label:UI_TEXT.LABEL_COUNT_SIZE, score:bsizeScore, weight:0.2}
       ];
+    }
+
+    // сложность регуляторов (Фаза C): недоступные игроку регуляторы не
+    // участвуют в подсчёте очков — веса оставшихся нормализуются к 1
+    if(target.activeKeys){
+      components = components.filter(c => target.activeKeys.has(c.key));
+      const totalGate = components.reduce((s,c)=>s+c.weight,0) || 1;
+      components.forEach(c=>{ c.weight /= totalGate; });
     }
 
     // focus modifier: focused stats weigh much more, the rest much less
@@ -1099,6 +1206,7 @@
       renderLeaderboard(list, highlightScore, elId);
     });
     if($('saveScoreBtn').disabled) $('saveScoreBtn').textContent = LT(UI_TEXT.SAVE_SCORE_DONE);
+    updateDiffBtn();
   }
   const langBtn = $('langBtn');
   if(langBtn){
@@ -1110,6 +1218,26 @@
       refreshVisibleScreen();
     });
   }
+
+  // ---------- сложность регуляторов: переключатель 1→2→3 ----------
+  function updateDiffBtn(){
+    const btn = $('diffBtn');
+    if(!btn) return;
+    btn.textContent = LT(UI_TEXT.DIFF_BTN_LABEL) + regDifficulty;
+    btn.title = LT(UI_TEXT['DIFF_BTN_TITLE_'+regDifficulty]);
+  }
+  const diffBtn = $('diffBtn');
+  if(diffBtn){
+    diffBtn.addEventListener('click', ()=>{
+      SFX.uiClick();
+      regDifficulty = regDifficulty >= 3 ? 1 : regDifficulty + 1;
+      localStorage.setItem(REG_DIFF_KEY, regDifficulty);
+      updateDiffBtn();
+      // применяется со следующего заказа — чтобы не сбрасывать уже
+      // выставленные значения регуляторов посреди текущей попытки
+    });
+  }
+  updateDiffBtn();
 
   // ---------- стартовый экран: кнопка "Пришвартоваться" ----------
   const dockBtn = $('dockBtn');

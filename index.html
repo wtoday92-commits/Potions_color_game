@@ -21,7 +21,7 @@
 
 <!-- ЭМБИЕНТ: положи трек в assets/audio/ и укажи путь в src ниже (например assets/audio/ambient.mp3) -->
 <audio id="ambientAudio" loop preload="auto">
-  <source src="assets/karin.mp3" type="audio/mpeg">
+  <source src="assets/audio/ambient.mp3" type="audio/mpeg">
 </audio>
 
 <div class="stage">
@@ -32,6 +32,7 @@
       <div class="score"><span data-i18n="RATING_LABEL">РЕЙТИНГ:</span> <span id="scoreVal">0</span></div>
       <button id="lbBtn" class="lb-open-btn" data-i18n-title="LB_BTN_TITLE" title="Глобальный рейтинг"><img src="assets/ui/lb-open-btn.png" class="rating-img" alt=""></button>
       <button id="langBtn" class="lang-btn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
+      <button id="diffBtn" class="diff-btn" title="Сложность регуляторов">УР.3</button>
       <div class="volume-control" data-i18n-title="VOLUME_TITLE" title="Громкость эмбиента">
         <span class="volume-icon" id="volumeIcon">🔊</span>
         <input type="range" id="volumeSlider" min="0" max="100" value="60" step="1">
