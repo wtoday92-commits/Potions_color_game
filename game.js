@@ -1296,6 +1296,9 @@
       else { goodStreakAtMax++; perfectStreakAtMax = 0; }
     }
 
+    // Фаза F: тихо копим статистику/стрики/ленту идеалов/репутацию в профиль игрока
+    if(window.PotionProfile) window.PotionProfile.recordOrderResult({ npcId: cfg.id, perfect, good, delta });
+
     // cached so a language switch can re-translate the overlay without recomputing scores
     lastResult = { perfect, good, delta, speedBonusPct, overallPct, components, focus: target.focus };
 
@@ -1322,6 +1325,8 @@
   $('nextBtn').addEventListener('click', ()=>{
     SFX.uiClick();
     Object.values(S).forEach(s=>s.setDisabled(false));
+    // Фаза F: 1 день = 1 выполненный заказ, см. profile.js
+    if(window.PotionProfile) window.PotionProfile.recordDayPlayed();
     if(dayNum >= 10){
       showWeekOverlay();
     } else {
@@ -1382,6 +1387,8 @@
 
   async function showWeekOverlay(){
     SFX.weekEnd();
+    // Фаза F: фиксируем лучший результат цикла и счётчик пройденных циклов
+    if(window.PotionProfile) window.PotionProfile.recordCycleEnd(score);
     $('resultOverlay').classList.remove('show');
     $('finalScoreVal').textContent = score;
     $('nameInput').value = '';
@@ -1483,6 +1490,7 @@
     }, {once:true});
   }
 
+  if(window.PotionProfile) window.PotionProfile.load();
   applyI18n();
   initSliders();
   updateStickerTally();

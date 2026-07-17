@@ -109,7 +109,7 @@ const STICKERS = {
 */
 // ---------- NPCs & difficulty ----------
   const DIFFICULTIES = [
-    { tier:1, type:'normal', emoji:'🛰', img: [
+    { tier:1, id:'drone', type:'normal', emoji:'🛰', img: [
        'assets/npc/drone.png',
        'assets/npc/drone1.png',
        'assets/npc/drone2.png',
@@ -145,7 +145,7 @@ const STICKERS = {
       // НПС его пока не получают — level4 НЕ наследуется в EXTRA_NPCS
       // (см. tierPool() в game.js, тот же приём что и с img).
       level4:true },
-    { tier:2, type:'normal', emoji:'🐙', img: 'assets/npc/tentacloid.png',
+    { tier:2, id:'tentacloid', type:'normal', emoji:'🐙', img: 'assets/npc/tentacloid.png',
       name:{ ru:'Тентаклоид', en:'Tentacloid' },
       flavors:{ ru:[
         'Моим щупальцам нравится, когда красиво. Сделай красиво.',
@@ -165,7 +165,7 @@ const STICKERS = {
                en:['The container must fit my sucker perfectly. Size decides everything.','Dimensions! My tentacles are sensitive to dimensions!'] }
       },
       memorizeMs:5500, craftMs:17000, colorSteps:9, sizeSteps:7, countMax:7, bsizeSteps:7, reward:85 },
-    { tier:3, type:'normal', emoji:'👾', img: 'assets/npc/gurman.png',
+    { tier:3, id:'gourmet_vega', type:'normal', emoji:'👾', img: 'assets/npc/gurman.png',
       name:{ ru:'Гурман с Веги', en:'Gourmet from Vega' },
       flavors:{ ru:[
         'Это приправа к ужину. Ошибёшься — ужин обидится.',
@@ -185,7 +185,7 @@ const STICKERS = {
                en:['The portion must be precise. Volume and caliber, to the gram.','Size has a flavor. Trust the gourmet.'] }
       },
       memorizeMs:5000, craftMs:13800, colorSteps:14, sizeSteps:11, countMax:10, bsizeSteps:11, reward:130 },
-    { tier:4, type:'normal', emoji:'🤖', img: 'assets/npc/kai-9.png',
+    { tier:4, id:'logic9', type:'normal', emoji:'🤖', img: 'assets/npc/kai-9.png',
       name:{ ru:'Логик-9', en:'Logic-9' },
       flavors:{ ru:[
         'СМЕСЬ. ОХЛАЖДЕНИЕ. РЕАКТОР. ТОЧНОСТЬ. ОБЯЗАТЕЛЬНА.',
@@ -205,7 +205,7 @@ const STICKERS = {
                en:['PRIORITY: VOLUME. GEOMETRY. COMPATIBILITY. VERIFY.','VOLUME. CALIBER. SOCKET AWAITS PRECISION.'] }
       },
       memorizeMs:4500, craftMs:10000, colorSteps:24, sizeSteps:19, countMax:12, bsizeSteps:19, reward:180 },
-    { tier:5, type:'normal', emoji:'👁', img: 'assets/npc/ir.png',
+    { tier:5, id:'last_of_ir', type:'normal', emoji:'👁', img: 'assets/npc/ir.png',
       name:{ ru:'Последний из Ир', en:'Last of the Ir' },
       flavors:{ ru:[
         'Моя раса угасает. Эта смесь — наш последний рассвет.',
@@ -228,7 +228,7 @@ const STICKERS = {
   ];
 
   const SPECIAL_ORDERS = [
-    { tier:5, type:'shape', emoji:'🦑', img: 'assets/npc/chef.png',
+    { tier:5, id:'nebula_chef', type:'shape', emoji:'🦑', img: 'assets/npc/chef.png',
       name:{ ru:'Шеф туманности', en:'Nebula Chef' },
       flavors:{ ru:[
         'Форма сосуда — часть рецепта. Мой соус этого требует!',
@@ -240,7 +240,7 @@ const STICKERS = {
         'The wrong-shaped vessel ruins the presentation. And presentation is everything.'
       ]},
       memorizeMs:6500, craftMs:20000, colorSteps:10, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300 },
-    { tier:5, type:'gradient', emoji:'🧿', img: 'assets/npc/twofaced.png',
+    { tier:5, id:'twofaced_priestess', type:'gradient', emoji:'🧿', img: 'assets/npc/twofaced.png',
       name:{ ru:'Двуликая жрица', en:'Two-Faced Priestess' },
       flavors:{ ru:[
         'Смесь должна переливаться, как двойной закат моего мира.',
@@ -252,7 +252,7 @@ const STICKERS = {
         'My gods speak in two colors. Convey their words exactly.'
       ]},
       memorizeMs:7000, craftMs:20000, colorSteps:14, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300 },
-    { tier:5, type:'moving', emoji:'🍹', img: 'assets/npc/barmen.png',
+    { tier:5, id:'plasma_bartender', type:'moving', emoji:'🍹', img: 'assets/npc/barmen.png',
       name:{ ru:'Бармен плазма-бара', en:'Plasma-Bar Bartender' },
       flavors:{ ru:[
         'Сгустки у меня в баре не сидят на месте! Лови ритм!',
@@ -352,7 +352,7 @@ const STICKERS = {
 const EXTRA_NPCS = [
 
   /* ---------- УРОВЕНЬ 1 — простые бытовые ---------- */
-  { tier:1, emoji:'🪣', img: 'assets/npc/janitor.png',
+  { tier:1, id:'janitor', emoji:'🪣', img: 'assets/npc/janitor.png',
     name:{ ru:'Уборщик Пятого Дока', en:'Dock Five Janitor' },
     flavors:{ ru:[
       'Ведро смеси для мытья шлюза. Только не пахучую.',
@@ -371,7 +371,7 @@ const EXTRA_NPCS = [
       size:{ ru:['Ровно под моё ведро. Ни больше, ни меньше.','Габарит важен: шкафчик для инвентаря у меня крошечный.'],
              en:['Exactly to fit my bucket. Not a drop more or less.','Size matters: my supply locker is tiny.'] }
     } },
-  { tier:1, emoji:'📦', img: 'assets/npc/bip.png',
+  { tier:1, id:'intern_beep', emoji:'📦', img: 'assets/npc/bip.png',
     name:{ ru:'Стажёр Бип', en:'Intern Beep' },
     flavors:{ ru:[
       'Э-это мой первый заказ... Смесь. Пожалуйста. Любую?',
@@ -390,7 +390,7 @@ const EXTRA_NPCS = [
       size:{ ru:['Объём по накладной! Я мерил линейкой! Дважды!','Если не влезет в ячейку доставки — п-пересдача...'],
              en:['Volume per the invoice! I measured it with a ruler! Twice!',"If it doesn't fit the delivery slot — I-I'll have to redo it..."] }
     } },
-  { tier:1, emoji:'🚛', img: 'assets/npc/khrom.png',
+  { tier:1, id:'trucker_chrome', emoji:'🚛', img: 'assets/npc/khrom.png',
     name:{ ru:'Дальнобойщик Хром', en:'Long-Haul Chrome' },
     flavors:{ ru:[
       'Смесь в дорогу. Тыща парсеков впереди, не до изысков.',
@@ -411,7 +411,7 @@ const EXTRA_NPCS = [
     } },
 
   /* ---------- УРОВЕНЬ 2 — с запросами ---------- */
-  { tier:2, emoji:'💅', img: 'assets/npc/fashionista.png',
+  { tier:2, id:'fashionista', emoji:'💅', img: 'assets/npc/fashionista.png',
     name:{ ru:'Модница с Кассиопеи', en:'Cassiopeia Fashionista' },
     flavors:{ ru:[
       'Эта смесь пойдёт к моему новому панцирю. Постарайся.',
@@ -430,7 +430,7 @@ const EXTRA_NPCS = [
       size:{ ru:['Флакон под мою сумочку. Миллиметр в миллиметр.','Габарит — это силуэт. Силуэт — это всё.'],
              en:['The vial has to fit my purse. Millimeter for millimeter.','Size is silhouette. Silhouette is everything.'] }
     } },
-  { tier:2, emoji:'🐌', img: 'assets/npc/collector.png',
+  { tier:2, id:'collector_gz', emoji:'🐌', img: 'assets/npc/collector.png',
     name:{ ru:'Коллекционер Гз', en:'Collector Gz' },
     flavors:{ ru:[
       'В мою коллекцию не хватает... вот такой. Медленно повтори.',
@@ -449,7 +449,7 @@ const EXTRA_NPCS = [
       size:{ ru:['Полка рассчитана до микрона. Триста лет рассчитывала.','Не тот объём нарушит симметрию коллекции. Немыслимо.'],
              en:['The shelf is calculated to the micron. Three hundred years of calculating.',"The wrong volume would break the collection's symmetry. Unthinkable."] }
     } },
-  { tier:2, emoji:'🎧', img: 'assets/npc/dj.png',
+  { tier:2, id:'dj_pulsar', emoji:'🎧', img: 'assets/npc/dj.png',
     name:{ ru:'Диджей Пульсар', en:'DJ Pulsar' },
     flavors:{ ru:[
       'Нужна смесь под сегодняшний сет. Чтоб вайб совпал.',
@@ -470,7 +470,7 @@ const EXTRA_NPCS = [
     } },
 
   /* ---------- УРОВЕНЬ 3 — тонкая работа ---------- */
-  { tier:3, emoji:'🧴', img: 'assets/npc/parfumer.png',
+  { tier:3, id:'perfumer', emoji:'🧴', img: 'assets/npc/parfumer.png',
     name:{ ru:'Парфюмер Тысячи Лун', en:'Perfumer of a Thousand Moons' },
     flavors:{ ru:[
       'Это база для аромата, который вспомнят через век.',
@@ -489,7 +489,7 @@ const EXTRA_NPCS = [
       size:{ ru:['Флакон — половина парфюма. Объём выверен веками.','Пропорции сосуда диктуют испарение. Точность, друг мой.'],
              en:["The vial is half the perfume. The volume's been refined for centuries.","The vessel's proportions dictate evaporation. Precision, my friend."] }
     } },
-  { tier:3, emoji:'🔍', img: 'assets/npc/inspector.png',
+  { tier:3, id:'guild_inspector', emoji:'🔍', img: 'assets/npc/inspector.png',
     name:{ ru:'Инспектор Гильдии', en:'Guild Inspector' },
     flavors:{ ru:[
       'Плановая проверка. Изготовьте образец по регламенту.',
@@ -508,7 +508,7 @@ const EXTRA_NPCS = [
       size:{ ru:['Объём сверяется с эталоном Гильдии. До деления.','Габаритный допуск исчерпан предыдущим торговцем. Ноль.'],
              en:['Volume is checked against the Guild standard. To the mark.','The size tolerance was used up by the previous merchant. Zero left.'] }
     } },
-  { tier:3, emoji:'🦎', img: 'assets/npc/apothecary.png',
+  { tier:3, id:'apothecary_mo', emoji:'🦎', img: 'assets/npc/apothecary.png',
     name:{ ru:'Аптекарь Мо', en:'Apothecary Mo' },
     flavors:{ ru:[
       'Это лекарство. Рука не должна дрогнуть. Твоя.',
@@ -529,7 +529,7 @@ const EXTRA_NPCS = [
     } },
 
   /* ---------- УРОВЕНЬ 4 — жёсткие требования ---------- */
-  { tier:4, emoji:'🐝', img: 'assets/npc/swarm.png',
+  { tier:4, id:'swarm_navigator', emoji:'🐝', img: 'assets/npc/swarm.png',
     name:{ ru:'Навигатор Роя', en:'Swarm Navigator' },
     flavors:{ ru:[
       'МЫ говорим одним голосом. МЫ требуем точности.',
@@ -548,7 +548,7 @@ const EXTRA_NPCS = [
       size:{ ru:['Сота имеет размер. Смесь имеет размер соты.','Объём делится на всех НАС. Он должен делиться точно.'],
              en:["The cell has a size. The mixture has the cell's size.",'The volume is divided among all of US. It must divide exactly.'] }
     } },
-  { tier:4, emoji:'🔧', img: 'assets/npc/vex.png',
+  { tier:4, id:'vex', emoji:'🔧', img: 'assets/npc/vex.png',
     name:{ ru:'Хирург-механик Векс', en:'Surgeon-Mechanic Vex' },
     flavors:{ ru:[
       'Смесь пойдёт в открытый реактор. Представь мою руку. Не дрогни.',
@@ -567,7 +567,7 @@ const EXTRA_NPCS = [
       size:{ ru:['Полость под смесь вырезана лазером. Объём — до капли.','Габарит инструмента не обсуждается. Никогда.'],
              en:['The cavity for the mixture was laser-cut. Volume — to the drop.',"The instrument's size is not up for discussion. Ever."] }
     } },
-  { tier:4, emoji:'🏁', img: 'assets/npc/kai.png',
+  { tier:4, id:'racer_kai', emoji:'🏁', img: 'assets/npc/kai.png',
     name:{ ru:'Гонщица Кай', en:'Racer Kai' },
     flavors:{ ru:[
       'Присадка в бак. Финал через час. Не тормози и не косячь.',
@@ -588,7 +588,7 @@ const EXTRA_NPCS = [
     } },
 
   /* ---------- УРОВЕНЬ 5 — на грани миров ---------- */
-  { tier:5, emoji:'📜', img: 'assets/npc/archivist.png',
+  { tier:5, id:'archivist', emoji:'📜', img: 'assets/npc/archivist.png',
     name:{ ru:'Хранитель Архива', en:'Keeper of the Archive' },
     flavors:{ ru:[
       'Эта смесь — закладка между главами вселенной. Не смажь чернила.',
@@ -607,7 +607,7 @@ const EXTRA_NPCS = [
       size:{ ru:['Том должен встать на полку вечности. Размер известен.','Объём страницы решает, что войдёт в историю.'],
              en:['The volume must fit on the shelf of eternity. The size is known.',"The page's volume decides what makes it into history."] }
     } },
-  { tier:5, emoji:'🌟', img: 'assets/npc/supernova.png',
+  { tier:5, id:'supernova_child', emoji:'🌟', img: 'assets/npc/supernova.png',
     name:{ ru:'Дитя Сверхновой', en:'Child of the Supernova' },
     flavors:{ ru:[
       'я. родилось. вчера. из взрыва. хочу. попробовать. всё.',
@@ -626,7 +626,7 @@ const EXTRA_NPCS = [
       size:{ ru:['я. было. огромным. теперь. помещаюсь. вот. сюда.','размер. важен. я. знаю. я. было. размером. с. небо.'],
              en:['i. was. enormous. now. i. fit. right. here.','size. matters. i. know. i. was. the size. of. the sky.'] }
     } },
-  { tier:5, emoji:'⏳', img: 'assets/npc/waiter.png',
+  { tier:5, id:'the_waiter', emoji:'⏳', img: 'assets/npc/waiter.png',
     name:{ ru:'Тот-Кто-Ждёт', en:'The One Who Waits' },
     flavors:{ ru:[
       'Я ждал этой смеси... дольше, чем существует твоя лавка.',
