@@ -221,14 +221,23 @@
     transition:transform .32s cubic-bezier(.4,0,.2,1), opacity .26s ease;
   }
   .plaque-quote:hover{box-shadow:0 0 14px -3px var(--tier-color, var(--t1));}
-  .plaque-quote .quote{font-size:13px;color:var(--ink);line-height:1.4;padding:12px 14px;}
-  /* модификатор — отдельный отсек плашки снизу, не поверх текста */
+  .plaque-quote .quote{
+    font-size:13px;color:var(--ink);line-height:1.4;padding:12px 14px;
+    min-height:2.8em;display:flex;align-items:center;
+  }
+  /* модификатор — отдельный отсек плашки снизу, не поверх текста;
+     всегда присутствует (даже без модификатора — тогда красный крестик),
+     чтобы все карточки выглядели одинаково */
   .focus-chip{
     display:flex;align-items:center;gap:8px;padding:7px 14px;
     border-top:1px solid rgba(255,77,210,.28);background:rgba(255,77,210,.08);
     color:var(--magenta);font-family:'IBM Plex Mono',monospace;
     font-size:12px;letter-spacing:.04em;text-transform:uppercase;
   }
+  .focus-chip.no-focus{
+    border-top-color:rgba(255,93,106,.28);background:rgba(255,93,106,.08);color:var(--danger);
+  }
+  .focus-chip .no-focus-icon{font-size:14px;font-weight:700;line-height:1;}
   .customer-card.expanded .plaque-quote{
     opacity:0;pointer-events:none;transform:translateX(-52px) scale(.55);
   }

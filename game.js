@@ -695,7 +695,9 @@
         <div class="plaque-stack">
           <div class="plaque-quote">
             <div class="quote">«${LT(flavor)}»</div>
-            ${focus ? `<div class="focus-chip">${visualHTML(FOCUS_ICONS[focus],'focus-img')}<span>${LT(FOCUS_NAMES[focus])}</span></div>` : ''}
+            ${focus
+              ? `<div class="focus-chip">${visualHTML(FOCUS_ICONS[focus],'focus-img')}<span>${LT(FOCUS_NAMES[focus])}</span></div>`
+              : `<div class="focus-chip no-focus"><span class="no-focus-icon">✕</span><span>${LT(UI_TEXT.NO_FOCUS_LABEL)}</span></div>`}
           </div>
           <div class="plaque-levels">${levelCardsHTML}</div>
         </div>
@@ -1078,11 +1080,14 @@
     const good = overall >= goodThreshold;
     const perfect = overall >= perfectThreshold;
 
-    // speed bonus up to +50%: full when done within the first third at 100% accuracy,
-    // scales down with both time and accuracy
+    // бонус за скорость: потолок зависит от выбранного уровня сложности
+    // регуляторов (см. SPEED_BONUS_MULT в content.js) — полный потолок при
+    // укладывании в первую треть таймера и 100% точности, дальше падает
+    // и по времени, и по точности
     const third = 1/3;
     const timeFactor = timeFrac <= third ? 1 : Math.max(0, 1 - (timeFrac - third)/(1 - third));
-    const speedBonusFrac = 0.5 * overall * timeFactor;
+    const speedCap = (typeof SPEED_BONUS_MULT !== 'undefined' && SPEED_BONUS_MULT[target.regLevel]) ?? 0.5;
+    const speedBonusFrac = speedCap * overall * timeFactor;
 
     // focus raises the stakes both ways; the regulator-difficulty level chosen
     // for this order (Фаза D — выбор на плашках) scales the reward as well

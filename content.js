@@ -39,6 +39,7 @@ const UI_TEXT = {
   SELECT_TITLE:      { ru:'Кто пришвартовался к лавке?', en:"Who's docked at the shop?" },
   ORDER_LABEL:       { ru:'Заявка №', en:'Order #' },
   FOCUS_PREFIX:      { ru:'фокус:', en:'focus:' },
+  NO_FOCUS_LABEL:    { ru:'без модификатора', en:'no modifier' },
   PHASE_SCAN:        { ru:'сканируй образец...', en:'scan the sample...' },
   PHASE_CRAFT:       { ru:'воссоздай смесь по памяти!', en:'recreate the mixture from memory!' },
   BREW_BTN:          { ru:'Готово!', en:'Done!' },
@@ -264,7 +265,15 @@ const STICKERS = {
   // по карточке НПС). Множитель применяется к cfg.reward: чем меньше
   // регуляторов активно, тем легче задание — и тем ниже награда.
   // Правь смело — это просто коэффициенты.
-  const REG_DIFF_REWARD_MULT = { 1:0.6, 2:0.8, 3:1.0 };
+  const REG_DIFF_REWARD_MULT = { 1:0.3, 2:0.6, 3:1.0 };
+
+  // ---------- бонус за скорость по уровням ----------
+  // На 1-ом уровне активен всего один регулятор (обычно только цвет) —
+  // быть быстрым тривиально, поэтому бонуса за скорость там нет вообще.
+  // На 3-ем уровне (все регуляторы) — самый большой потолок бонуса.
+  // Число — это МАКСИМАЛЬНАЯ добавка к очкам (в долях), при 100% точности
+  // и укладывании в первую треть таймера; см. SPEED_BONUS_MULT в game.js.
+  const SPEED_BONUS_MULT = { 1:0, 2:0.35, 3:0.65 };
   const FOCUS_ICONS = {
     bubbles: 'assets/ui/bubble.png',
     color: 'assets/ui/color.png',
