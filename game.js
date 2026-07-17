@@ -658,27 +658,19 @@
   // cached so a language switch can re-render the same cards without rerolling them
   let currentOrders = [];
 
-  // Фаза D: карточка теперь состоит из иконки непися (слева, свечение =
-  // цвет уровня/tier) и плашки с художественным текстом (справа). Клик по
-  // плашке "прячет" её под иконку и раскрывает три уровня сложности
-  // регуляторов на выбор — каждый со своей наградой (см. REG_DIFF_REWARD_MULT
-  // в content.js). Клик по иконке разэкспандленной карточки сворачивает её
-  // обратно к тексту.
+  // Фаза D (v2): иконка непися — просто круг с портретом (2x крупнее) и
+  // свечением/рамкой в цвет tier. Имя больше не рисуется полукругом (было
+  // нечитаемо) — по клику на иконку оно выезжает справа от неё обычным
+  // читаемым шрифтом, повторный клик — прячет обратно. Модификатор задания
+  // (если есть) больше не всплывающий бейдж поверх текста, а отдельный
+  // "отсек" внутри самой плашки — свой цвет текста/иконки, без наложений.
   function renderCustomerCards(orders){
     const wrap = $('customerCards');
     wrap.innerHTML = '';
     orders.forEach((ord, i)=>{
       const { cfg, focus, flavor, avatar } = ord;
       const tierColor = TIER_COLORS[cfg.tier];
-      const namePathId = `npcNamePath${i}`;
       const npcNameStr = LT(cfg.name);
-      // подгонка длинного имени под дугу иконки: шрифт мельче для длинных
-      // имён, а совсем длинные (например английские "Perfumer of a
-      // Thousand Moons") ещё и принудительно сжимаются по ширине дуги
-      // через textLength, чтобы никогда не вылезать за края иконки
-      const nameLen = npcNameStr.length;
-      const nameFontSize = Math.max(6.5, Math.min(9.5, 9.5 - Math.max(0, nameLen - 14) * 0.22));
-      const nameTextLengthAttr = nameLen > 17 ? `textLength="118" lengthAdjust="spacingAndGlyphs"` : '';
 
       const card = document.createElement('div');
       card.className = 'customer-card';
@@ -698,14 +690,13 @@
           <div class="icon-glow">
             <div class="icon-img">${visualHTML(avatar,'npc-img')}</div>
           </div>
-          <svg class="icon-name-svg" viewBox="0 0 100 46">
-            <path id="${namePathId}" d="M 8,10 A 42,42 0 0 0 92,10" fill="none"></path>
-            <text style="font-size:${nameFontSize}px"><textPath href="#${namePathId}" startOffset="50%" text-anchor="middle" ${nameTextLengthAttr}>${npcNameStr}</textPath></text>
-          </svg>
+          <div class="icon-name-reveal"><span>${npcNameStr}</span></div>
         </div>
         <div class="plaque-stack">
-          ${focus ? `<div class="focus-badge">${visualHTML(FOCUS_ICONS[focus],'focus-img')} ${LT(FOCUS_NAMES[focus])}</div>` : ''}
-          <div class="plaque-quote"><div class="quote">«${LT(flavor)}»</div></div>
+          <div class="plaque-quote">
+            <div class="quote">«${LT(flavor)}»</div>
+            ${focus ? `<div class="focus-chip">${visualHTML(FOCUS_ICONS[focus],'focus-img')}<span>${LT(FOCUS_NAMES[focus])}</span></div>` : ''}
+          </div>
           <div class="plaque-levels">${levelCardsHTML}</div>
         </div>
       `;
@@ -715,6 +706,7 @@
 
       function expand(){
         wrap.querySelectorAll('.customer-card.expanded').forEach(c=>{ if(c!==card) c.classList.remove('expanded'); });
+        card.classList.remove('name-open');
         card.classList.add('expanded');
       }
       function collapse(){ card.classList.remove('expanded'); }
@@ -724,7 +716,9 @@
         expand();
       });
       icon.addEventListener('click', ()=>{
-        if(card.classList.contains('expanded')){ SFX.uiClick(); collapse(); }
+        SFX.uiClick();
+        if(card.classList.contains('expanded')){ collapse(); return; }
+        card.classList.toggle('name-open');
       });
       card.querySelectorAll('.level-card').forEach(btn=>{
         btn.addEventListener('click', (e)=>{
@@ -780,9 +774,9 @@
 
     target = {
       cfg, type: cfg.type, flags, focus, regLevel,
-      hue: idxToVal(hueIdx, cfg.colorSteps, 360),
-      size: idxToVal(sizeIdx, cfg.sizeSteps, 100),
-      bsize: idxToVal(bsizeIdx, cfg.bsizeSteps, 100),
+      hue: idxToVal(hueIdx, cfg.colorSteps, 360), hueIdx,
+      size: idxToVal(sizeIdx, cfg.sizeSteps, 100), sizeIdx,
+      bsize: idxToVal(bsizeIdx, cfg.bsizeSteps, 100), bsizeIdx,
       count,
       sat: 70,
       seed: randInt(1,99999)
@@ -790,19 +784,31 @@
     if(flags.hasGradient){
       const hue2Idx = randInt(0, cfg.colorSteps-1);
       target.hue2 = idxToVal(hue2Idx, cfg.colorSteps, 360);
+      target.hue2Idx = hue2Idx;
     }
     if(flags.hasShape){ target.shapeIdx = randInt(0, SHAPE_PROFILES.length-1); }
-    if(flags.hasSat){ target.sat = satFromIdx(randInt(0,9)); }
+    if(flags.hasSat){
+      const satIdx = randInt(0,9);
+      target.sat = satFromIdx(satIdx);
+      target.satIdx = satIdx;
+    }
     if(cfg.type === 'moving'){
       target.count = randInt(5, Math.max(5,cfg.countMax));
       target.moveSpeed = randInt(45, 95);
     }
 
+    // считаем доступные регуляторы уже сейчас (а не только в начале фазы
+    // "воссоздай") — чтобы фаза показа тоже не рисовала сгустки, которых
+    // на этой сложности всё равно не будет в задании
+    target.activeKeys = computeActiveKeys(regLevel, target);
+    const noBubblesPreview = !target.activeKeys.has('count') && !target.activeKeys.has('bsize');
+
     const targetR = 3 + (target.bsize/100)*9;
     if(cfg.type === 'moving'){
       startMovingAnim();
     } else {
-      drawJar({ hue:target.hue, hue2: target.hue2 ?? null, sat:target.sat, sizePct:target.size, bubbleCount:target.count,
+      drawJar({ hue:target.hue, hue2: target.hue2 ?? null, sat:target.sat, sizePct:target.size,
+        bubbleCount: noBubblesPreview ? 0 : target.count,
         bubbleR:targetR, seed:target.seed, shapeIdx: target.shapeIdx ?? 0 });
     }
 
@@ -882,18 +888,21 @@
     runTimer(cfg.craftMs, ()=>{ if(!craftLocked) finishCraft(); });
   }
 
-  // регулятор, недоступный на текущей сложности, замирает на случайной
-  // (но валидной) величине — игрок его больше не трогает
-  function randomizeLockedValue(key){
-    const cfg = target.cfg;
+  // регулятор, недоступный на текущей сложности, замирает РОВНО на том
+  // значении, которое игрок уже видел на фазе показа — а не на новом
+  // случайном. Иначе банка визуально "прыгает" (например меняет размер)
+  // сразу после исчезновения тумана, и это ложно намекает, что этот
+  // параметр тоже нужно подгонять, хотя ползунок недоступен.
+  function freezeLockedValue(key){
+    const t = target;
     switch(key){
-      case 'color':  S.color.value = randInt(0, cfg.colorSteps-1); break;
-      case 'colorB': S.colorB.value = randInt(0, cfg.colorSteps-1); break;
-      case 'sat':    S.sat.value = randInt(0,9); break;
-      case 'size':   S.size.value = randInt(0, cfg.sizeSteps-1); break;
-      case 'count':  S.count.value = randInt(1, cfg.countMax); break;
-      case 'bsize':  S.bsize.value = randInt(0, cfg.bsizeSteps-1); break;
-      case 'shape':  S.shape.value = randInt(0, SHAPE_PROFILES.length-1); break;
+      case 'color':  S.color.value = t.hueIdx; break;
+      case 'colorB': S.colorB.value = t.hue2Idx ?? t.hueIdx; break;
+      case 'sat':    S.sat.value = t.satIdx ?? 7; break;
+      case 'size':   S.size.value = t.sizeIdx; break;
+      case 'count':  S.count.value = t.count; break;
+      case 'bsize':  S.bsize.value = t.bsizeIdx; break;
+      case 'shape':  S.shape.value = t.shapeIdx ?? 0; break;
     }
   }
   // применяет систему сложности регуляторов (Фаза C) к текущему заказу:
@@ -901,7 +910,7 @@
   // (серые + перечёркнутые) и фиксирует их на случайной величине
   function applyDifficultyGating(){
     const flags = target.flags;
-    const active = computeActiveKeys(target.regLevel, target);
+    const active = target.activeKeys || computeActiveKeys(target.regLevel, target);
     target.activeKeys = active;
 
     const relevant = ['color','size','count','bsize'];
@@ -914,7 +923,7 @@
       if(!slider) return;
       const isActive = active.has(key);
       slider.setDiffLocked(!isActive);
-      if(!isActive) randomizeLockedValue(key);
+      if(!isActive) freezeLockedValue(key);
     });
   }
 

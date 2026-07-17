@@ -178,29 +178,38 @@
     text-align:left;
   }
 
-  /* ---- иконка непися: круг со свечением по цвету tier + имя полукругом ---- */
+  /* ---- иконка непися: круг со свечением по цвету tier (2x крупнее) ---- */
   .npc-icon{
-    flex:0 0 auto;width:78px;display:flex;flex-direction:column;align-items:center;
+    flex:0 0 auto;width:132px;position:relative;display:flex;align-items:center;
     cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;
   }
   .icon-glow{
-    width:64px;height:64px;border-radius:50%;flex:0 0 auto;
+    width:128px;height:128px;border-radius:50%;flex:0 0 auto;
     background:radial-gradient(circle at 35% 30%, #171c38, #0a0d20 72%);
     border:2px solid var(--tier-color, var(--t1));
-    box-shadow:0 0 14px 1px var(--tier-color, var(--t1)), inset 0 0 10px rgba(0,0,0,.5);
+    box-shadow:0 0 20px 2px var(--tier-color, var(--t1)), inset 0 0 16px rgba(0,0,0,.5);
     display:flex;align-items:center;justify-content:center;overflow:hidden;
     transition:box-shadow .25s ease, transform .25s ease;
   }
-  .npc-icon:hover .icon-glow{box-shadow:0 0 20px 4px var(--tier-color, var(--t1)), inset 0 0 10px rgba(0,0,0,.5);}
-  .customer-card.expanded .icon-glow{box-shadow:0 0 26px 6px var(--tier-color, var(--t1)), inset 0 0 10px rgba(0,0,0,.5);transform:scale(1.04);}
-  .icon-img{font-size:28px;line-height:1;filter:drop-shadow(0 0 6px rgba(0,0,0,.5));}
-  .icon-img img.npc-img{width:46px;height:46px;object-fit:contain;display:block;}
-  .icon-name-svg{width:78px;height:28px;margin-top:-9px;overflow:visible;}
-  .icon-name-svg path{fill:none;stroke:none;}
-  .icon-name-svg text{
-    font-family:'Jura',sans-serif;font-weight:700;font-size:9.5px;
-    fill:var(--tier-color, var(--ink-dim));letter-spacing:.03em;text-transform:uppercase;
+  .npc-icon:hover .icon-glow{box-shadow:0 0 28px 5px var(--tier-color, var(--t1)), inset 0 0 16px rgba(0,0,0,.5);}
+  .customer-card.expanded .icon-glow{box-shadow:0 0 32px 7px var(--tier-color, var(--t1)), inset 0 0 16px rgba(0,0,0,.5);transform:scale(1.04);}
+  .icon-img{font-size:52px;line-height:1;filter:drop-shadow(0 0 8px rgba(0,0,0,.5));}
+  .icon-img img.npc-img{width:92px;height:92px;object-fit:contain;display:block;}
+
+  /* ---- имя непися: выезжает справа из-под иконки по клику, прячется по повторному ---- */
+  .icon-name-reveal{
+    position:absolute;left:100%;top:50%;transform:translateY(-50%);margin-left:-14px;
+    max-width:0;padding:0;overflow:hidden;white-space:nowrap;z-index:2;
+    background:linear-gradient(180deg,#101530,#0a0d20);
+    border:1px solid var(--tier-color, var(--t1));border-radius:8px;
+    box-shadow:0 0 12px -2px var(--tier-color, var(--t1));
+    transition:max-width .34s cubic-bezier(.4,0,.2,1), padding .34s cubic-bezier(.4,0,.2,1);
   }
+  .icon-name-reveal span{
+    display:inline-block;padding:8px 16px;font-family:'Jura',sans-serif;font-weight:700;
+    font-size:15px;color:var(--ink);letter-spacing:.02em;white-space:nowrap;
+  }
+  .customer-card.name-open .icon-name-reveal{max-width:320px;padding:0;}
 
   /* ---- плашка: текст, который прячется под иконку, и 3 плашки уровней ---- */
   .plaque-stack{flex:1;display:grid;position:relative;min-height:58px;}
@@ -208,11 +217,18 @@
   .plaque-quote{
     background:linear-gradient(180deg,#101530,#0a0d20);
     border:1px solid rgba(53,224,255,.3);border-left:4px solid var(--tier-color, var(--t1));
-    border-radius:12px;padding:12px 14px;cursor:pointer;
+    border-radius:12px;cursor:pointer;overflow:hidden;
     transition:transform .32s cubic-bezier(.4,0,.2,1), opacity .26s ease;
   }
   .plaque-quote:hover{box-shadow:0 0 14px -3px var(--tier-color, var(--t1));}
-  .plaque-quote .quote{font-size:13px;color:var(--ink);line-height:1.4;}
+  .plaque-quote .quote{font-size:13px;color:var(--ink);line-height:1.4;padding:12px 14px;}
+  /* модификатор — отдельный отсек плашки снизу, не поверх текста */
+  .focus-chip{
+    display:flex;align-items:center;gap:8px;padding:7px 14px;
+    border-top:1px solid rgba(255,77,210,.28);background:rgba(255,77,210,.08);
+    color:var(--magenta);font-family:'IBM Plex Mono',monospace;
+    font-size:12px;letter-spacing:.04em;text-transform:uppercase;
+  }
   .customer-card.expanded .plaque-quote{
     opacity:0;pointer-events:none;transform:translateX(-52px) scale(.55);
   }
@@ -236,14 +252,6 @@
     letter-spacing:.05em;color:var(--tier-color, var(--t1));
   }
   .level-card .level-reward{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--good);}
-
-  .focus-badge{
-    position:absolute;top:-11px;right:14px;z-index:1;
-    background:#0a0d20;border:1.5px solid var(--magenta);border-radius:999px;
-    font-size:13px;padding:2px 9px;line-height:1.3;
-    font-family:'IBM Plex Mono',monospace;color:var(--magenta);
-    box-shadow:0 0 10px rgba(255,77,210,.5);
-  }
 
   .round-screen{display:none;}
   .round-screen.show{display:block;}
@@ -483,19 +491,17 @@ body:after{
 }
 
 /* ---------- 2. Крупнее плашки заданий ---------- */
-.customer-cards{max-width:560px;gap:20px;}
-.npc-icon{width:86px;}
-.icon-glow{width:72px;height:72px;}
-.icon-img{font-size:32px;}
-.icon-img img.npc-img{width:54px;height:54px;}
-.icon-name-svg{width:86px;height:30px;}
-.icon-name-svg text{font-size:10.5px;}
-.plaque-quote{padding:14px 16px;}
-.plaque-quote .quote{font-size:15px;}
+.customer-cards{max-width:560px;gap:22px;}
+.npc-icon{width:148px;}
+.icon-glow{width:144px;height:144px;}
+.icon-img{font-size:58px;}
+.icon-img img.npc-img{width:104px;height:104px;}
+.icon-name-reveal span{font-size:16px;padding:9px 18px;}
+.plaque-quote .quote{font-size:15px;padding:14px 16px;}
+.focus-chip{font-size:13px;padding:8px 16px;}
 .level-card .level-tag{font-size:13px;}
 .level-card .level-reward{font-size:12.5px;}
 .select-title{font-size:17px;}
-.focus-badge{font-size:14px;padding:3px 11px;}
 
 /* ---------- 3. Крупнее шапка: дни, рейтинг, кнопка ---------- */
 .topbar{font-size:15px;}
@@ -597,12 +603,12 @@ body{ background: url('assets/bg/space.png') center/cover fixed; }
 
 /* иконки-картинки фокус-заказов */
 img.focus-img{width:22px;height:22px;object-fit:contain;vertical-align:-6px;}
-.focus-badge img.focus-img{width:20px;height:20px;vertical-align:-5px;}
+.focus-chip img.focus-img{width:20px;height:20px;vertical-align:-5px;}
 
-/* фокус-бейджи и иконки — крупные, читаемые */
+/* фокус-чипы и иконки — крупные, читаемые */
 img.focus-img{width:32px;height:32px;vertical-align:-10px;}
-.focus-badge{font-size:15px;padding:5px 14px;top:-18px;}
-.focus-badge img.focus-img{width:28px;height:28px;vertical-align:-8px;}
+.focus-chip{font-size:15px;padding:6px 14px;}
+.focus-chip img.focus-img{width:28px;height:28px;vertical-align:-8px;}
 .order-focus-tag{font-size:14px;}
 
 .tally-item img.tally-img{width:56px;height:56px;vertical-align:-20px;}
