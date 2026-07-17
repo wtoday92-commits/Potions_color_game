@@ -22,7 +22,11 @@
        totalScoreEarned,     // сумма всех положительных начислений очков за всю историю
        bestCycleScore,       // лучший результат цикла (то же число, что уходит в лидерборд)
        totalOrders,
-       stickersLifetime: { perfect, good, bad }
+       stickersLifetime: { perfect, good, bad },
+       stickersSeen: { perfect:[idx,...], good:[...], bad:[...] }
+         // Фаза G: какие именно варианты стикера (индекс в STICKERS.*)
+         // игрок уже видел — питает "альбом" в Коллекции (силуэт для
+         // ещё не выбитых). Индекс приходит из finalizeResult() в game.js.
      },
      streaks: {
        perfectCurrent, perfectBest,
@@ -71,7 +75,8 @@
         totalScoreEarned: 0,
         bestCycleScore: 0,
         totalOrders: 0,
-        stickersLifetime: { perfect: 0, good: 0, bad: 0 }
+        stickersLifetime: { perfect: 0, good: 0, bad: 0 },
+        stickersSeen: { perfect: [], good: [], bad: [] }
       },
       streaks: {
         perfectCurrent: 0, perfectBest: 0,
@@ -156,8 +161,10 @@
     load,
     save,
 
-    // вызывается из finalizeResult() в game.js после каждого заказа
-    recordOrderResult({ npcId, perfect, good, delta }){
+    // вызывается из finalizeResult() в game.js после каждого заказа.
+    // stickerCat/stickerIdx (Фаза G) — какой именно вариант стикера был
+    // показан игроку в этот раз, для альбома в Коллекции.
+    recordOrderResult({ npcId, perfect, good, delta, stickerCat, stickerIdx }){
       load();
       const st = profile.stats;
       st.totalOrders++;
@@ -165,6 +172,12 @@
       if(perfect) st.stickersLifetime.perfect++;
       else if(good) st.stickersLifetime.good++;
       else st.stickersLifetime.bad++;
+
+      if(stickerCat && typeof stickerIdx === 'number'){
+        if(!st.stickersSeen) st.stickersSeen = { perfect:[], good:[], bad:[] };
+        const arr = st.stickersSeen[stickerCat];
+        if(arr && !arr.includes(stickerIdx)) arr.push(stickerIdx);
+      }
 
       const s = profile.streaks;
       if(perfect){ s.perfectCurrent++; s.perfectBest = Math.max(s.perfectBest, s.perfectCurrent); }

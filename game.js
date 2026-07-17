@@ -1296,13 +1296,21 @@
       else { goodStreakAtMax++; perfectStreakAtMax = 0; }
     }
 
-    // Фаза F: тихо копим статистику/стрики/ленту идеалов/репутацию в профиль игрока
-    if(window.PotionProfile) window.PotionProfile.recordOrderResult({ npcId: cfg.id, perfect, good, delta });
+    // Фаза G: фиксируем КОНКРЕТНЫЙ вариант стикера один раз здесь (а не
+    // внутри visualHTML), чтобы одно и то же значение ушло и на экран
+    // результата, и в profile.stats.stickersSeen для альбома в Коллекции
+    const stickerCat = perfect ? 'perfect' : good ? 'good' : 'bad';
+    const stickerArr = STICKERS[stickerCat];
+    const stickerIdx = Array.isArray(stickerArr) ? randInt(0, stickerArr.length-1) : 0;
+    const stickerVal = Array.isArray(stickerArr) ? stickerArr[stickerIdx] : stickerArr;
+
+    // Фаза F/G: тихо копим статистику/стрики/ленту идеалов/репутацию/альбом в профиль игрока
+    if(window.PotionProfile) window.PotionProfile.recordOrderResult({ npcId: cfg.id, perfect, good, delta, stickerCat, stickerIdx });
 
     // cached so a language switch can re-translate the overlay without recomputing scores
     lastResult = { perfect, good, delta, speedBonusPct, overallPct, components, focus: target.focus };
 
-    $('stickerEmoji').innerHTML = visualHTML(perfect ? STICKERS.perfect : good ? STICKERS.good : STICKERS.bad, 'sticker-img');
+    $('stickerEmoji').innerHTML = visualHTML(stickerVal, 'sticker-img');
     $('resultTitle').textContent = LT(perfect ? UI_TEXT.RESULT_PERFECT : good ? UI_TEXT.RESULT_GOOD : UI_TEXT.RESULT_BAD);
     $('resultTitle').className = 'result-title ' + (good ? 'good' : 'bad');
     $('deltaVal').textContent = (delta>=0?'+':'') + delta;
@@ -1385,6 +1393,90 @@
   });
   $('lbCloseBtn').addEventListener('click', ()=>{ SFX.uiClick(); $('lbOverlay').classList.remove('show'); });
 
+  // ============================================================
+  // Фаза G: Коллекция — статистика, лента идеалов, альбом стикеров,
+  // репутация неписей. Читает только window.PotionProfile.data — ничего
+  // тут не пишет обратно в профиль (это делает только finalizeResult()).
+  // ============================================================
+
+  // черновой уровень репутации ТОЛЬКО для прогресс-бара (см. REP_LEVEL_STEP
+  // в content.js) — окончательные пороги и пассивки решает Фаза J
+  function repLevelInfo(value){
+    const step = (typeof REP_LEVEL_STEP !== 'undefined') ? REP_LEVEL_STEP : 50;
+    const v = Math.max(0, value || 0);
+    return { level: Math.floor(v/step), progress: (v % step)/step };
+  }
+
+  function renderRibbonDots(count, total, iconVal, filledCls){
+    let html = '';
+    for(let i=0;i<total;i++){
+      html += i < count
+        ? `<div class="ribbon-dot filled ${filledCls||''}">${visualHTML(iconVal,'ribbon-icon')}</div>`
+        : `<div class="ribbon-dot"></div>`;
+    }
+    return html;
+  }
+
+  function renderCollection(){
+    if(!window.PotionProfile) return;
+    const p = window.PotionProfile.data;
+    const st = p.stats;
+
+    $('collectionStats').innerHTML = `
+      <div class="stat-row"><span>${LT(UI_TEXT.STATS_DAYS)}</span><b>${st.totalDaysPlayed}</b></div>
+      <div class="stat-row"><span>${LT(UI_TEXT.STATS_CYCLES)}</span><b>${st.cyclesCompleted}</b></div>
+      <div class="stat-row"><span>${LT(UI_TEXT.STATS_TOTAL_SCORE)}</span><b>${st.totalScoreEarned}</b></div>
+      <div class="stat-row"><span>${LT(UI_TEXT.STATS_BEST_CYCLE)}</span><b>${st.bestCycleScore}</b></div>
+      <div class="stat-row"><span>${LT(UI_TEXT.STATS_ORDERS)}</span><b>${st.totalOrders}</b></div>
+    `;
+
+    // ---- лента идеалов (20 позиций, сброс) + платиновая лента ----
+    const perfectIcon = Array.isArray(STICKERS.perfect) ? STICKERS.perfect[0] : STICKERS.perfect;
+    $('perfectRibbon').innerHTML = renderRibbonDots(p.perfectRibbon.count, 20, perfectIcon);
+    const platCount = p.perfectRibbon.platinumCount || 0;
+    $('platinumBlock').style.display = platCount > 0 ? '' : 'none';
+    $('platinumRibbon').innerHTML = renderRibbonDots(Math.min(platCount,20), Math.min(Math.max(platCount,1),20), perfectIcon, 'platinum')
+      + (platCount > 20 ? `<div class="ribbon-overflow">+${platCount-20}</div>` : '');
+
+    // ---- альбом стикеров: силуэт для ещё не выбитых вариантов ----
+    const seen = (st.stickersSeen) || { perfect:[], good:[], bad:[] };
+    const albumRow = (cat, labelKey)=>{
+      const arr = STICKERS[cat];
+      const variants = Array.isArray(arr) ? arr : [arr];
+      const cells = variants.map((v,i)=>{
+        const unlocked = (seen[cat]||[]).includes(i);
+        return `<div class="album-cell ${unlocked?'unlocked':'locked'}">${unlocked ? visualHTML(v,'album-img') : '<span class="album-lock">?</span>'}</div>`;
+      }).join('');
+      return `<div class="album-row"><div class="album-row-label">${LT(UI_TEXT[labelKey])}</div><div class="album-row-cells">${cells}</div></div>`;
+    };
+    $('stickerAlbum').innerHTML =
+      albumRow('perfect', 'ALBUM_LABEL_PERFECT') +
+      albumRow('good', 'ALBUM_LABEL_GOOD') +
+      albumRow('bad', 'ALBUM_LABEL_BAD');
+
+    // ---- репутация по каждому НПС (заготовка на будущее, см. Фазу J) ----
+    const npcs = (typeof ALL_NPCS !== 'undefined') ? ALL_NPCS : [];
+    $('reputationList').innerHTML = npcs.map(n=>{
+      const rep = (p.npcReputation && p.npcReputation[n.id]) || { value:0 };
+      const { level, progress } = repLevelInfo(rep.value);
+      const tierColor = `var(--t${n.tier})`;
+      return `<div class="rep-row">
+        <div class="rep-icon" style="--tier-color:${tierColor}">${visualHTML(n.img || n.emoji, 'rep-img')}</div>
+        <div class="rep-info">
+          <div class="rep-name"><span>${LT(n.name)}</span><span class="rep-level">${LT(UI_TEXT.REP_LEVEL_LABEL)}${level}</span></div>
+          <div class="rep-bar"><div class="rep-bar-fill" style="width:${Math.round(progress*100)}%;background:${tierColor}"></div></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  $('collectionBtn').addEventListener('click', ()=>{
+    SFX.uiClick();
+    renderCollection();
+    $('collectionOverlay').classList.add('show');
+  });
+  $('collectionCloseBtn').addEventListener('click', ()=>{ SFX.uiClick(); $('collectionOverlay').classList.remove('show'); });
+
   async function showWeekOverlay(){
     SFX.weekEnd();
     // Фаза F: фиксируем лучший результат цикла и счётчик пройденных циклов
@@ -1466,6 +1558,7 @@
       renderLeaderboard(list, highlightScore, elId);
     });
     if($('saveScoreBtn').disabled) $('saveScoreBtn').textContent = LT(UI_TEXT.SAVE_SCORE_DONE);
+    if($('collectionOverlay').classList.contains('show')) renderCollection();
   }
   const langBtn = $('langBtn');
   if(langBtn){

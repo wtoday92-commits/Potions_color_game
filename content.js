@@ -70,6 +70,23 @@ const UI_TEXT = {
   LB_CLOSE_BTN:      { ru:'Закрыть', en:'Close' },
   LB_EMPTY:          { ru:'Пока пусто — будь первым!', en:"It's empty — be the first!" },
   ANONYMOUS:         { ru:'Аноним', en:'Anonymous' },
+
+  // ---------- Фаза G: коллекция (статистика/альбом/лента/репутация) ----------
+  COLLECTION_BTN_TITLE:   { ru:'Коллекция', en:'Collection' },
+  COLLECTION_TITLE:       { ru:'🗂 Коллекция', en:'🗂 Collection' },
+  STATS_DAYS:             { ru:'Дней в лавке', en:'Days in the shop' },
+  STATS_CYCLES:           { ru:'Циклов пройдено', en:'Cycles completed' },
+  STATS_TOTAL_SCORE:      { ru:'Суммарный рейтинг', en:'Total rating earned' },
+  STATS_BEST_CYCLE:       { ru:'Лучший результат цикла', en:'Best cycle result' },
+  STATS_ORDERS:           { ru:'Заказов выполнено', en:'Orders completed' },
+  RIBBON_SECTION_TITLE:   { ru:'Лента идеальных', en:'Perfect ribbon' },
+  PLATINUM_RIBBON_TITLE:  { ru:'Платиновая лента', en:'Platinum ribbon' },
+  STICKERS_SECTION_TITLE: { ru:'Альбом стикеров', en:'Sticker album' },
+  ALBUM_LABEL_PERFECT:    { ru:'Идеал', en:'Perfect' },
+  ALBUM_LABEL_GOOD:       { ru:'Годнота', en:'Decent' },
+  ALBUM_LABEL_BAD:        { ru:'Брак', en:'Reject' },
+  REPUTATION_SECTION_TITLE: { ru:'Репутация', en:'Reputation' },
+  REP_LEVEL_LABEL:        { ru:'ур.', en:'lv.' },
 };
 
 // ---------- СТИКЕРЫ РЕЗУЛЬТАТА ----------
@@ -336,6 +353,13 @@ const STICKERS = {
 
   const STAGE_TABLE = [ [1,1,1],[2,2,3],[3,4,4],[4,4,4] ];
   const MAX_STAGE = STAGE_TABLE.length - 1;
+
+  // ---------- Фаза G: черновой шаг уровня репутации ----------
+  // Используется ТОЛЬКО для прогресс-бара в Коллекции (визуализация "на
+  // будущее" из ТЗ). Настоящие пороги повышения уровня, привязанные к
+  // пассивкам, проектируются отдельно в Фазе J — там это число может
+  // измениться или стать разным для каждого НПС.
+  const REP_LEVEL_STEP = 50;
 
 /* ============================================================
    ПАК ПРИШЕЛЬЦЕВ: 12 новых НПС (по 2-3 на каждый уровень).
@@ -646,3 +670,17 @@ const EXTRA_NPCS = [
              en:['The vessel must hold the waiting. It has volume, believe me.',"Exactly as much as needed. You'll understand. Or you won't."] }
     } }
 ];
+
+// ---------- Фаза G: сводный список всех НПС ----------
+// Все 23 постоянных id (5 базовых DIFFICULTIES + 15 EXTRA_NPCS + 3
+// SPECIAL_ORDERS) в одном месте — нужен для списка репутации в
+// Коллекции (и пригодится Фазам H/I/J для ачивок/лора/пассивок по НПС).
+// Дедуп по id на случай, если он у кого-то случайно повторится.
+const ALL_NPCS = (()=>{
+  const seen = new Set();
+  const out = [];
+  [...DIFFICULTIES, ...EXTRA_NPCS, ...SPECIAL_ORDERS].forEach(n=>{
+    if(n.id && !seen.has(n.id)){ seen.add(n.id); out.push(n); }
+  });
+  return out;
+})();

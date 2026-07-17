@@ -31,6 +31,7 @@
     <div style="display:flex;align-items:center;gap:8px;">
       <div class="score"><span data-i18n="RATING_LABEL">РЕЙТИНГ:</span> <span id="scoreVal">0</span></div>
       <button id="lbBtn" class="lb-open-btn" data-i18n-title="LB_BTN_TITLE" title="Глобальный рейтинг"><img src="assets/ui/lb-open-btn.png" class="rating-img" alt=""></button>
+      <button id="collectionBtn" class="lang-btn collection-btn" data-i18n-title="COLLECTION_BTN_TITLE" title="Коллекция">📖</button>
       <button id="langBtn" class="lang-btn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
       <div class="volume-control" data-i18n-title="VOLUME_TITLE" title="Громкость эмбиента">
         <span class="volume-icon" id="volumeIcon">🔊</span>
@@ -148,6 +149,36 @@
     <h3 data-i18n="LB_TITLE">🏆 Глобальный рейтинг</h3>
     <div class="leaderboard-list" id="lbOverlayList"></div>
     <button class="next-btn" id="lbCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
+  </div>
+</div>
+
+<!-- Фаза G: коллекция игрока — статистика, ленты идеалов, альбом стикеров, репутация -->
+<div class="week-overlay" id="collectionOverlay">
+  <div class="week-card collection-card">
+    <h3 data-i18n="COLLECTION_TITLE">🗂 Коллекция</h3>
+
+    <div class="collection-stats" id="collectionStats"></div>
+
+    <div class="collection-section">
+      <div class="collection-section-title" data-i18n="RIBBON_SECTION_TITLE">Лента идеальных</div>
+      <div class="perfect-ribbon" id="perfectRibbon"></div>
+      <div class="platinum-block" id="platinumBlock">
+        <div class="ribbon-subtitle" data-i18n="PLATINUM_RIBBON_TITLE">Платиновая лента</div>
+        <div class="platinum-ribbon" id="platinumRibbon"></div>
+      </div>
+    </div>
+
+    <div class="collection-section">
+      <div class="collection-section-title" data-i18n="STICKERS_SECTION_TITLE">Альбом стикеров</div>
+      <div class="sticker-album" id="stickerAlbum"></div>
+    </div>
+
+    <div class="collection-section">
+      <div class="collection-section-title" data-i18n="REPUTATION_SECTION_TITLE">Репутация</div>
+      <div class="reputation-list" id="reputationList"></div>
+    </div>
+
+    <button class="next-btn" id="collectionCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
   </div>
 </div>
 <!-- порядок важен: сначала профиль (Фаза F), потом контент, потом логика -->

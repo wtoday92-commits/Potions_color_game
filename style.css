@@ -465,6 +465,83 @@
   .leaderboard-list .lb-row{display:flex;justify-content:space-between;color:var(--ink-dim);padding:3px 6px;border-radius:4px;}
   .leaderboard-list .lb-row.me{background:rgba(53,224,255,.14);color:var(--neon-light);}
 
+  /* ============================================================
+     Фаза G: экран "Коллекция" — статистика, ленты, альбом, репутация
+     ============================================================ */
+  .collection-btn{font-size:16px;padding:4px 9px;line-height:1;}
+  .collection-card{width:380px;text-align:left;}
+  .collection-card h3{text-align:center;}
+
+  .collection-stats{
+    display:flex;flex-direction:column;gap:5px;margin:10px 0 16px;
+    font-family:'IBM Plex Mono',monospace;font-size:12px;
+  }
+  .stat-row{display:flex;justify-content:space-between;color:var(--ink-dim);padding:3px 6px;}
+  .stat-row b{color:var(--neon-light);font-weight:600;}
+
+  .collection-section{margin-bottom:18px;}
+  .collection-section-title{
+    font-family:'Jura',sans-serif;font-weight:700;font-size:12px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-dim);margin-bottom:8px;
+    border-bottom:1px solid rgba(53,224,255,.2);padding-bottom:4px;
+  }
+  .ribbon-subtitle{
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;
+    color:var(--ink-dim);margin:10px 0 6px;text-transform:uppercase;
+  }
+
+  /* ---- лента идеалов / платиновая лента ---- */
+  .perfect-ribbon, .platinum-ribbon{display:flex;flex-wrap:wrap;gap:5px;}
+  .ribbon-dot{
+    width:20px;height:20px;border-radius:50%;
+    border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.03);
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  }
+  .ribbon-dot.filled{border-color:var(--good);background:rgba(93,255,176,.14);box-shadow:0 0 8px -1px rgba(93,255,176,.6);}
+  .ribbon-dot.filled.platinum{border-color:var(--neon-light);background:rgba(159,242,255,.16);box-shadow:0 0 8px -1px rgba(159,242,255,.7);}
+  .ribbon-dot .ribbon-icon{font-size:12px;line-height:1;}
+  .ribbon-dot img.ribbon-icon{width:14px;height:14px;object-fit:contain;}
+  .ribbon-overflow{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--neon-light);
+    display:flex;align-items:center;padding:0 4px;
+  }
+
+  /* ---- альбом стикеров ---- */
+  .album-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .album-row:last-child{margin-bottom:0;}
+  .album-row-label{
+    width:70px;flex:0 0 auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-dim);
+  }
+  .album-row-cells{display:flex;gap:6px;}
+  .album-cell{
+    width:38px;height:38px;border-radius:8px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+  }
+  .album-cell.unlocked{background:rgba(53,224,255,.08);border:1px solid rgba(53,224,255,.4);}
+  .album-cell.locked{background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.15);}
+  .album-cell img.album-img{width:30px;height:30px;object-fit:contain;}
+  .album-lock{color:var(--ink-dim);font-family:'IBM Plex Mono',monospace;font-size:14px;opacity:.5;}
+
+  /* ---- репутация неписей (заготовка на будущее, финал — Фаза J) ---- */
+  .reputation-list{display:flex;flex-direction:column;gap:10px;max-height:260px;overflow-y:auto;padding-right:2px;}
+  .rep-row{display:flex;align-items:center;gap:10px;}
+  .rep-icon{
+    width:38px;height:38px;border-radius:50%;flex:0 0 auto;
+    background:radial-gradient(circle at 35% 30%, #171c38, #0a0d20 72%);
+    border:1px solid var(--tier-color, var(--t1));
+    box-shadow:0 0 8px -1px var(--tier-color, var(--t1));
+    display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:18px;
+  }
+  .rep-icon img.rep-img{width:32px;height:32px;object-fit:contain;}
+  .rep-info{flex:1;min-width:0;}
+  .rep-name{
+    display:flex;justify-content:space-between;gap:6px;font-family:'Jura',sans-serif;font-size:12px;
+    color:var(--ink);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .rep-name .rep-level{font-family:'IBM Plex Mono',monospace;color:var(--ink-dim);flex:0 0 auto;}
+  .rep-bar{height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;}
+  .rep-bar-fill{height:100%;border-radius:3px;transition:width .3s ease;}
+
   .customer-card{opacity:0;transform:translateY(10px);animation:cardIn .35s ease forwards;}
   .customer-card:nth-child(1){animation-delay:.05s;}
   .customer-card:nth-child(2){animation-delay:.15s;}
