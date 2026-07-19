@@ -801,12 +801,24 @@
     if(cfg.type === 'normal' && cfg.tier >= 2 && Math.random() < 0.4){
       focus = pick(['bubbles','color','size']);
     }
+    // Фаза I: иногда вместо обычной реплики — уже открытая лорная фраза
+    // (подсвечивается другим цветом). НЕ на фокус-заказах: там реплика
+    // несёт игровую информацию и заменять её нельзя.
+    let flavor = null, isLore = false;
+    if(!focus && window.PotionProfile && typeof NPC_LORE !== 'undefined' && NPC_LORE[cfg.id]){
+      const unl = (((window.PotionProfile.data.lorePhrases||{}).unlockedByNpc||{})[cfg.id]) || [];
+      const chance = (typeof LORE_PHRASE_CHANCE !== 'undefined') ? LORE_PHRASE_CHANCE : 0.35;
+      if(unl.length && Math.random() < chance){
+        const ph = NPC_LORE[cfg.id][ unl[randInt(0, unl.length-1)] ];
+        if(ph){ flavor = ph; isLore = true; }
+      }
+    }
     // flavor keeps both languages (see pickLocalized) so a language switch
     // mid-round translates the same line instead of rerolling a new one
-    const flavor = focus && cfg.ff ? pickLocalized(cfg.ff[focus]) : pickLocalized(cfg.flavors);
+    if(!flavor) flavor = focus && cfg.ff ? pickLocalized(cfg.ff[focus]) : pickLocalized(cfg.flavors);
     // avatar variant is chosen once here, so the card and the order bubble match
     const avatar = Array.isArray(cfg.img) ? pick(cfg.img) : (cfg.img || cfg.emoji);
-    return { cfg, focus, flavor, avatar };
+    return { cfg, focus, flavor, avatar, isLore };
   }
 
   // cached so a language switch can re-render the same cards without rerolling them
@@ -822,7 +834,7 @@
     const wrap = $('customerCards');
     wrap.innerHTML = '';
     orders.forEach((ord, i)=>{
-      const { cfg, focus, flavor, avatar } = ord;
+      const { cfg, focus, flavor, avatar, isLore } = ord;
       const tierColor = TIER_COLORS[cfg.tier];
       const npcNameStr = LT(cfg.name);
 
@@ -832,7 +844,8 @@
 
       // Фаза E: 4-й уровень сложности показывается только у НПС с cfg.level4
       // (пока — только у стартового дрона)
-      const levels = cfg.level4 ? [1,2,3,4] : [1,2,3];
+      // Фаза J: 4-я сложность открывается и по репутации (см. level4Available)
+      const levels = level4Available(cfg) ? [1,2,3,4] : [1,2,3];
       const levelCardsHTML = levels.map(lvl=>{
         const reward = Math.round(cfg.reward * (REG_DIFF_REWARD_MULT[lvl]||1) * (focus?1.25:1));
         return `
@@ -851,7 +864,7 @@
         </div>
         <div class="plaque-stack">
           <div class="plaque-quote">
-            <div class="quote">«${LT(flavor)}»</div>
+            <div class="quote${isLore ? ' lore' : ''}">«${LT(flavor)}»</div>
             ${focus
               ? `<div class="focus-chip">${visualHTML(FOCUS_ICONS[focus],'focus-img')}<span>${LT(FOCUS_NAMES[focus])}</span></div>`
               : `<div class="focus-chip no-focus"><span class="no-focus-icon">✕</span><span>${LT(UI_TEXT.NO_FOCUS_LABEL)}</span></div>`}
@@ -910,7 +923,7 @@
   function startOrder(ord, level){
     const { cfg, focus, flavor, avatar } = ord;
     let regLevel = [1,2,3,4].includes(level) ? level : 3;
-    if(regLevel === 4 && !cfg.level4) regLevel = 3; // защита: 4 доступен только там, где явно разрешён
+    if(regLevel === 4 && !level4Available(cfg)) regLevel = 3; // защита: 4 доступен только там, где разрешён (флаг или репутация)
     currentOrd = ord;
     currentOrd.regLevel = regLevel;
     orderNum++;
@@ -921,6 +934,7 @@
     $('orderNum').textContent = orderNum;
     $('orderAvatar').innerHTML = visualHTML(avatar,'npc-img');
     $('orderText').textContent = LT(flavor);
+    $('orderText').classList.toggle('lore', !!ord.isLore); // Фаза I: лор — другим цветом
     $('orderBubble').style.borderLeftColor = TIER_COLORS[cfg.tier];
     $('orderFocusTag').innerHTML = focus ? `${visualHTML(FOCUS_ICONS[focus],'focus-img')} ${LT(UI_TEXT.FOCUS_PREFIX)} ${LT(FOCUS_NAMES[focus])}` : '';
     const levelTag = $('orderLevelTag');
@@ -985,7 +999,10 @@
 
     initRing();
     setRingFraction(0);
-    runTimer(cfg.memorizeMs, ()=>{ stopMovingAnim(); startGuessPhase(); });
+    // Фаза J: эффекты активных пассивок фиксируются на весь заказ
+    target.passiveFx = computePassiveFx(cfg.id);
+    const memDuration = Math.round(cfg.memorizeMs * (1 + (target.passiveFx.memTime || 0)));
+    runTimer(memDuration, ()=>{ stopMovingAnim(); startGuessPhase(); });
   }
 
   function startGuessPhase(){
@@ -1034,8 +1051,11 @@
     updateIngredientCounter(0);
 
     // Фаза E: на 4-ом уровне сложности время на "воссоздай" немного больше —
-    // компенсация за то, что внимание постоянно отвлекается на "плохие" пузыри
-    const craftDuration = cfg.craftMs + (target.regLevel === 4 ? (typeof LEVEL4_TIME_BONUS_MS !== 'undefined' ? LEVEL4_TIME_BONUS_MS : 0) : 0);
+    // компенсация за то, что внимание постоянно отвлекается на "плохие" пузыри.
+    // Фаза J: пассивка craftTime растягивает (или ужимает, если < 0) базу.
+    const pfx = target.passiveFx || {};
+    const craftDuration = Math.round(cfg.craftMs * (1 + (pfx.craftTime || 0)))
+      + (target.regLevel === 4 ? (typeof LEVEL4_TIME_BONUS_MS !== 'undefined' ? LEVEL4_TIME_BONUS_MS : 0) : 0);
     target.craftDuration = craftDuration;
 
     let used = 0;
@@ -1262,13 +1282,16 @@
     // и по времени, и по точности
     const third = 1/3;
     const timeFactor = timeFrac <= third ? 1 : Math.max(0, 1 - (timeFrac - third)/(1 - third));
-    const speedCap = (typeof SPEED_BONUS_MULT !== 'undefined' && SPEED_BONUS_MULT[target.regLevel]) ?? 0.5;
+    // Фаза J: пассивка speedCap поднимает потолок бонуса за скорость
+    const pfx = target.passiveFx || {};
+    const speedCap = ((typeof SPEED_BONUS_MULT !== 'undefined' && SPEED_BONUS_MULT[target.regLevel]) ?? 0.5) + (pfx.speedCap || 0);
     const speedBonusFrac = speedCap * overall * timeFactor;
 
     // focus raises the stakes both ways; the regulator-difficulty level chosen
-    // for this order (Фаза D — выбор на плашках) scales the reward as well
+    // for this order (Фаза D — выбор на плашках) scales the reward as well.
+    // Фаза J: пассивка score умножает итоговую награду.
     const regMult = (typeof REG_DIFF_REWARD_MULT !== 'undefined' && REG_DIFF_REWARD_MULT[target.regLevel]) || 1;
-    const effReward = Math.round(cfg.reward * regMult * (target.focus ? 1.25 : 1));
+    const effReward = Math.round(cfg.reward * regMult * (target.focus ? 1.25 : 1) * (1 + (pfx.score || 0)));
 
     let delta, speedBonusPct = 0;
     if(good){
@@ -1313,10 +1336,23 @@
     const tierWeight = (typeof BASELINE_TIER_REWARD !== 'undefined' && BASELINE_TIER_REWARD)
       ? cfg.reward / BASELINE_TIER_REWARD : 1;
     const diffWeight = (typeof PROGRESS_DIFF_WEIGHT !== 'undefined' && PROGRESS_DIFF_WEIGHT[target.regLevel]) || 1;
-    const progressWeight = tierWeight * diffWeight;
+    // Фаза J: пассивка progress умножает вес прогресса
+    const progressWeight = tierWeight * diffWeight * (1 + (pfx.progress || 0));
 
-    // Фаза F/G: тихо копим статистику/стрики/ленту идеалов/репутацию/альбом в профиль игрока
-    if(window.PotionProfile) window.PotionProfile.recordOrderResult({ npcId: cfg.id, perfect, good, delta, stickerCat, stickerIdx, progressWeight });
+    // Фаза F/G/I/J: тихо копим статистику/стрики/ленту идеалов/репутацию/
+    // альбом/статы по НПС в профиль игрока. recordOrderResult возвращает
+    // репутацию до/после — по ней ловим повышение уровня.
+    if(window.PotionProfile){
+      const repRes = window.PotionProfile.recordOrderResult({
+        npcId: cfg.id, perfect, good, delta, stickerCat, stickerIdx, progressWeight,
+        regLevel: target.regLevel, focus: target.focus,
+        fastThird: timeFrac <= 1/3,
+        repMult: 1 + (pfx.rep || 0)
+      });
+      if(repRes) maybeRepLevelUp(cfg.id, repRes.repBefore, repRes.repAfter);
+    }
+    // Фаза J: с первого выполненного заказа состав пассивок заморожен до нового цикла
+    cycleStarted = true;
 
     // Фаза H: общие ачивки — автопроверка после каждого заказа + "ручная"
     // ачивка за молниеносный идеал на максимальной сложности регуляторов
@@ -1325,6 +1361,8 @@
     if(perfect && cfg.tier >= 5 && target.regLevel >= 3 && timeFrac <= 1/3){
       unlockManualAchievement('speedrun_master');
     }
+    // Фаза I: ачивки этого НПС (градации, лорные фразы, награда за комплект)
+    checkNpcAchievements(cfg.id);
 
     // cached so a language switch can re-translate the overlay without recomputing scores
     lastResult = { perfect, good, delta, speedBonusPct, overallPct, components, focus: target.focus };
@@ -1418,12 +1456,37 @@
   // тут не пишет обратно в профиль (это делает только finalizeResult()).
   // ============================================================
 
-  // черновой уровень репутации ТОЛЬКО для прогресс-бара (см. REP_LEVEL_STEP
-  // в content.js) — окончательные пороги и пассивки решает Фаза J
+  // ---------- Фаза J: уровни репутации ----------
+  // Реальные пороги — REP_LEVELS в content.js (кумулятивные значения).
+  // Уровень N достигнут при value >= REP_LEVELS[N-1]; progress — доля
+  // пути до следующего порога (для прогресс-баров). Фолбэк на старый
+  // REP_LEVEL_STEP оставлен на случай отсутствия REP_LEVELS.
   function repLevelInfo(value){
-    const step = (typeof REP_LEVEL_STEP !== 'undefined') ? REP_LEVEL_STEP : 50;
     const v = Math.max(0, value || 0);
-    return { level: Math.floor(v/step), progress: (v % step)/step };
+    if(typeof REP_LEVELS !== 'undefined' && Array.isArray(REP_LEVELS) && REP_LEVELS.length){
+      let level = 0;
+      while(level < REP_LEVELS.length && v >= REP_LEVELS[level]) level++;
+      if(level >= REP_LEVELS.length) return { level, progress: 1, maxed: true };
+      const prev = level === 0 ? 0 : REP_LEVELS[level-1];
+      const next = REP_LEVELS[level];
+      return { level, progress: (v - prev) / ((next - prev) || 1), maxed: false };
+    }
+    const step = (typeof REP_LEVEL_STEP !== 'undefined') ? REP_LEVEL_STEP : 50;
+    return { level: Math.floor(v/step), progress: (v % step)/step, maxed: false };
+  }
+  function npcRepLevel(npcId){
+    if(!window.PotionProfile || !npcId) return 0;
+    const rep = window.PotionProfile.data.npcReputation[npcId];
+    return repLevelInfo(rep ? rep.value : 0).level;
+  }
+  // Фаза J: 4-я сложность доступна либо по флагу cfg.level4 (стартовый
+  // дрон), либо когда репутация с НПС достигла REP_L4_UNLOCK_LEVEL.
+  // Механика пока общая ("плохие" пузыри) — уникальные на каждого НПС
+  // добавятся отдельным патчем.
+  function level4Available(cfg){
+    if(cfg.level4) return true;
+    const need = (typeof REP_L4_UNLOCK_LEVEL !== 'undefined') ? REP_L4_UNLOCK_LEVEL : 99;
+    return npcRepLevel(cfg.id) >= need;
   }
 
   // count может быть дробным (Фаза G доп.: вес сложности) — рисуем целые
@@ -1458,13 +1521,18 @@
   function achDef(id){
     return (typeof GENERAL_ACHIEVEMENTS !== 'undefined') ? GENERAL_ACHIEVEMENTS.find(a=>a.id===id) : null;
   }
-  function showAchievementToast(ach){
-    achToastQueue.push(ach);
+  // Фаза I/J: обобщённый тост — иконка + серый префикс + название.
+  // prefix/name могут быть локализованными объектами {ru,en} или строкой.
+  function showToast({ icon, prefix, name }){
+    achToastQueue.push({ icon, prefix, name });
     if(!achToastShowing) drainAchToastQueue();
   }
+  function showAchievementToast(ach){
+    showToast({ icon: ach.icon || '🏆', prefix: UI_TEXT.ACH_TOAST_PREFIX, name: ach.name });
+  }
   function drainAchToastQueue(){
-    const ach = achToastQueue.shift();
-    if(!ach){ achToastShowing = false; return; }
+    const t = achToastQueue.shift();
+    if(!t){ achToastShowing = false; return; }
     achToastShowing = true;
     SFX.achieve();
     let host = $('achToastHost');
@@ -1476,10 +1544,10 @@
     const toast = document.createElement('div');
     toast.className = 'ach-toast';
     toast.innerHTML = `
-      <div class="ach-toast-icon">${ach.icon||'🏆'}</div>
+      <div class="ach-toast-icon">${t.icon||'🏆'}</div>
       <div class="ach-toast-body">
-        <div class="ach-toast-prefix">${LT(UI_TEXT.ACH_TOAST_PREFIX)}</div>
-        <div class="ach-toast-name">${LT(ach.name)}</div>
+        <div class="ach-toast-prefix">${LT(t.prefix)}</div>
+        <div class="ach-toast-name">${LT(t.name)}</div>
       </div>`;
     host.appendChild(toast);
     requestAnimationFrame(()=> toast.classList.add('show'));
@@ -1513,6 +1581,355 @@
     window.PotionProfile.unlockGeneralAchievement(id);
     if(ach) showAchievementToast(ach);
   }
+
+  // ============================================================
+  // Фаза I: ачивки неписей + лорные фразы + награды за комплект.
+  // Определения — NPC_ACHIEVEMENTS/NPC_LORE/NPC_REWARDS в content.js.
+  // ============================================================
+  // достаёт значение метрики "вида" ачивки из profile.npcStats[npcId]
+  function npcAchValue(kind, ns, def){
+    if(!ns) return 0;
+    switch(kind){
+      case 'orders':          return ns.orders||0;
+      case 'perfects':        return ns.perfects||0;
+      case 'perfect_streak':  return ns.perfectStreakBest||0;
+      case 'no_bad_streak':   return ns.noBadStreakBest||0;
+      case 'bads':            return ns.bads||0;
+      case 'picks_cycle':     return ns.picksCycleBest||0;
+      case 'hard_perfects':   return ns.hardPerfects||0;
+      case 'fast_perfects':   return ns.fastPerfects||0;
+      case 'level4_perfects': return ns.level4Perfects||0;
+      case 'focus_perfects': {
+        const fp = ns.focusPerfects||{};
+        if(def && def.focus) return fp[def.focus]||0;
+        return (fp.bubbles||0)+(fp.color||0)+(fp.size||0);
+      }
+      case 'weighted':        return ns.weighted||0;
+      default: return 0;
+    }
+  }
+  // текущая градация ачивки (0..3) по порогам def.t
+  function npcAchTier(def, ns){
+    const v = npcAchValue(def.kind, ns, def);
+    let tier = 0;
+    for(let i=0;i<def.t.length;i++){ if(v >= def.t[i]) tier = i+1; }
+    return tier;
+  }
+  const TIER_KEYS = [null, 'TIER_BRONZE', 'TIER_SILVER', 'TIER_GOLD'];
+  function npcById(id){ return (typeof ALL_NPCS !== 'undefined') ? ALL_NPCS.find(n=>n.id===id) : null; }
+
+  // прогоняет ачивки одного НПС; каждая НОВАЯ градация даёт тост и
+  // открывает следующую лорную фразу; полный комплект золота — награду
+  function checkNpcAchievements(npcId){
+    if(!window.PotionProfile || typeof NPC_ACHIEVEMENTS === 'undefined') return;
+    const defs = NPC_ACHIEVEMENTS[npcId];
+    if(!defs) return;
+    const p = window.PotionProfile.data;
+    const ns = p.npcStats ? p.npcStats[npcId] : null;
+    const npc = npcById(npcId);
+    let newTierSteps = 0;
+    defs.forEach(def=>{
+      const cur = ((p.achievements.npc && p.achievements.npc[npcId]) || {})[def.id] || 0;
+      const now = npcAchTier(def, ns);
+      if(now > cur){
+        window.PotionProfile.setNpcAchievementTier(npcId, def.id, now);
+        newTierSteps += (now - cur);
+        showToast({ icon: def.icon || '🏆', prefix: UI_TEXT.NPC_ACH_TOAST_PREFIX,
+          name: LT(def.name) + ' (' + LT(UI_TEXT[TIER_KEYS[now]]) + ')' });
+      }
+    });
+    // лорные фразы: одна на каждую новую градацию, последовательно
+    if(newTierSteps > 0 && typeof NPC_LORE !== 'undefined' && NPC_LORE[npcId]){
+      const total = NPC_LORE[npcId].length;
+      let unlockedCount = (((p.lorePhrases.unlockedByNpc||{})[npcId])||[]).length;
+      let opened = 0;
+      while(newTierSteps-- > 0 && unlockedCount < total){
+        window.PotionProfile.unlockLorePhrase(npcId, unlockedCount);
+        unlockedCount++; opened++;
+      }
+      if(opened > 0 && npc){
+        showToast({ icon:'📖', prefix: UI_TEXT.LORE_TOAST_PREFIX, name: npc.name });
+      }
+    }
+    // награда за полный комплект золота
+    const storedNow = (p.achievements.npc && p.achievements.npc[npcId]) || {};
+    const allGold = defs.length > 0 && defs.every(def=> (storedNow[def.id]||0) === 3);
+    if(allGold){
+      const type = (typeof NPC_REWARDS !== 'undefined' && NPC_REWARDS[npcId]) || 'background';
+      const rw = ((p.rewards.byNpc||{})[npcId]) || {};
+      const already = type === 'background' ? !!rw.background : !!rw.bottleSkin;
+      if(!already){
+        if(type === 'background') window.PotionProfile.unlockReward(npcId, 'background', true);
+        else window.PotionProfile.unlockReward(npcId, 'bottleSkin', 'default');
+        showToast({ icon:'🎁', prefix: UI_TEXT.REWARD_TOAST_PREFIX,
+          name: LT(type === 'background' ? UI_TEXT.REWARD_BACKGROUND : UI_TEXT.REWARD_BOTTLE) + (npc ? ' — ' + LT(npc.name) : '') });
+      }
+    }
+  }
+  // тост при повышении уровня репутации (repBefore/After — из recordOrderResult)
+  function maybeRepLevelUp(npcId, repBefore, repAfter){
+    const before = repLevelInfo(repBefore).level;
+    const after = repLevelInfo(repAfter).level;
+    if(after <= before) return;
+    const npc = npcById(npcId);
+    showToast({ icon:'💠', prefix: UI_TEXT.REP_TOAST_PREFIX,
+      name: (npc ? LT(npc.name) : npcId) + ' — ' + LT(UI_TEXT.REP_LEVEL_LABEL) + after });
+    const need = (typeof REP_L4_UNLOCK_LEVEL !== 'undefined') ? REP_L4_UNLOCK_LEVEL : 99;
+    if(npc && !npc.level4 && before < need && after >= need){
+      showToast({ icon:'⚠️', prefix: LT(npc.name), name: LT(UI_TEXT.REP_L4_NOTE).replace('{n}', need) });
+    }
+  }
+
+  // ============================================================
+  // Фаза J: пассивки. Определения — NPC_PASSIVES в content.js.
+  // Пассивка с индексом i открыта, если уровень репутации НПС >= i+1.
+  // Активных — до 3; состав можно менять только ПОКА цикл не начался
+  // (до первого выполненного заказа цикла).
+  // ============================================================
+  let cycleStarted = false;
+
+  function passiveDefs(npcId){ return (typeof NPC_PASSIVES !== 'undefined' && NPC_PASSIVES[npcId]) || []; }
+  function passiveUnlocked(npcId, passiveId){
+    const arr = passiveDefs(npcId);
+    const idx = arr.findIndex(pv=>pv.id===passiveId);
+    if(idx < 0) return false;
+    return npcRepLevel(npcId) >= idx + 1;
+  }
+  // выбрасывает из active всё, что больше не открыто (репутация могла упасть)
+  function sanitizeActivePassives(){
+    if(!window.PotionProfile) return [];
+    const p = window.PotionProfile.data;
+    const act = (p.passives && Array.isArray(p.passives.active)) ? p.passives.active : [];
+    const clean = act.filter(a=> a && passiveUnlocked(a.npcId, a.passiveId)).slice(0, 3);
+    if(clean.length !== act.length) window.PotionProfile.setActivePassives(clean);
+    return clean;
+  }
+  // суммарные эффекты активных пассивок для заказа конкретного НПС:
+  // global-пассивки работают всегда, npc-пассивки — только "у своего" НПС
+  function computePassiveFx(npcId){
+    const fx = { score:0, craftTime:0, memTime:0, speedCap:0, rep:0, progress:0 };
+    sanitizeActivePassives().forEach(a=>{
+      const def = passiveDefs(a.npcId).find(pv=>pv.id===a.passiveId);
+      if(!def) return;
+      if(def.scope === 'npc' && a.npcId !== npcId) return;
+      Object.keys(def.fx||{}).forEach(k=>{ if(fx[k] !== undefined) fx[k] += def.fx[k]; });
+    });
+    return fx;
+  }
+  function togglePassive(npcId, passiveId){
+    if(cycleStarted) return false;
+    if(!passiveUnlocked(npcId, passiveId)) return false;
+    const act = sanitizeActivePassives();
+    const i = act.findIndex(a=>a.npcId===npcId && a.passiveId===passiveId);
+    if(i >= 0) act.splice(i, 1);
+    else {
+      if(act.length >= 3) return false;
+      act.push({ npcId, passiveId });
+    }
+    window.PotionProfile.setActivePassives(act);
+    return true;
+  }
+
+  // ============================================================
+  // Меню "Персонажи" (вынесено из Коллекции): список НПС ↔ детальная
+  // вкладка одного НПС. Клик по строке — открыть, клик по портрету —
+  // закрыть обратно в список.
+  // ============================================================
+  let charDetailId = null;
+
+  function npcListIcon(n){
+    return visualHTML(Array.isArray(n.img) ? n.img[0] : (n.img || n.emoji), 'char-img');
+  }
+
+  function renderCharacters(){
+    if(!window.PotionProfile) return;
+    const host = $('charactersContent');
+    if(!host) return;
+    const p = window.PotionProfile.data;
+    const npcs = (typeof ALL_NPCS !== 'undefined') ? ALL_NPCS : [];
+    if(charDetailId && !npcs.some(n=>n.id===charDetailId)) charDetailId = null;
+
+    if(!charDetailId){
+      // ---------- режим списка ----------
+      host.innerHTML = `<div class="char-hint">${LT(UI_TEXT.CHAR_OPEN_HINT)}</div>
+        <div class="char-list">` + npcs.map(n=>{
+          const rep = (p.npcReputation && p.npcReputation[n.id]) || { value:0 };
+          const info = repLevelInfo(rep.value);
+          const tierColor = `var(--t${n.tier})`;
+          const defs = (typeof NPC_ACHIEVEMENTS !== 'undefined' && NPC_ACHIEVEMENTS[n.id]) || [];
+          const stored = (p.achievements.npc && p.achievements.npc[n.id]) || {};
+          const anyCount = defs.filter(d=>(stored[d.id]||0) > 0).length;
+          const goldCount = defs.filter(d=>(stored[d.id]||0) === 3).length;
+          return `<div class="char-row" data-npc="${n.id}" style="--tier-color:${tierColor}">
+            <div class="char-row-icon">${npcListIcon(n)}</div>
+            <div class="char-row-info">
+              <div class="char-row-name"><span>${LT(n.name)}</span><span class="char-row-level">${LT(UI_TEXT.REP_LEVEL_LABEL)}${info.level}</span></div>
+              <div class="rep-bar"><div class="rep-bar-fill" style="width:${Math.round(info.progress*100)}%;background:${tierColor}"></div></div>
+              <div class="char-row-sub">${LT(UI_TEXT.CHAR_ACH_TITLE)}: ${anyCount}/${defs.length}${goldCount ? ` · 🥇 ${goldCount}` : ''}</div>
+            </div>
+          </div>`;
+        }).join('') + `</div>`;
+      host.querySelectorAll('.char-row').forEach(row=>{
+        row.addEventListener('click', ()=>{ SFX.uiClick(); charDetailId = row.dataset.npc; renderCharacters(); });
+      });
+      return;
+    }
+
+    // ---------- детальная вкладка НПС ----------
+    const n = npcs.find(x=>x.id===charDetailId);
+    const rep = (p.npcReputation && p.npcReputation[n.id]) || { value:0 };
+    const info = repLevelInfo(rep.value);
+    const tierColor = `var(--t${n.tier})`;
+    const defs = (typeof NPC_ACHIEVEMENTS !== 'undefined' && NPC_ACHIEVEMENTS[n.id]) || [];
+    const stored = (p.achievements.npc && p.achievements.npc[n.id]) || {};
+    const loreArr = (typeof NPC_LORE !== 'undefined' && NPC_LORE[n.id]) || [];
+    const loreUnl = (((p.lorePhrases.unlockedByNpc||{})[n.id])||[]).length;
+    const desc = (typeof NPC_LORE_DESC !== 'undefined' && NPC_LORE_DESC[n.id]) || null;
+    const passives = passiveDefs(n.id);
+    const repLvl = info.level;
+    const active = sanitizeActivePassives();
+
+    const achCells = defs.map(def=>{
+      const tier = stored[def.id] || 0;
+      const pips = [1,2,3].map(t=>`<span class="ach-pip t${t} ${tier>=t?'on':''}"></span>`).join('');
+      // подсказка (hint) — художественный намёк курсивом; для пустого
+      // слота это единственная информация об ачивке
+      const hint = `<div class="npc-ach-hint"><i>${LT(def.hint)}</i></div>`;
+      if(tier > 0){
+        return `<div class="npc-ach-cell unlocked tier-${tier}">
+          <div class="npc-ach-icon">${def.icon||'🏆'}</div>
+          <div class="npc-ach-name">${LT(def.name)}</div>
+          <div class="ach-pips">${pips}</div>${hint}
+        </div>`;
+      }
+      return `<div class="npc-ach-cell locked">
+        <div class="npc-ach-icon">?</div>
+        <div class="ach-pips">${pips}</div>${hint}
+      </div>`;
+    }).join('');
+
+    const passRows = passives.map((pv, idx)=>{
+      const unlocked = repLvl >= idx + 1;
+      const isActive = active.some(a=>a.npcId===n.id && a.passiveId===pv.id);
+      return `<div class="passive-card ${pv.scope} ${unlocked?'unlocked':'locked'} ${isActive?'active':''}">
+        <div class="passive-icon">${unlocked ? (pv.icon||'⚡') : '🔒'}</div>
+        <div class="passive-info">
+          <div class="passive-name">${unlocked ? LT(pv.name) : (LT(UI_TEXT.PASSIVE_LEVEL_LABEL) + (idx+1))}</div>
+          ${unlocked ? `<div class="passive-desc">${LT(pv.desc)}</div>` : ''}
+        </div>
+        <div class="passive-scope">${LT(pv.scope==='npc' ? UI_TEXT.PASSIVE_SCOPE_NPC : UI_TEXT.PASSIVE_SCOPE_GLOBAL)}</div>
+      </div>`;
+    }).join('');
+
+    const rwType = (typeof NPC_REWARDS !== 'undefined' && NPC_REWARDS[n.id]) || 'background';
+    const rw = ((p.rewards.byNpc||{})[n.id]) || {};
+    const rwGot = rwType === 'background' ? !!rw.background : !!rw.bottleSkin;
+    const l4need = (typeof REP_L4_UNLOCK_LEVEL !== 'undefined') ? REP_L4_UNLOCK_LEVEL : 0;
+
+    host.innerHTML = `
+      <div class="char-detail" style="--tier-color:${tierColor}">
+        <div class="char-detail-head">
+          <div class="char-detail-icon" id="charDetailPortrait" title="${LT(UI_TEXT.CHAR_BACK_HINT)}">${visualHTML(Array.isArray(n.img)?n.img[0]:(n.img||n.emoji),'char-img-big')}</div>
+          <div class="char-detail-headinfo">
+            <div class="char-detail-name">${LT(n.name)}</div>
+            <div class="char-detail-rep">
+              <span>${LT(UI_TEXT.CHAR_REP_TITLE)} · ${LT(UI_TEXT.REP_LEVEL_LABEL)}${info.level}</span>
+              <div class="rep-bar"><div class="rep-bar-fill" style="width:${Math.round(info.progress*100)}%;background:${tierColor}"></div></div>
+            </div>
+            ${(!n.level4 && l4need) ? `<div class="char-l4-note ${repLvl>=l4need?'done':''}">${LT(UI_TEXT.REP_L4_NOTE).replace('{n}', l4need)}</div>` : ''}
+            <div class="char-back-hint">${LT(UI_TEXT.CHAR_BACK_HINT)}</div>
+          </div>
+        </div>
+        ${desc ? `<div class="char-section"><div class="collection-section-title">${LT(UI_TEXT.CHAR_LORE_TITLE)}</div>
+          <div class="char-lore-desc">${LT(desc)}</div>
+          <div class="char-lore-count">${loreUnl}/${loreArr.length} ${LT(UI_TEXT.CHAR_LORE_UNLOCKED)}</div></div>` : ''}
+        <div class="char-section"><div class="collection-section-title">${LT(UI_TEXT.CHAR_PASSIVES_TITLE)}</div>
+          <div class="passive-list">${passRows}</div></div>
+        <div class="char-section"><div class="collection-section-title">${LT(UI_TEXT.CHAR_ACH_TITLE)}</div>
+          <div class="npc-ach-grid">${achCells}</div></div>
+        <div class="char-section"><div class="collection-section-title">${LT(UI_TEXT.CHAR_REWARD_TITLE)}</div>
+          <div class="char-reward ${rwGot?'unlocked':'locked'}">
+            <span class="char-reward-icon">${rwGot?'🎁':'🔒'}</span>
+            <span>${LT(rwType==='background' ? UI_TEXT.REWARD_BACKGROUND : UI_TEXT.REWARD_BOTTLE)}${rwGot ? ' — ' + LT(UI_TEXT.REWARD_UNLOCKED_NOTE) : ''}</span>
+            ${rwGot ? '' : `<span class="char-reward-note">${LT(UI_TEXT.REWARD_LOCKED)}</span>`}
+          </div>
+        </div>
+      </div>`;
+
+    const portrait = $('charDetailPortrait');
+    if(portrait) portrait.addEventListener('click', ()=>{ SFX.uiClick(); charDetailId = null; renderCharacters(); });
+    // подсказка на слоте ачивки: на десктопе — по наведению (CSS),
+    // на тач-экранах — по тапу (класс hint-open)
+    host.querySelectorAll('.npc-ach-cell').forEach(cell=>{
+      cell.addEventListener('click', ()=> cell.classList.toggle('hint-open'));
+    });
+  }
+
+  // ============================================================
+  // Фаза J: быстрая панель пассивок (отдельная кнопка ⚡) — выбрать
+  // до 3 активных на цикл, не залезая в большое меню персонажей.
+  // ============================================================
+  function renderPassivesPanel(){
+    if(!window.PotionProfile) return;
+    const host = $('passivesContent');
+    if(!host) return;
+    const active = sanitizeActivePassives();
+    const npcs = (typeof ALL_NPCS !== 'undefined') ? ALL_NPCS : [];
+    let anyUnlocked = false;
+    const groups = npcs.map(n=>{
+      const passives = passiveDefs(n.id);
+      const lvl = npcRepLevel(n.id);
+      const unlocked = passives.map((pv,idx)=>({pv,idx})).filter(x=> lvl >= x.idx+1);
+      if(!unlocked.length) return '';
+      anyUnlocked = true;
+      const cards = unlocked.map(({pv})=>{
+        const isActive = active.some(a=>a.npcId===n.id && a.passiveId===pv.id);
+        return `<div class="passive-card selectable ${pv.scope} ${isActive?'active':''} ${cycleStarted?'frozen':''}" data-npc="${n.id}" data-passive="${pv.id}">
+          <div class="passive-icon">${pv.icon||'⚡'}</div>
+          <div class="passive-info">
+            <div class="passive-name">${LT(pv.name)}</div>
+            <div class="passive-desc">${LT(pv.desc)}</div>
+          </div>
+          <div class="passive-scope">${LT(pv.scope==='npc' ? UI_TEXT.PASSIVE_SCOPE_NPC : UI_TEXT.PASSIVE_SCOPE_GLOBAL)}</div>
+        </div>`;
+      }).join('');
+      return `<div class="passive-group" style="--tier-color:var(--t${n.tier})">
+        <div class="passive-group-head">
+          <span class="passive-group-icon">${npcListIcon(n)}</span>
+          <span>${LT(n.name)}</span>
+        </div>${cards}
+      </div>`;
+    }).join('');
+    host.innerHTML = `
+      <div class="passives-slots">${LT(UI_TEXT.PASSIVES_SLOTS)}: <b>${active.length}/3</b></div>
+      <div class="passives-hint">${LT(UI_TEXT.PASSIVES_HINT)}</div>
+      ${cycleStarted ? `<div class="passives-locked-note">${LT(UI_TEXT.PASSIVES_LOCKED_NOTE)}</div>` : ''}
+      ${(!cycleStarted && active.length >= 3) ? `<div class="passives-locked-note">${LT(UI_TEXT.PASSIVES_FULL_NOTE)}</div>` : ''}
+      ${anyUnlocked ? groups : `<div class="passives-empty">${LT(UI_TEXT.PASSIVES_EMPTY)}</div>`}`;
+    host.querySelectorAll('.passive-card.selectable').forEach(card=>{
+      card.addEventListener('click', ()=>{
+        if(cycleStarted) return;
+        if(togglePassive(card.dataset.npc, card.dataset.passive)){
+          SFX.uiClick();
+          renderPassivesPanel();
+        }
+      });
+    });
+  }
+
+  // кнопки и закрытие оверлеев "Персонажи" / "Пассивки"
+  const charactersBtnEl = $('charactersBtn');
+  if(charactersBtnEl) charactersBtnEl.addEventListener('click', ()=>{
+    SFX.uiClick(); charDetailId = null; renderCharacters(); $('charactersOverlay').classList.add('show');
+  });
+  const charactersCloseBtnEl = $('charactersCloseBtn');
+  if(charactersCloseBtnEl) charactersCloseBtnEl.addEventListener('click', ()=>{ SFX.uiClick(); $('charactersOverlay').classList.remove('show'); });
+  const passivesBtnEl = $('passivesBtn');
+  if(passivesBtnEl) passivesBtnEl.addEventListener('click', ()=>{
+    SFX.uiClick(); renderPassivesPanel(); $('passivesOverlay').classList.add('show');
+  });
+  const passivesCloseBtnEl = $('passivesCloseBtn');
+  if(passivesCloseBtnEl) passivesCloseBtnEl.addEventListener('click', ()=>{ SFX.uiClick(); $('passivesOverlay').classList.remove('show'); });
 
   function renderCollection(){
     if(!window.PotionProfile) return;
@@ -1578,20 +1995,8 @@
       }).join('');
     }
 
-    // ---- репутация по каждому НПС (заготовка на будущее, см. Фазу J) ----
-    const npcs = (typeof ALL_NPCS !== 'undefined') ? ALL_NPCS : [];
-    $('reputationList').innerHTML = npcs.map(n=>{
-      const rep = (p.npcReputation && p.npcReputation[n.id]) || { value:0 };
-      const { level, progress } = repLevelInfo(rep.value);
-      const tierColor = `var(--t${n.tier})`;
-      return `<div class="rep-row">
-        <div class="rep-icon" style="--tier-color:${tierColor}">${visualHTML(n.img || n.emoji, 'rep-img')}</div>
-        <div class="rep-info">
-          <div class="rep-name"><span>${LT(n.name)}</span><span class="rep-level">${LT(UI_TEXT.REP_LEVEL_LABEL)}${level}</span></div>
-          <div class="rep-bar"><div class="rep-bar-fill" style="width:${Math.round(progress*100)}%;background:${tierColor}"></div></div>
-        </div>
-      </div>`;
-    }).join('');
+    // Фаза I/J: репутация переехала из Коллекции в отдельное меню
+    // "Персонажи" (кнопка 👥) — см. renderCharacters().
   }
 
   $('collectionBtn').addEventListener('click', ()=>{
@@ -1630,6 +2035,10 @@
   });
   $('newWeekBtn').addEventListener('click', ()=>{
     SFX.uiClick();
+    // Фаза J: новый цикл — состав пассивок снова можно менять,
+    // счётчики "за цикл" (picksCycle) в профиле обнуляются
+    cycleStarted = false;
+    if(window.PotionProfile) window.PotionProfile.startCycle();
     dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0;
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
@@ -1708,6 +2117,9 @@
     });
     if($('saveScoreBtn').disabled) $('saveScoreBtn').textContent = LT(UI_TEXT.SAVE_SCORE_DONE);
     if($('collectionOverlay').classList.contains('show')) renderCollection();
+    // Фаза I/J: открытые меню "Персонажи" и "Пассивки" тоже переводим на лету
+    if($('charactersOverlay') && $('charactersOverlay').classList.contains('show')) renderCharacters();
+    if($('passivesOverlay') && $('passivesOverlay').classList.contains('show')) renderPassivesPanel();
   }
   const langBtn = $('langBtn');
   if(langBtn){
@@ -1733,6 +2145,13 @@
   }
 
   if(window.PotionProfile) window.PotionProfile.load();
+  // Фаза J: загрузка страницы = свежий цикл — счётчики "за цикл"
+  // обнуляются, состав пассивок можно менять до первого заказа;
+  // заодно выбрасываем из активных пассивки, переставшие быть открытыми
+  if(window.PotionProfile){
+    window.PotionProfile.startCycle();
+    sanitizeActivePassives();
+  }
   // Фаза H: догоняющая проверка при загрузке — если профиль уже
   // соответствует порогам (например, апдейт игры добавил новые ачивки
   // задним числом), они откроются тихо, без тоста-спама при заходе

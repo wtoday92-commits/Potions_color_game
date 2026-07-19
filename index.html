@@ -32,6 +32,9 @@
       <div class="score"><span data-i18n="RATING_LABEL">РЕЙТИНГ:</span> <span id="scoreVal">0</span></div>
       <button id="lbBtn" class="lb-open-btn" data-i18n-title="LB_BTN_TITLE" title="Глобальный рейтинг"><img src="assets/ui/lb-open-btn.png" class="rating-img" alt=""></button>
       <button id="collectionBtn" class="lang-btn collection-btn" data-i18n-title="COLLECTION_BTN_TITLE" title="Коллекция">📖</button>
+      <!-- Фаза I/J: отдельное меню персонажей (репутация/ачивки/пассивки) и быстрая панель пассивок -->
+      <button id="charactersBtn" class="lang-btn characters-btn" data-i18n-title="CHARACTERS_BTN_TITLE" title="Персонажи">👥</button>
+      <button id="passivesBtn" class="lang-btn passives-btn" data-i18n-title="PASSIVES_BTN_TITLE" title="Пассивки">⚡</button>
       <button id="langBtn" class="lang-btn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
       <div class="volume-control" data-i18n-title="VOLUME_TITLE" title="Громкость эмбиента">
         <span class="volume-icon" id="volumeIcon">🔊</span>
@@ -39,9 +42,13 @@
       </div>
     </div>
   </div>
-  <h1 class="title">Зельеварня</h1>
-  <p class="subtitle" data-i18n="SUBTITLE">лавка смесей // сектор Ω // край вселенной</p>
-  <div class="sticker-tally" id="stickerTally"></div>
+  <!-- UI-патч: шапка собрана в один блок, чтобы заголовок/подзаголовок/стикеры
+       не висели в воздухе отдельными строками -->
+  <div class="game-header">
+    <h1 class="title">Зельеварня</h1>
+    <p class="subtitle" data-i18n="SUBTITLE">лавка смесей // сектор Ω // край вселенной</p>
+    <div class="sticker-tally" id="stickerTally"></div>
+  </div>
 
   <div class="select-screen" id="selectScreen">
     <div class="select-title" data-i18n="SELECT_TITLE">Кто пришвартовался к лавке?</div>
@@ -186,12 +193,26 @@
       <div class="ach-grid" id="achievementsGrid"></div>
     </div>
 
-    <div class="collection-section">
-      <div class="collection-section-title" data-i18n="REPUTATION_SECTION_TITLE">Репутация</div>
-      <div class="reputation-list" id="reputationList"></div>
-    </div>
-
     <button class="next-btn" id="collectionCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
+  </div>
+</div>
+
+<!-- Фаза I/J: меню "Персонажи" — репутация, досье, пассивки, ачивки каждого НПС.
+     Список НПС ↔ вкладка персонажа рендерятся в game.js:renderCharacters() -->
+<div class="week-overlay" id="charactersOverlay">
+  <div class="week-card characters-card">
+    <h3 data-i18n="CHARACTERS_TITLE">Персонажи</h3>
+    <div id="charactersContent"></div>
+    <button class="next-btn" id="charactersCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
+  </div>
+</div>
+
+<!-- Фаза J: быстрая панель активации пассивок (до 3 на цикл) -->
+<div class="week-overlay" id="passivesOverlay">
+  <div class="week-card passives-card">
+    <h3 data-i18n="PASSIVES_TITLE">Пассивки</h3>
+    <div id="passivesContent"></div>
+    <button class="next-btn" id="passivesCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
   </div>
 </div>
 <!-- порядок важен: сначала профиль (Фаза F), потом контент, потом логика -->

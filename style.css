@@ -856,3 +856,272 @@ body:after{
   padding: 22px 26px;
   backdrop-filter: blur(2px);
 }
+
+/* ============================================================
+   ФАЗЫ I/J + UI-ПАТЧ
+   Меню "Персонажи", ачивки НПС, пассивки, лорные фразы и
+   аккуратная сборка верхней части экрана в панели.
+   ============================================================ */
+
+/* ---------- лорные фразы (Фаза I): другой цвет реплики ---------- */
+.quote.lore{
+  color: var(--t5, #b866ff);
+  text-shadow: 0 0 8px rgba(184,102,255,.35);
+}
+#orderText.lore{
+  color: var(--t5, #b866ff);
+  text-shadow: 0 0 8px rgba(184,102,255,.3);
+}
+
+/* ---------- меню "Персонажи" ---------- */
+.characters-card{
+  max-width: 720px;
+  width: min(720px, 94vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  text-align: left;
+}
+.characters-card h3{ text-align:center; }
+.char-hint{
+  font-size: 12px;
+  opacity: .65;
+  text-align: center;
+  margin-bottom: 10px;
+}
+.char-list{ display:flex; flex-direction:column; gap:8px; }
+.char-row{
+  display:flex; align-items:center; gap:12px;
+  padding:8px 10px;
+  border:1px solid rgba(53,224,255,.18);
+  border-radius:12px;
+  background: rgba(10,13,32,.55);
+  cursor:pointer;
+  transition: border-color .15s, background .15s, transform .12s;
+}
+.char-row:hover{
+  border-color: var(--tier-color, rgba(53,224,255,.5));
+  background: rgba(16,21,48,.85);
+  transform: translateX(3px);
+}
+.char-row-icon{
+  width:52px; height:52px; flex:0 0 52px;
+  border-radius:50%;
+  border:2px solid var(--tier-color, #35e0ff);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--tier-color, #35e0ff) 45%, transparent);
+  overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  background: rgba(0,0,0,.35);
+  font-size:28px;
+}
+.char-img{ width:100%; height:100%; object-fit:cover; }
+.char-row-info{ flex:1; min-width:0; }
+.char-row-name{
+  display:flex; justify-content:space-between; align-items:baseline; gap:8px;
+  font-weight:700; font-size:14px;
+}
+.char-row-level{ font-size:11px; opacity:.75; font-weight:600; white-space:nowrap; }
+.char-row-sub{ font-size:11px; opacity:.6; margin-top:3px; }
+
+/* детальная вкладка персонажа */
+/* список "уезжает": вкладка персонажа въезжает сбоку с лёгким фейдом */
+@keyframes charSlideIn{
+  from{ opacity:0; transform: translateX(24px); }
+  to{ opacity:1; transform: none; }
+}
+.char-detail{ animation: charSlideIn .22s ease both; }
+.char-detail-head{
+  display:flex; gap:14px; align-items:flex-start;
+  margin-bottom: 12px;
+}
+.char-detail-icon{
+  width:104px; height:104px; flex:0 0 104px;
+  border-radius:50%;
+  border:3px solid var(--tier-color, #35e0ff);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--tier-color, #35e0ff) 55%, transparent);
+  overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  background: rgba(0,0,0,.35);
+  font-size:56px;
+  cursor:pointer;
+  transition: transform .15s, box-shadow .15s;
+}
+.char-detail-icon:hover{
+  transform: scale(1.04);
+  box-shadow: 0 0 26px color-mix(in srgb, var(--tier-color, #35e0ff) 75%, transparent);
+}
+.char-img-big{ width:100%; height:100%; object-fit:cover; }
+.char-detail-headinfo{ flex:1; min-width:0; }
+.char-detail-name{ font-size:20px; font-weight:800; margin-bottom:6px; }
+.char-detail-rep span{ font-size:12px; opacity:.8; display:block; margin-bottom:4px; }
+.char-back-hint{ font-size:11px; opacity:.5; margin-top:8px; font-style:italic; }
+.char-l4-note{
+  margin-top:8px;
+  font-size:11px;
+  color:#ffb454;
+  opacity:.9;
+}
+.char-l4-note.done{ color:#7dff9a; }
+.char-section{ margin-top:16px; }
+.char-lore-desc{
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.5;
+  opacity:.8;
+  border-left: 3px solid var(--tier-color, rgba(53,224,255,.4));
+  padding-left: 10px;
+}
+.char-lore-count{ font-size:11px; opacity:.55; margin-top:6px; }
+
+/* ---------- ачивки НПС (Фаза I) ---------- */
+.npc-ach-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap:8px;
+}
+.npc-ach-cell{
+  position:relative;
+  border-radius:10px;
+  padding:10px 8px 8px;
+  text-align:center;
+  min-height: 86px;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:4px;
+  cursor: default;
+}
+.npc-ach-cell.unlocked{
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(16,21,48,.75);
+}
+/* цвет рамки по градации */
+.npc-ach-cell.unlocked.tier-1{ border-color:#cd7f32; box-shadow: inset 0 0 12px rgba(205,127,50,.12); }
+.npc-ach-cell.unlocked.tier-2{ border-color:#c0c0c0; box-shadow: inset 0 0 12px rgba(192,192,192,.12); }
+.npc-ach-cell.unlocked.tier-3{ border-color:#ffd700; box-shadow: inset 0 0 14px rgba(255,215,0,.16); }
+.npc-ach-cell.locked{
+  border:1px dashed rgba(255,255,255,.22);
+  background: rgba(8,10,24,.5);
+  opacity:.75;
+}
+.npc-ach-icon{ font-size:24px; line-height:1; }
+.npc-ach-cell.locked .npc-ach-icon{ opacity:.5; font-weight:800; }
+.npc-ach-name{ font-size:11px; font-weight:700; line-height:1.25; }
+.ach-pips{ display:flex; gap:4px; margin-top:auto; }
+.ach-pip{
+  width:8px; height:8px; border-radius:50%;
+  background: rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.25);
+}
+.ach-pip.t1.on{ background:#cd7f32; border-color:#cd7f32; }
+.ach-pip.t2.on{ background:#c0c0c0; border-color:#c0c0c0; }
+.ach-pip.t3.on{ background:#ffd700; border-color:#ffd700; box-shadow:0 0 6px rgba(255,215,0,.6); }
+/* художественный намёк: по наведению (десктоп) или тапу (класс hint-open) */
+.npc-ach-hint{
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  padding:8px;
+  border-radius:10px;
+  background: rgba(6,8,20,.94);
+  border:1px solid rgba(53,224,255,.35);
+  font-size:11px; line-height:1.35;
+  opacity:0; pointer-events:none;
+  transition: opacity .15s;
+  z-index:2;
+}
+.npc-ach-cell:hover .npc-ach-hint,
+.npc-ach-cell.hint-open .npc-ach-hint{ opacity:1; }
+
+/* ---------- пассивки (Фаза J) ---------- */
+.passives-card{
+  max-width: 640px;
+  width: min(640px, 94vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  text-align: left;
+}
+.passives-card h3{ text-align:center; }
+.passives-slots{ text-align:center; font-size:14px; margin-bottom:4px; }
+.passives-hint{ text-align:center; font-size:11px; opacity:.65; margin-bottom:8px; }
+.passives-locked-note{
+  text-align:center;
+  font-size:11px;
+  color:#ffb454;
+  margin-bottom:8px;
+}
+.passives-empty{ text-align:center; font-size:12px; opacity:.6; padding:20px 0; }
+.passive-list{ display:flex; flex-direction:column; gap:6px; }
+.passive-group{ margin-bottom:12px; }
+.passive-group-head{
+  display:flex; align-items:center; gap:8px;
+  font-weight:700; font-size:13px;
+  margin-bottom:6px;
+  color: var(--tier-color, #fff);
+}
+.passive-group-icon{
+  width:28px; height:28px;
+  border-radius:50%;
+  overflow:hidden;
+  display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--tier-color, rgba(255,255,255,.3));
+  background: rgba(0,0,0,.35);
+  font-size:16px;
+}
+.passive-group-icon .char-img{ width:100%; height:100%; object-fit:cover; }
+.passive-card{
+  display:flex; align-items:center; gap:10px;
+  padding:8px 10px;
+  border-radius:10px;
+  background: rgba(10,13,32,.6);
+  margin-bottom:6px;
+}
+/* белая рамка — глобальные (слабее), синяя — только у своего НПС (сильнее) */
+.passive-card.global{ border:1px solid rgba(255,255,255,.45); }
+.passive-card.npc{ border:1px solid rgba(53,224,255,.75); box-shadow: inset 0 0 10px rgba(53,224,255,.08); }
+.passive-card.locked{ opacity:.45; }
+.passive-card.active{
+  background: rgba(53,224,255,.12);
+  box-shadow: 0 0 12px rgba(53,224,255,.25);
+}
+.passive-card.selectable{ cursor:pointer; transition: transform .12s, background .15s; }
+.passive-card.selectable:hover{ transform: translateX(3px); }
+.passive-card.selectable.frozen{ cursor:default; opacity:.75; }
+.passive-card.selectable.frozen:hover{ transform:none; }
+.passive-icon{ font-size:20px; flex:0 0 auto; }
+.passive-info{ flex:1; min-width:0; }
+.passive-name{ font-size:12px; font-weight:700; }
+.passive-desc{ font-size:11px; opacity:.7; margin-top:2px; line-height:1.3; }
+.passive-scope{
+  font-size:9px; letter-spacing:.5px; text-transform:uppercase;
+  opacity:.6; white-space:nowrap; flex:0 0 auto;
+}
+/* награда за полный комплект золота */
+.char-reward{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:10px;
+  border-radius:10px;
+  border:1px dashed rgba(255,215,0,.4);
+  background: rgba(16,21,48,.5);
+  font-size:12px;
+}
+.char-reward.unlocked{
+  border-style:solid;
+  border-color:#ffd700;
+  box-shadow: inset 0 0 14px rgba(255,215,0,.12);
+}
+.char-reward-icon{ font-size:18px; }
+.char-reward-note{ font-size:11px; opacity:.55; width:100%; }
+
+/* ---------- UI-патч: сборка верха экрана в панели ---------- */
+/* топбар превращается из "строчки в воздухе" в HUD-панель */
+.topbar{
+  background: linear-gradient(180deg, rgba(16,21,48,.92), rgba(10,13,32,.92));
+  border: 1px solid rgba(53,224,255,.22);
+  border-radius: 14px;
+  padding: 8px 14px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.35);
+}
+/* шапка (название + подзаголовок + стикеры) — единый блок с воздухом */
+.game-header{
+  text-align:center;
+  padding: 6px 0 2px;
+  margin-bottom: 4px;
+}
+.game-header .title{ margin-bottom: 2px; }
+.game-header .subtitle{ margin-top: 0; }

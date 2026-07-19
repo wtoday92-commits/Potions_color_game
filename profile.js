@@ -1,70 +1,88 @@
 /* ============================================================
    ЗЕЛЬЕВАРНЯ — profile.js
    ФАЗА F: ФУНДАМЕНТ ПРОФИЛЯ ИГРОКА.
+   + ФАЗА I: пер-НПС статистика (ачивки неписей) и лорные фразы.
+   + ФАЗА J: репутация (вес сложности, множитель от пассивок)
+             и хранение активных пассивок.
 
-   Этот файл НЕ рисует никакого UI (коллекция/ачивки/репутация
-   появятся в Фазах G/H/I/J) — он только:
+   Этот файл НЕ рисует никакого UI — он только:
      1) заводит один постоянный профиль игрока в localStorage;
      2) на каждый результат заказа и на каждый цикл тихо копит
-        статистику, стрики, ленту идеалов и заготовки под
+        статистику, стрики, ленту идеалов, пер-НПС счётчики,
         ачивки/лор/репутацию/пассивки;
-     3) даёт простой API (window.PotionProfile), которым будущие
-        фазы будут читать/писать данные, не трогая game.js заново.
+     3) даёт простой API (window.PotionProfile), которым game.js
+        читает/пишет данные.
 
    Подключать ДО game.js (см. index.html).
 
-   СХЕМА ПРОФИЛЯ (version:1):
+   СХЕМА ПРОФИЛЯ (version:2):
    {
      version, playerId, createdAt, lastSeenAt,
      stats: {
-       totalDaysPlayed,      // 1 день = 1 выполненный заказ (см. roadmap: 10 дней = 10 заказов за цикл)
-       cyclesCompleted,      // сколько полных 10-дневных циклов завершено
-       totalScoreEarned,     // сумма всех положительных начислений очков за всю историю
-       bestCycleScore,       // лучший результат цикла (то же число, что уходит в лидерборд)
+       totalDaysPlayed,      // 1 день = 1 выполненный заказ
+       cyclesCompleted,
+       totalScoreEarned,
+       bestCycleScore,
        totalOrders,
        stickersLifetime: { perfect, good, bad },
-       stickersSeen: { perfect:[idx,...], good:[...], bad:[...] }
-         // Фаза G: какие именно варианты стикера (индекс в STICKERS.*)
-         // игрок уже видел — питает "альбом" в Коллекции (силуэт для
-         // ещё не выбитых). Индекс приходит из finalizeResult() в game.js.
+       stickersSeen: { perfect:[idx,...], good:[...], bad:[...] },
+       weightedProgress      // общая "валюта прогресса" (Фаза H)
      },
-     streaks: {
-       perfectCurrent, perfectBest,
-       goodPlusCurrent, goodPlusBest,   // "good или лучше" подряд
-       badCurrent, badBest              // "брак" подряд — для будущих ачивок вида "N какашек подряд"
-     },
-     perfectRibbon: { count, platinumCount },
-       // count — дробное число 0..19.99 (Фаза G доп.: каждое идеальное
-       // зелье добавляет не ровно 1, а "вес сложности" — тир НПС × уровень
-       // сложности регуляторов, см. PROGRESS_DIFF_WEIGHT в content.js —
-       // так лёгкая игра на 1-ой сложности заполняет ленту НАМНОГО
-       // медленнее, чем игра на высоких тирах/сложностях). При достижении
-       // 20 остаток переносится в новую ленту (не обнуляется без остатка)
-       // и platinumCount++ (лента платиновых стикеров). УИ — Фаза G.
+     streaks: { perfectCurrent/Best, goodPlusCurrent/Best, badCurrent/Best },
+     perfectRibbon: { count (0..19.99, дробный вес), platinumCount },
      npcReputation: { [npcId]: { value, level } },
-       // value растёт/падает от результатов с этим НПС, level появится
-       // в Фазе J (нужны пороги повышения — там же).
+       // value растёт/падает от результатов. С Фазы J положительный
+       // прирост масштабируется весом сложности (progressWeight) и
+       // множителем от пассивок (repMult). level здесь НЕ считается —
+       // он выводится в game.js из REP_LEVELS (content.js), поле
+       // оставлено для обратной совместимости.
+     npcStats: { [npcId]: {                       // Фаза I: сырьё для ачивок НПС
+       orders, perfects, goods, bads,
+       perfectStreak, perfectStreakBest,          // идеалы подряд С ЭТИМ НПС
+       noBadStreak, noBadStreakBest,              // без брака подряд с этим НПС
+       fastPerfects,                              // идеалы в первую треть таймера
+       hardPerfects,                              // идеалы на сложности >= 3
+       level4Perfects,                            // идеалы на 4-ой сложности
+       focusPerfects: { bubbles, color, size },   // идеалы на фокус-заказах
+       weighted,                                  // сумма progressWeight (только идеалы)
+       picksCycle, picksCycleBest                 // выборов этого НПС за ТЕКУЩИЙ цикл / рекорд
+     } },
      achievements: {
-       general: { [achId]: { unlockedAt } },        // наполнит Фаза H
-       npc: { [npcId]: { [achId]: tier(0-3) } }     // наполнит Фаза I (0=нет,1=бронза,2=серебро,3=золото)
+       general: { [achId]: { unlockedAt } },              // Фаза H
+       npc: { [npcId]: { [achId]: tier(0-3) } }           // Фаза I: 0=нет,1=бронза,2=серебро,3=золото
      },
-     lorePhrases:   { unlockedByNpc: { [npcId]: [phraseId, ...] } },   // Фаза I
+     lorePhrases:   { unlockedByNpc: { [npcId]: [phraseIdx, ...] } },  // Фаза I
      rewards:       { byNpc: { [npcId]: { background:false, bottleSkin:null } } }, // Фаза I
-     passives:      { unlockedByNpc: { [npcId]: [passiveId, ...] }, active: [] }   // Фаза J
+     passives:      { active: [ {npcId, passiveId}, ... ] }            // Фаза J (до 3 шт.)
+       // "открытость" пассивки НЕ хранится — она выводится из уровня
+       // репутации (REP_LEVELS в content.js): уровень N открывает
+       // пассивку с индексом N-1 в NPC_PASSIVES[npcId]. Само-лечится:
+       // если репутация упала — пассивка снова закрыта и game.js сам
+       // выкидывает её из active при следующей проверке.
    }
-
-   Динамические под-объекты (npcReputation[id], achievements.npc[id] и
-   т.п.) заводятся лениво через ensureNpc() при первом обращении к
-   конкретному НПС — не нужно заранее перечислять все 23.
    ============================================================ */
 
 (function(){
   const PROFILE_KEY = 'potionshop_profile_v1';
-  const SCHEMA_VERSION = 1;
+  const SCHEMA_VERSION = 2;
 
   function uuid(){
     try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(e){}
     return 'p-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function emptyNpcStats(){
+    return {
+      orders: 0, perfects: 0, goods: 0, bads: 0,
+      perfectStreak: 0, perfectStreakBest: 0,
+      noBadStreak: 0, noBadStreakBest: 0,
+      fastPerfects: 0,
+      hardPerfects: 0,
+      level4Perfects: 0,
+      focusPerfects: { bubbles: 0, color: 0, size: 0 },
+      weighted: 0,
+      picksCycle: 0, picksCycleBest: 0
+    };
   }
 
   function emptyProfile(){
@@ -81,11 +99,6 @@
         totalOrders: 0,
         stickersLifetime: { perfect: 0, good: 0, bad: 0 },
         stickersSeen: { perfect: [], good: [], bad: [] },
-        // Фаза H: общая "валюта прогресса" — сумма progressWeight по всем
-        // не-браковым заказам (см. блок "Сложность → прогресс" в roadmap.md).
-        // Пороги общих ачивок опираются на это число, а не на totalOrders,
-        // чтобы фарм на лёгкой сложности не давал такой же прогресс, как
-        // игра на высоких тирах/сложностях.
         weightedProgress: 0
       },
       streaks: {
@@ -95,6 +108,7 @@
       },
       perfectRibbon: { count: 0, platinumCount: 0 },
       npcReputation: {},
+      npcStats: {},
       achievements: { general: {}, npc: {} },
       lorePhrases: { unlockedByNpc: {} },
       rewards: { byNpc: {} },
@@ -134,6 +148,7 @@
       profile = emptyProfile();
     }
     profile.lastSeenAt = Date.now();
+    profile.version = SCHEMA_VERSION;
     return profile;
   }
 
@@ -158,27 +173,45 @@
     if(!profile.achievements.npc[npcId]) profile.achievements.npc[npcId] = {};
     if(!profile.lorePhrases.unlockedByNpc[npcId]) profile.lorePhrases.unlockedByNpc[npcId] = [];
     if(!profile.rewards.byNpc[npcId]) profile.rewards.byNpc[npcId] = { background: false, bottleSkin: null };
-    if(!profile.passives.unlockedByNpc[npcId]) profile.passives.unlockedByNpc[npcId] = [];
     return profile.npcReputation[npcId];
+  }
+  function ensureNpcStats(npcId){
+    load();
+    if(!npcId) return null;
+    // deepMerge выше уже дольёт недостающие поля в существующие записи
+    // при загрузке; здесь достаточно завести запись целиком, если её нет
+    if(!profile.npcStats[npcId]) profile.npcStats[npcId] = emptyNpcStats();
+    const ns = profile.npcStats[npcId];
+    // подстраховка для профилей version:1 — дозавести недостающие поля
+    const fresh = emptyNpcStats();
+    Object.keys(fresh).forEach(k=>{ if(ns[k] === undefined) ns[k] = fresh[k]; });
+    if(!ns.focusPerfects) ns.focusPerfects = { bubbles:0, color:0, size:0 };
+    return ns;
   }
 
   // ---------- публичный API ----------
   const PP = {
     // прямой доступ к живому объекту профиля — читать можно свободно,
     // но менять поля напрямую снаружи не стоит, лучше через методы ниже
-    // (чтобы save() не забывался и логика стриков/ленты не разъезжалась)
     get data(){ return load(); },
     load,
     save,
+    ensureNpcStats,
 
     // вызывается из finalizeResult() в game.js после каждого заказа.
-    // stickerCat/stickerIdx (Фаза G) — какой именно вариант стикера был
-    // показан игроку в этот раз, для альбома в Коллекции.
-    // progressWeight (Фаза G доп.) — вес сложности этого конкретного
-    // зелья (тир НПС × уровень сложности регуляторов), см. подробности в
-    // PROGRESS_DIFF_WEIGHT в content.js. Без него (старый вызов / не
-    // передали) считаем вес = 1, как раньше.
-    recordOrderResult({ npcId, perfect, good, delta, stickerCat, stickerIdx, progressWeight }){
+    //  npcId          — стабильный id НПС (content.js)
+    //  perfect/good   — категория результата
+    //  delta          — начисленные очки (для totalScoreEarned)
+    //  stickerCat/Idx — какой вариант стикера показан (альбом, Фаза G)
+    //  progressWeight — вес сложности зелья (Фаза G доп.), УЖЕ с учётом
+    //                   пассивок на прогресс (game.js умножает до вызова)
+    //  regLevel       — выбранная сложность регуляторов (1-4)
+    //  focus          — модификатор заказа ('bubbles'|'color'|'size'|null)
+    //  fastThird      — true, если заказ закрыт в первую треть таймера
+    //  repMult        — множитель прироста репутации от пассивок (>=1)
+    // Возвращает { repBefore, repAfter } — game.js по ним ловит смену
+    // уровня репутации (пороги уровней — REP_LEVELS в content.js).
+    recordOrderResult({ npcId, perfect, good, delta, stickerCat, stickerIdx, progressWeight, regLevel, focus, fastThird, repMult }){
       load();
       const st = profile.stats;
       st.totalOrders++;
@@ -193,9 +226,10 @@
         if(arr && !arr.includes(stickerIdx)) arr.push(stickerIdx);
       }
 
-      // Фаза H: копим "валюту прогресса" — только на good/perfect (брак не даёт прогресса)
+      const w = (typeof progressWeight === 'number' && progressWeight > 0) ? progressWeight : 1;
+
+      // Фаза H: "валюта прогресса" — только на good/perfect (брак не даёт прогресса)
       if(good){
-        const w = (typeof progressWeight === 'number' && progressWeight > 0) ? progressWeight : 1;
         st.weightedProgress = (st.weightedProgress || 0) + w;
       }
 
@@ -212,22 +246,60 @@
 
       if(perfect){
         const r = profile.perfectRibbon;
-        const w = (typeof progressWeight === 'number' && progressWeight > 0) ? progressWeight : 1;
         r.count += w;
         while(r.count >= 20){
           r.platinumCount++;
-          r.count -= 20; // остаток переносим в новую ленту, а не теряем (см. Фазу G доп.)
+          r.count -= 20; // остаток переносим в новую ленту, а не теряем
         }
       }
 
-      // черновой баланс репутации — точные цифры и пороги уровней уточним
-      // в Фазе J, когда будем проектировать пассивки; пока копим значение,
-      // чтобы к моменту Фазы J уже была живая история, а не пустое поле
+      // ---------- Фаза I: пер-НПС счётчики (сырьё для ачивок неписей) ----------
+      let repBefore = 0, repAfter = 0;
       if(npcId){
+        const ns = ensureNpcStats(npcId);
+        ns.orders++;
+        ns.picksCycle = (ns.picksCycle || 0) + 1;
+        ns.picksCycleBest = Math.max(ns.picksCycleBest || 0, ns.picksCycle);
+        if(perfect){
+          ns.perfects++;
+          ns.perfectStreak++;
+          ns.perfectStreakBest = Math.max(ns.perfectStreakBest, ns.perfectStreak);
+          ns.weighted += w;
+          if(fastThird) ns.fastPerfects++;
+          if(regLevel >= 3) ns.hardPerfects++;
+          if(regLevel === 4) ns.level4Perfects++;
+          if(focus && ns.focusPerfects[focus] !== undefined) ns.focusPerfects[focus]++;
+        } else {
+          ns.perfectStreak = 0;
+        }
+        if(good){
+          ns.goods++;
+          ns.noBadStreak++;
+          ns.noBadStreakBest = Math.max(ns.noBadStreakBest, ns.noBadStreak);
+        } else {
+          ns.bads++;
+          ns.noBadStreak = 0;
+        }
+
+        // ---------- Фаза J: репутация ----------
+        // Положительный прирост масштабируется весом сложности (та же
+        // "валюта", что и прогресс — см. roadmap "Сложность → прогресс":
+        // репутация с лёгких заказов растёт заметно медленнее) и
+        // множителем от пассивок (repMult). Штраф за брак фиксированный.
         const rep = ensureNpc(npcId);
-        rep.value += good ? (perfect ? 3 : 1) : -2;
+        repBefore = rep.value;
+        if(good){
+          const base = perfect ? 3 : 1;
+          const wScale = Math.min(2.5, Math.max(0.25, w));
+          const rm = (typeof repMult === 'number' && repMult > 0) ? repMult : 1;
+          rep.value += base * wScale * rm;
+        } else {
+          rep.value = Math.max(0, rep.value - 2);
+        }
+        repAfter = rep.value;
       }
       save();
+      return { repBefore, repAfter };
     },
 
     // вызывается из nextBtn-обработчика — 1 раз на каждый завершённый день
@@ -245,29 +317,44 @@
       save();
     },
 
-    // ---------- заготовки под Фазы H/I/J (пока никто не вызывает) ----------
+    // Фаза I/J: вызывается в начале КАЖДОГО нового цикла (загрузка страницы
+    // и кнопка "Начать новый цикл") — обнуляет счётчики "за цикл"
+    // (picksCycle у всех НПС). Рекорды (picksCycleBest) не трогаются.
+    startCycle(){
+      load();
+      Object.keys(profile.npcStats || {}).forEach(id=>{
+        if(profile.npcStats[id]) profile.npcStats[id].picksCycle = 0;
+      });
+      save();
+    },
+
+    // ---------- Фаза H ----------
     unlockGeneralAchievement(achId){
       load();
       if(!profile.achievements.general[achId]) profile.achievements.general[achId] = { unlockedAt: Date.now() };
       save();
     },
+
+    // ---------- Фаза I ----------
     setNpcAchievementTier(npcId, achId, tier){
       load();
       ensureNpc(npcId);
       profile.achievements.npc[npcId][achId] = tier;
       save();
     },
-    unlockLorePhrase(npcId, phraseId){
+    // лорные фразы храним ИНДЕКСАМИ в массиве NPC_LORE[npcId] (content.js) —
+    // открываются последовательно, поэтому индекс стабилен
+    unlockLorePhrase(npcId, phraseIdx){
       load();
       ensureNpc(npcId);
       const arr = profile.lorePhrases.unlockedByNpc[npcId];
-      if(!arr.includes(phraseId)) arr.push(phraseId);
+      if(!arr.includes(phraseIdx)) arr.push(phraseIdx);
       save();
     },
     adjustReputation(npcId, delta){
       load();
       const rep = ensureNpc(npcId);
-      rep.value += delta;
+      rep.value = Math.max(0, rep.value + delta);
       save();
       return rep;
     },
@@ -275,6 +362,16 @@
       load();
       ensureNpc(npcId);
       profile.rewards.byNpc[npcId][key] = value;
+      save();
+    },
+
+    // ---------- Фаза J: активные пассивки ----------
+    // list — массив вида [{npcId, passiveId}], не больше 3. Валидность
+    // (открыта ли пассивка по уровню репутации) проверяет game.js —
+    // и при выборе, и при применении эффектов.
+    setActivePassives(list){
+      load();
+      profile.passives.active = Array.isArray(list) ? list.slice(0, 3) : [];
       save();
     }
   };
