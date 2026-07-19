@@ -25,20 +25,32 @@
 </audio>
 
 <div class="stage">
+  <!-- UI-патч 2: топбар разложен на три зоны — слева день, по центру
+       стрик, справа рейтинг и кнопки. Редкие настройки (язык, громкость)
+       спрятаны в мини-меню ⚙, чтобы правая группа не была перегружена. -->
   <div class="topbar">
-    <div class="day-counter"><span data-i18n="DAY_LABEL">День</span> <b id="dayVal">1</b>/10</div>
-    <div class="streak"><img src="assets/ui/streak.png" class="streak-img" alt=""><span id="streakVal">0</span></div>
-    <div style="display:flex;align-items:center;gap:8px;">
+    <div class="topbar-left">
+      <div class="day-counter"><span data-i18n="DAY_LABEL">День</span> <b id="dayVal">1</b>/10</div>
+    </div>
+    <div class="topbar-center">
+      <div class="streak"><img src="assets/ui/streak.png" class="streak-img" alt=""><span id="streakVal">0</span></div>
+    </div>
+    <div class="topbar-right">
       <div class="score"><span data-i18n="RATING_LABEL">РЕЙТИНГ:</span> <span id="scoreVal">0</span></div>
       <button id="lbBtn" class="lb-open-btn" data-i18n-title="LB_BTN_TITLE" title="Глобальный рейтинг"><img src="assets/ui/lb-open-btn.png" class="rating-img" alt=""></button>
       <button id="collectionBtn" class="lang-btn collection-btn" data-i18n-title="COLLECTION_BTN_TITLE" title="Коллекция">📖</button>
       <!-- Фаза I/J: отдельное меню персонажей (репутация/ачивки/пассивки) и быстрая панель пассивок -->
       <button id="charactersBtn" class="lang-btn characters-btn" data-i18n-title="CHARACTERS_BTN_TITLE" title="Персонажи">👥</button>
       <button id="passivesBtn" class="lang-btn passives-btn" data-i18n-title="PASSIVES_BTN_TITLE" title="Пассивки">⚡</button>
-      <button id="langBtn" class="lang-btn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
-      <div class="volume-control" data-i18n-title="VOLUME_TITLE" title="Громкость эмбиента">
-        <span class="volume-icon" id="volumeIcon">🔊</span>
-        <input type="range" id="volumeSlider" min="0" max="100" value="60" step="1">
+      <div class="settings-wrap" id="settingsWrap">
+        <button id="settingsBtn" class="lang-btn settings-btn" data-i18n-title="SETTINGS_BTN_TITLE" title="Настройки (язык, громкость)">⚙</button>
+        <div class="settings-menu" id="settingsMenu">
+          <button id="langBtn" class="lang-btn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
+          <div class="volume-control" data-i18n-title="VOLUME_TITLE" title="Громкость эмбиента">
+            <span class="volume-icon" id="volumeIcon">🔊</span>
+            <input type="range" id="volumeSlider" min="0" max="100" value="60" step="1">
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -159,38 +171,55 @@
   </div>
 </div>
 
-<!-- Фаза G: коллекция игрока — статистика, ленты идеалов, альбом стикеров, репутация -->
+<!-- Фаза G: коллекция игрока.
+     UI-патч 2: длинная простыня из секций разложена на вкладки
+     (Статистика / Лента / Стикеры / Ачивки) — переключение в game.js. -->
 <div class="week-overlay" id="collectionOverlay">
   <div class="week-card collection-card">
     <h3 data-i18n="COLLECTION_TITLE">🗂 Коллекция</h3>
 
-    <div class="collection-stats" id="collectionStats"></div>
+    <div class="collection-tabs" id="collectionTabs">
+      <button class="ctab active" data-tab="stats" data-i18n="TAB_STATS">Статистика</button>
+      <button class="ctab" data-tab="ribbon" data-i18n="TAB_RIBBON">Лента</button>
+      <button class="ctab" data-tab="stickers" data-i18n="TAB_STICKERS">Стикеры</button>
+      <button class="ctab" data-tab="ach" data-i18n="TAB_ACH">Ачивки</button>
+    </div>
 
-    <div class="collection-section">
-      <div class="collection-section-title" data-i18n="RIBBON_SECTION_TITLE">Лента идеальных</div>
-      <div class="ribbon-showcase">
-        <span class="ribbon-sparkle s1">✦</span><span class="ribbon-sparkle s2">✧</span>
-        <span class="ribbon-sparkle s3">✦</span><span class="ribbon-sparkle s4">✧</span>
-        <div class="perfect-ribbon" id="perfectRibbon"></div>
-        <div class="ribbon-caption" id="perfectRibbonCaption"></div>
-        <div class="platinum-block" id="platinumBlock">
-          <div class="ribbon-subtitle" data-i18n="PLATINUM_RIBBON_TITLE">Платиновая лента</div>
-          <div class="platinum-ribbon" id="platinumRibbon"></div>
+    <div class="ctab-page show" data-page="stats">
+      <div class="collection-stats" id="collectionStats"></div>
+    </div>
+
+    <div class="ctab-page" data-page="ribbon">
+      <div class="collection-section">
+        <div class="collection-section-title" data-i18n="RIBBON_SECTION_TITLE">Лента идеальных</div>
+        <div class="ribbon-showcase">
+          <span class="ribbon-sparkle s1">✦</span><span class="ribbon-sparkle s2">✧</span>
+          <span class="ribbon-sparkle s3">✦</span><span class="ribbon-sparkle s4">✧</span>
+          <div class="perfect-ribbon" id="perfectRibbon"></div>
+          <div class="ribbon-caption" id="perfectRibbonCaption"></div>
+          <div class="platinum-block" id="platinumBlock">
+            <div class="ribbon-subtitle" data-i18n="PLATINUM_RIBBON_TITLE">Платиновая лента</div>
+            <div class="platinum-ribbon" id="platinumRibbon"></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="collection-section">
-      <div class="collection-section-title" data-i18n="STICKERS_SECTION_TITLE">Альбом стикеров</div>
-      <div class="sticker-album" id="stickerAlbum"></div>
+    <div class="ctab-page" data-page="stickers">
+      <div class="collection-section">
+        <div class="collection-section-title" data-i18n="STICKERS_SECTION_TITLE">Альбом стикеров</div>
+        <div class="sticker-album" id="stickerAlbum"></div>
+      </div>
     </div>
 
-    <div class="collection-section">
-      <div class="collection-section-title ach-section-title-row">
-        <span data-i18n="ACH_SECTION_TITLE">Ачивки</span>
-        <span class="ach-progress" id="achProgressLabel"></span>
+    <div class="ctab-page" data-page="ach">
+      <div class="collection-section">
+        <div class="collection-section-title ach-section-title-row">
+          <span data-i18n="ACH_SECTION_TITLE">Ачивки</span>
+          <span class="ach-progress" id="achProgressLabel"></span>
+        </div>
+        <div class="ach-grid" id="achievementsGrid"></div>
       </div>
-      <div class="ach-grid" id="achievementsGrid"></div>
     </div>
 
     <button class="next-btn" id="collectionCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>

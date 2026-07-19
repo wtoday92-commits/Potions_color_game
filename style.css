@@ -1125,3 +1125,204 @@ body:after{
 }
 .game-header .title{ margin-bottom: 2px; }
 .game-header .subtitle{ margin-top: 0; }
+
+/* ============================================================
+   UI-ПАТЧ 2: одобренные меры из отчёта + новые пороговые ачивки.
+   Всё собрано в конец файла и переопределяет ранние правила.
+   ============================================================ */
+
+/* ---------- 1. Единая шкала отступов + иерархия типографики ---------- */
+:root{
+  --gap-s: 6px;
+  --gap-m: 10px;
+  --gap-l: 16px;
+  /* три размера заголовков — и только они:
+     h1 — название игры, h2 — заголовки оверлеев/экранов,
+     h3 — заголовки секций внутри карточек */
+  --fs-h1: 24px;
+  --fs-h2: 16px;
+  --fs-h3: 12px;
+}
+.title{font-size:var(--fs-h1);}
+.week-card h3{font-size:var(--fs-h2);}
+.select-title{font-size:var(--fs-h2);}
+.collection-section-title{font-size:var(--fs-h3);margin-bottom:var(--gap-s);}
+.collection-section{margin-bottom:var(--gap-l);}
+.collection-stats{gap:5px;margin:var(--gap-m) 0 var(--gap-l);}
+.customer-cards{gap:var(--gap-l);}
+.album-row{gap:var(--gap-m);margin-bottom:var(--gap-s);}
+.album-row-cells{gap:var(--gap-s);}
+.npc-ach-grid{gap:var(--gap-s);}
+.passive-card{gap:var(--gap-m);}
+.char-section{margin-top:var(--gap-l);}
+
+/* ---------- 2. Фоновая виньетка: собирает картинку к центру ---------- */
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse at 50% 42%, transparent 52%, rgba(3,4,11,.62) 100%);
+}
+.stage{z-index:1;}
+
+/* ---------- 3. Топбар в три зоны ---------- */
+.topbar{
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
+  align-items:center;
+  gap:var(--gap-m);
+}
+.topbar-left{justify-self:start;}
+.topbar-center{justify-self:center;}
+.topbar-right{
+  justify-self:end;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;
+}
+@media (max-width:560px){
+  .topbar{grid-template-columns:auto auto;grid-template-rows:auto auto;}
+  .topbar-center{grid-column:2;justify-self:end;}
+  .topbar-right{grid-column:1 / -1;justify-self:stretch;justify-content:center;}
+}
+
+/* мини-меню ⚙: язык + громкость */
+.settings-wrap{position:relative;display:inline-flex;}
+.settings-btn{font-size:15px;}
+.settings-wrap.open .settings-btn{
+  background:rgba(53,224,255,.25);box-shadow:0 0 10px rgba(53,224,255,.4);
+}
+.settings-menu{
+  position:absolute;top:calc(100% + 8px);right:0;z-index:80;
+  display:none;flex-direction:column;gap:var(--gap-m);align-items:stretch;
+  padding:12px;border-radius:12px;min-width:150px;
+  background:linear-gradient(180deg,rgba(16,21,48,.98),rgba(10,13,32,.98));
+  border:1px solid rgba(53,224,255,.35);
+  box-shadow:0 8px 30px rgba(0,0,0,.55), 0 0 18px -6px rgba(53,224,255,.5);
+}
+.settings-wrap.open .settings-menu{display:flex;animation:settingsIn .14s ease;}
+@keyframes settingsIn{from{opacity:0;transform:translateY(-5px);}to{opacity:1;transform:translateY(0);}}
+.settings-menu .lang-btn{width:100%;padding:7px 0;}
+.settings-menu .volume-control{justify-content:space-between;}
+.settings-menu .volume-control input[type="range"]{width:96px;}
+
+/* ---------- 4. Стеклянная подложка экрана выбора заказов ---------- */
+.select-screen.show{
+  background:linear-gradient(180deg, rgba(16,21,48,.55), rgba(10,13,32,.55));
+  border:1px solid rgba(53,224,255,.16);
+  border-radius:16px;
+  padding:18px 14px 24px;
+  box-shadow:0 4px 24px rgba(0,0,0,.3), inset 0 0 40px rgba(0,0,0,.25);
+}
+
+/* ---------- 5. Вкладки Коллекции ---------- */
+.collection-tabs{
+  display:flex;gap:var(--gap-s);flex-wrap:wrap;
+  margin:var(--gap-m) 0 var(--gap-l);
+  border-bottom:1px solid rgba(53,224,255,.2);
+  padding-bottom:var(--gap-s);
+}
+.ctab{
+  flex:1 1 auto;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);
+  border-radius:9px;padding:7px 10px;cursor:pointer;
+  font-family:'Jura',sans-serif;font-weight:700;font-size:var(--fs-h3);
+  letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);
+  transition:background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.ctab:hover{background:rgba(53,224,255,.1);color:var(--neon-light);}
+.ctab.active{
+  background:rgba(53,224,255,.16);border-color:rgba(53,224,255,.6);
+  color:var(--neon-light);box-shadow:0 0 12px -3px rgba(53,224,255,.6);
+}
+.ctab-page{display:none;}
+.ctab-page.show{display:block;animation:ctabIn .18s ease;}
+@keyframes ctabIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+.ctab-page .collection-section:last-child{margin-bottom:var(--gap-s);}
+
+/* ---------- 6. Пороговые ачивки (Фаза H v2) ----------
+   Одна крупная карточка на метрику. Под ней ряд блоков-порогов:
+   загорелся порог — блок красится в свой цвет по нарастающей палитре
+   (бронза → серебро → золото → платина → неон → магента → экто →
+   фиолет → белый). Наведение на карточку — описание; на блок —
+   его порог; на мобилке тап по карточке показывает описание. */
+.ach-grid{
+  grid-template-columns:repeat(auto-fill, minmax(215px,1fr));
+  gap:var(--gap-m);
+  max-height:420px;
+}
+.ach2-card{
+  position:relative;
+  display:flex;flex-direction:column;align-items:center;gap:var(--gap-s);
+  padding:14px 10px 10px;border-radius:12px;text-align:center;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.12);
+  transition:transform .12s ease, box-shadow .12s ease;
+  cursor:default;
+}
+.ach2-card.unlocked{
+  background:rgba(159,242,255,.06);border-color:rgba(159,242,255,.35);
+}
+.ach2-card.unlocked:hover{transform:translateY(-1px);box-shadow:0 0 14px -5px rgba(159,242,255,.6);}
+.ach2-card.locked{opacity:.6;filter:grayscale(.55);}
+/* все пороги собраны — золотая огранка */
+.ach2-card.full{
+  border-color:#ffd700;
+  box-shadow:0 0 16px -4px rgba(255,215,0,.55), inset 0 0 16px rgba(255,215,0,.07);
+}
+.ach2-visual{
+  font-size:38px;line-height:1;height:48px;
+  display:flex;align-items:center;justify-content:center;
+}
+/* картинка вместо эмодзи: задаётся полем img в GENERAL_ACHIEVEMENTS
+   (content.js), подхватывается автоматически */
+.ach2-visual img.ach2-img{width:48px;height:48px;object-fit:contain;}
+.ach2-name{
+  font-family:'Jura',sans-serif;font-weight:700;font-size:13.5px;color:var(--ink);
+  line-height:1.25;
+}
+.ach2-tiers{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-top:2px;}
+.ach2-seg{
+  position:relative;
+  width:16px;height:16px;border-radius:4px;flex:0 0 auto;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.22);
+  transition:transform .12s ease;
+}
+.ach2-seg:hover{transform:scale(1.25);z-index:3;}
+/* палитра порогов по нарастающей */
+.ach2-seg.on.c1{background:#cd7f32;border-color:#e0954a;box-shadow:0 0 6px rgba(205,127,50,.6);}
+.ach2-seg.on.c2{background:#c0c0c0;border-color:#dedede;box-shadow:0 0 6px rgba(192,192,192,.6);}
+.ach2-seg.on.c3{background:#ffd700;border-color:#ffe75c;box-shadow:0 0 7px rgba(255,215,0,.65);}
+.ach2-seg.on.c4{background:#9ff2ff;border-color:#c9f8ff;box-shadow:0 0 7px rgba(159,242,255,.7);}
+.ach2-seg.on.c5{background:#35e0ff;border-color:#7deaff;box-shadow:0 0 8px rgba(53,224,255,.75);}
+.ach2-seg.on.c6{background:#ff4dd2;border-color:#ff85e0;box-shadow:0 0 8px rgba(255,77,210,.7);}
+.ach2-seg.on.c7{background:#7dff6a;border-color:#a7ff9a;box-shadow:0 0 8px rgba(125,255,106,.7);}
+.ach2-seg.on.c8{background:#b866ff;border-color:#d09cff;box-shadow:0 0 8px rgba(184,102,255,.75);}
+.ach2-seg.on.c9{background:#ffffff;border-color:#ffffff;box-shadow:0 0 10px rgba(255,255,255,.85);}
+/* всплывашка порога на блоке */
+.ach2-seg::after{
+  content:attr(data-hint);
+  position:absolute;bottom:135%;left:50%;transform:translateX(-50%);
+  padding:4px 8px;border-radius:6px;white-space:nowrap;max-width:190px;
+  white-space:normal;width:max-content;text-align:center;
+  background:rgba(6,8,20,.97);border:1px solid rgba(53,224,255,.4);
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:1.3;color:var(--ink);
+  opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:5;
+}
+.ach2-seg:hover::after{opacity:1;}
+.ach2-progress{
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-dim);
+  margin-top:2px;min-height:13px;
+}
+.ach2-progress .full-mark{color:#ffd700;text-shadow:0 0 8px rgba(255,215,0,.5);}
+/* описание — оверлей поверх карточки; появляется при наведении на
+   иконку/название (не мешает наводиться на блоки) или по тапу */
+.ach2-hint{
+  position:absolute;inset:0;z-index:4;
+  display:flex;align-items:center;justify-content:center;
+  padding:10px;border-radius:12px;
+  background:rgba(6,8,20,.95);border:1px solid rgba(53,224,255,.4);
+  font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.4;color:var(--ink);
+  opacity:0;pointer-events:none;transition:opacity .15s ease;
+}
+.ach2-visual:hover ~ .ach2-hint,
+.ach2-name:hover ~ .ach2-hint,
+.ach2-card.hint-open .ach2-hint{opacity:1;}
+
+/* иконка-картинка в тосте об ачивке (когда владелец задал img) */
+.ach-toast-icon img.ach-toast-img{width:30px;height:30px;object-fit:contain;display:block;}

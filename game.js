@@ -1359,7 +1359,7 @@
     // тира 5 (первая треть таймера, timeFrac уже посчитан выше по стеку)
     checkGeneralAchievements();
     if(perfect && cfg.tier >= 5 && target.regLevel >= 3 && timeFrac <= 1/3){
-      unlockManualAchievement('speedrun_master');
+      unlockManualAchievement('speedrun', 1);
     }
     // Фаза I: ачивки этого НПС (градации, лорные фразы, награда за комплект)
     checkNpcAchievements(cfg.id);
@@ -1527,8 +1527,15 @@
     achToastQueue.push({ icon, prefix, name });
     if(!achToastShowing) drainAchToastQueue();
   }
-  function showAchievementToast(ach){
-    showToast({ icon: ach.icon || '🏆', prefix: UI_TEXT.ACH_TOAST_PREFIX, name: ach.name });
+  // Фаза H v2: тост показывает название + римский номер порога (если
+  // у ачивки порогов больше одного). Иконка — картинка (img), если
+  // владелец её прописал в content.js, иначе эмодзи.
+  const ACH_ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+  function showAchievementToast(ach, tier){
+    const total = generalAchTierCount(ach);
+    let nm = LT(ach.name);
+    if(total > 1 && tier) nm += ' ' + (ACH_ROMAN[tier-1] || tier);
+    showToast({ icon: ach.img || ach.icon || '🏆', prefix: UI_TEXT.ACH_TOAST_PREFIX, name: nm });
   }
   function drainAchToastQueue(){
     const t = achToastQueue.shift();
@@ -1544,7 +1551,7 @@
     const toast = document.createElement('div');
     toast.className = 'ach-toast';
     toast.innerHTML = `
-      <div class="ach-toast-icon">${t.icon||'🏆'}</div>
+      <div class="ach-toast-icon">${visualHTML(t.icon||'🏆','ach-toast-img')}</div>
       <div class="ach-toast-body">
         <div class="ach-toast-prefix">${LT(t.prefix)}</div>
         <div class="ach-toast-name">${LT(t.name)}</div>
@@ -1556,30 +1563,54 @@
       toast.addEventListener('transitionend', ()=>{ toast.remove(); drainAchToastQueue(); }, {once:true});
     }, 3200);
   }
-  // прогоняет все НЕ-ручные ачивки против текущего профиля, открывает новые
-  function checkGeneralAchievements(){
+  // ---------- Фаза H v2: пороговые общие ачивки ----------
+  // сколько порогов у ачивки (у ручных они лежат в tiers[])
+  function generalAchTierCount(ach){
+    if(ach.manual) return ach.tiers ? ach.tiers.length : 1;
+    return (ach.t || []).length;
+  }
+  // фактический тир: авто — из value(profile) против порогов t,
+  // ручные — из сохранённой записи профиля
+  function generalAchTier(ach, p){
+    if(ach.manual) return storedGeneralTier(p, ach.id);
+    let v = 0;
+    try{ v = ach.value ? ach.value(p) : 0; }catch(e){}
+    let tier = 0;
+    for(let i=0;i<ach.t.length;i++){ if(v >= ach.t[i]) tier = i+1; }
+    return tier;
+  }
+  // сохранённый тир (старые записи {unlockedAt} без tier = 1 порог)
+  function storedGeneralTier(p, achId){
+    const rec = (p.achievements.general || {})[achId];
+    if(!rec) return 0;
+    return (typeof rec.tier === 'number') ? rec.tier : 1;
+  }
+  // прогоняет все НЕ-ручные ачивки против текущего профиля; новые пороги
+  // фиксирует в профиле и (если не silent) показывает тост
+  function checkGeneralAchievements(silent){
     if(!window.PotionProfile || typeof GENERAL_ACHIEVEMENTS === 'undefined') return;
     const p = window.PotionProfile.data;
-    const unlocked = p.achievements.general || {};
     GENERAL_ACHIEVEMENTS.forEach(ach=>{
       if(ach.manual) return;
-      if(unlocked[ach.id]) return;
       try{
-        if(ach.check && ach.check(p)){
-          window.PotionProfile.unlockGeneralAchievement(ach.id);
-          showAchievementToast(ach);
+        const cur = generalAchTier(ach, p);
+        const was = storedGeneralTier(p, ach.id);
+        if(cur > was){
+          window.PotionProfile.setGeneralAchievementTier(ach.id, cur);
+          if(!silent) showAchievementToast(ach, cur);
         }
       }catch(e){ /* защитно — плохая ачивка не должна ронять игру */ }
     });
   }
-  // открывает конкретную "ручную" ачивку по id, если ещё не открыта
-  function unlockManualAchievement(id){
+  // открывает порог "ручной" ачивки (tier — номер порога, по умолчанию 1)
+  function unlockManualAchievement(id, tier){
     if(!window.PotionProfile) return;
     const p = window.PotionProfile.data;
-    if(p.achievements.general && p.achievements.general[id]) return;
+    const t = Math.max(1, (tier|0) || 1);
+    if(storedGeneralTier(p, id) >= t) return;
+    window.PotionProfile.setGeneralAchievementTier(id, t);
     const ach = achDef(id);
-    window.PotionProfile.unlockGeneralAchievement(id);
-    if(ach) showAchievementToast(ach);
+    if(ach) showAchievementToast(ach, t);
   }
 
   // ============================================================
@@ -1978,21 +2009,54 @@
       albumRow('good', 'ALBUM_LABEL_GOOD') +
       albumRow('bad', 'ALBUM_LABEL_BAD');
 
-    // ---- Фаза H: общие ачивки ----
+    // ---- Фаза H v2: общие ачивки с порогами ----
+    // Одна крупная карточка на метрику; под ней ряд блоков-порогов,
+    // загорающихся по нарастающей палитре. Наведение на карточку —
+    // описание; наведение на блок — порог этого блока. На мобилке
+    // тап по карточке показывает/прячет описание.
     if(typeof GENERAL_ACHIEVEMENTS !== 'undefined'){
-      const unlocked = p.achievements.general || {};
-      const unlockedCount = GENERAL_ACHIEVEMENTS.filter(a=>unlocked[a.id]).length;
-      $('achProgressLabel').textContent = `${LT(UI_TEXT.ACH_PROGRESS_LABEL)}: ${unlockedCount}/${GENERAL_ACHIEVEMENTS.length}`;
-      $('achievementsGrid').innerHTML = GENERAL_ACHIEVEMENTS.map(ach=>{
-        const isUnlocked = !!unlocked[ach.id];
-        return `<div class="ach-card ${isUnlocked?'unlocked':'locked'}" title="${isUnlocked ? '' : LT(UI_TEXT.ACH_LOCKED_HINT)}">
-          <div class="ach-icon">${ach.icon||'🏆'}</div>
-          <div class="ach-info">
-            <div class="ach-name">${LT(ach.name)}</div>
-            <div class="ach-desc">${LT(ach.desc)}</div>
-          </div>
+      const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+      const fmtInt = n => Math.floor(n).toLocaleString(LANG === 'ru' ? 'ru-RU' : 'en-US');
+      let segsOn = 0, segsTotal = 0;
+      const cards = GENERAL_ACHIEVEMENTS.map(ach=>{
+        const total = generalAchTierCount(ach);
+        // берём максимум из "живого" и сохранённого тира — достигнутый
+        // порог не гаснет, даже если метрика-«лучший результат» вдруг
+        // окажется ниже (защита от сбросов статистики)
+        const tier = Math.max(generalAchTier(ach, p), storedGeneralTier(p, ach.id));
+        segsTotal += total; segsOn += Math.min(tier, total);
+        let segs = '';
+        for(let i=0;i<total;i++){
+          const on = i < tier;
+          const hintTxt = ach.manual
+            ? LT((ach.tiers && ach.tiers[i] && ach.tiers[i].hint) || ach.desc)
+            : fmtInt(ach.t[i]);
+          segs += `<span class="ach2-seg ${on?'on':''} c${(i%9)+1}" data-hint="${escAttr(hintTxt)}"></span>`;
+        }
+        let progLine;
+        if(ach.manual){
+          progLine = `${Math.min(tier,total)}/${total}`;
+        } else {
+          let val = 0; try{ val = ach.value(p); }catch(e){}
+          progLine = (tier < total)
+            ? `${fmtInt(val)} / ${fmtInt(ach.t[tier])}`
+            : `${fmtInt(val)} ✓`;
+        }
+        const full = tier >= total;
+        return `<div class="ach2-card ${tier>0?'unlocked':'locked'} ${full?'full':''}">
+          <div class="ach2-visual">${visualHTML(ach.img || ach.icon || '🏆','ach2-img')}</div>
+          <div class="ach2-name">${LT(ach.name)}</div>
+          <div class="ach2-tiers">${segs}</div>
+          <div class="ach2-progress">${full ? `<span class="full-mark">★ ${LT(UI_TEXT.ACH_FULL_MARK)}</span>` : progLine}</div>
+          <div class="ach2-hint">${LT(ach.desc)}</div>
         </div>`;
       }).join('');
+      $('achProgressLabel').textContent = `${LT(UI_TEXT.ACH_PROGRESS_LABEL)}: ${segsOn}/${segsTotal}`;
+      $('achievementsGrid').innerHTML = cards;
+      // мобилка: тап по карточке — показать/спрятать описание
+      $('achievementsGrid').querySelectorAll('.ach2-card').forEach(c=>{
+        c.addEventListener('click', ()=> c.classList.toggle('hint-open'));
+      });
     }
 
     // Фаза I/J: репутация переехала из Коллекции в отдельное меню
@@ -2005,6 +2069,45 @@
     $('collectionOverlay').classList.add('show');
   });
   $('collectionCloseBtn').addEventListener('click', ()=>{ SFX.uiClick(); $('collectionOverlay').classList.remove('show'); });
+
+  // ---------- UI-патч 2: вкладки Коллекции ----------
+  // Длинный скролл из 4 секций разложен на вкладки (Статистика / Лента /
+  // Стикеры / Ачивки). Выбранная вкладка живёт в DOM-классах, так что
+  // между открытиями Коллекции она сохраняется в рамках сессии.
+  function setCollectionTab(tab){
+    document.querySelectorAll('#collectionTabs .ctab').forEach(b=>{
+      b.classList.toggle('active', b.dataset.tab === tab);
+    });
+    document.querySelectorAll('#collectionOverlay .ctab-page').forEach(pg=>{
+      pg.classList.toggle('show', pg.dataset.page === tab);
+    });
+  }
+  const collectionTabsEl = $('collectionTabs');
+  if(collectionTabsEl){
+    collectionTabsEl.addEventListener('click', e=>{
+      const btn = e.target.closest('.ctab');
+      if(!btn) return;
+      SFX.uiClick();
+      setCollectionTab(btn.dataset.tab);
+    });
+  }
+
+  // ---------- UI-патч 2: мини-меню ⚙ (язык + громкость) ----------
+  // Правая группа топбара была перегружена; редкоиспользуемые
+  // язык и громкость спрятаны в выпадающее меню под шестерёнкой.
+  const settingsWrap = $('settingsWrap');
+  const settingsBtn = $('settingsBtn');
+  if(settingsBtn && settingsWrap){
+    settingsBtn.addEventListener('click', e=>{
+      e.stopPropagation();
+      SFX.uiClick();
+      settingsWrap.classList.toggle('open');
+    });
+    // клик вне меню — закрыть (сам ползунок громкости внутри не закрывает)
+    document.addEventListener('click', e=>{
+      if(!settingsWrap.contains(e.target)) settingsWrap.classList.remove('open');
+    });
+  }
 
   async function showWeekOverlay(){
     SFX.weekEnd();
@@ -2030,8 +2133,8 @@
     // запись по очкам (приближённо — при равенстве очков берём самую первую)
     const sorted = [...list].sort((a,b)=>b.score-a.score);
     const rank = sorted.findIndex(e=>e.score === score);
-    if(rank === 0) unlockManualAchievement('leaderboard_king');
-    if(rank >= 0 && rank < 10) unlockManualAchievement('leaderboard_top10');
+    // Фаза H v2: одна ачивка "Слава галактики" с двумя порогами
+    if(rank >= 0 && rank < 10) unlockManualAchievement('leaderboard', rank === 0 ? 2 : 1);
   });
   $('newWeekBtn').addEventListener('click', ()=>{
     SFX.uiClick();
@@ -2152,16 +2255,22 @@
     window.PotionProfile.startCycle();
     sanitizeActivePassives();
   }
-  // Фаза H: догоняющая проверка при загрузке — если профиль уже
-  // соответствует порогам (например, апдейт игры добавил новые ачивки
-  // задним числом), они откроются тихо, без тоста-спама при заходе
+  // Фаза H v2: (1) миграция старых одиночных ачивок на пороговые
+  // (карта GENERAL_ACH_MIGRATION в content.js) — важно для "ручных",
+  // которые нельзя пересчитать из статистики; (2) тихая догоняющая
+  // синхронизация тиров — без тоста-спама при заходе
   if(window.PotionProfile && typeof GENERAL_ACHIEVEMENTS !== 'undefined'){
     const p = window.PotionProfile.data;
-    const unlocked = p.achievements.general || {};
-    GENERAL_ACHIEVEMENTS.forEach(ach=>{
-      if(ach.manual || unlocked[ach.id]) return;
-      try{ if(ach.check && ach.check(p)) window.PotionProfile.unlockGeneralAchievement(ach.id); }catch(e){}
-    });
+    const g = p.achievements.general || {};
+    if(typeof GENERAL_ACH_MIGRATION !== 'undefined'){
+      Object.keys(GENERAL_ACH_MIGRATION).forEach(oldId=>{
+        if(!g[oldId]) return;
+        const pair = GENERAL_ACH_MIGRATION[oldId];
+        window.PotionProfile.setGeneralAchievementTier(pair[0], pair[1]);
+        window.PotionProfile.removeGeneralAchievement(oldId);
+      });
+    }
+    checkGeneralAchievements(true); // silent
   }
   applyI18n();
   initSliders();

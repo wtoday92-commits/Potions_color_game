@@ -335,6 +335,26 @@
       save();
     },
 
+    // Фаза H v2: пороговые ачивки — запись вида { tier, unlockedAt }.
+    // Старые записи { unlockedAt } без tier трактуются как tier:1.
+    // Тир только растёт (Math.max) — регресс невозможен.
+    setGeneralAchievementTier(achId, tier){
+      load();
+      const g = profile.achievements.general;
+      if(!g[achId]) g[achId] = { unlockedAt: Date.now(), tier: 0 };
+      const rec = g[achId];
+      if(typeof rec.tier !== 'number') rec.tier = 1;
+      rec.tier = Math.max(rec.tier, tier|0);
+      save();
+      return rec.tier;
+    },
+    // используется миграцией v1→v2 при загрузке (см. game.js)
+    removeGeneralAchievement(achId){
+      load();
+      delete profile.achievements.general[achId];
+      save();
+    },
+
     // ---------- Фаза I ----------
     setNpcAchievementTier(npcId, achId, tier){
       load();
