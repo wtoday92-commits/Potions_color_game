@@ -1426,6 +1426,20 @@ body::after{
   80%{opacity:1;}
   100%{opacity:0;}
 }
+.l4-race-countdown.go{color:var(--danger);text-shadow:0 0 26px var(--danger), 0 0 50px var(--magenta);}
+/* засечки-чекпоинты на кольце: банка трясётся всё сильнее по мере прохождения */
+#jarSvg.l4-kai-shake-1{animation:l4KaiShake1 .5s ease-in-out infinite;}
+#jarSvg.l4-kai-shake-2{animation:l4KaiShake2 .32s ease-in-out infinite;}
+#jarSvg.l4-kai-shake-3{animation:l4KaiShake3 .18s ease-in-out infinite;}
+@keyframes l4KaiShake1{
+  0%,100%{transform:translate(0,0) rotate(0);} 50%{transform:translate(1px,-1px) rotate(.3deg);}
+}
+@keyframes l4KaiShake2{
+  0%,100%{transform:translate(0,0) rotate(0);} 50%{transform:translate(-2px,2px) rotate(-.6deg);}
+}
+@keyframes l4KaiShake3{
+  0%,100%{transform:translate(0,0) rotate(0);} 50%{transform:translate(3px,-3px) rotate(1deg);}
+}
 /* ---------- DJ Пульсар: бит-индикатор + комбо ---------- */
 .l4-dj-indicator{
   position:absolute;top:8px;left:50%;transform:translateX(-50%);
@@ -1502,22 +1516,40 @@ body::after{
   color:var(--ink);font-size:12px;z-index:6;white-space:nowrap;
 }
 .l4-fashion-phrase.confident{border-color:var(--good);color:var(--good);}
-/* ---------- Бармен плазма-бара: предложение тряхнуть ---------- */
-.l4-bar-prompt{
+/* ---------- Бармен плазма-бара: схвати банку и тряхни ---------- */
+.l4-bar-hint{
   position:absolute;top:8%;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:10px;
+  padding:6px 12px;border-radius:10px;white-space:nowrap;
   background:rgba(10,13,32,.9);border:1px solid rgba(53,224,255,.5);
-  font-size:12px;color:var(--ink);z-index:6;white-space:nowrap;
+  font-size:12px;color:var(--ink);z-index:6;
 }
-.l4-bar-shake-btn{
-  border:none;background:rgba(53,224,255,.18);border-radius:8px;font-size:16px;
-  padding:2px 8px;cursor:pointer;
-}
+.l4-bar-hint.ready{border-color:var(--good);color:var(--good);}
+#jarSvg.l4-bar-grabbable{cursor:grab;touch-action:none;}
+#jarSvg.l4-bar-grabbing{cursor:grabbing;}
 #jarSvg.l4-bar-shaking{animation:l4BarShake .12s linear 5;}
 @keyframes l4BarShake{
   0%,100%{transform:translate(0,0);} 25%{transform:translate(-3px,2px);}
   50%{transform:translate(3px,-2px);} 75%{transform:translate(-2px,-3px);}
 }
+
+/* ---------- Хозяин Роя: мухи вместо пузырьков ---------- */
+.l4-fly{
+  position:absolute;font-size:20px;transform:translate(-50%,-50%);
+  cursor:grab;z-index:6;user-select:none;touch-action:none;
+  filter:drop-shadow(0 0 3px rgba(0,0,0,.6));
+  transition:left .35s ease, top .35s ease;
+}
+.l4-fly.flying-in{transition:left .6s ease, top .6s ease;}
+.l4-fly.dragging{cursor:grabbing;transition:none;z-index:9;}
+.l4-fly.inside{filter:drop-shadow(0 0 5px rgba(125,255,106,.85));}
+.l4-fly-hidden{visibility:hidden;}
+/* ---------- Уборщик Пятого Дока: грязная банка + курсор-тряпка ---------- */
+.l4-grime-canvas{position:absolute;inset:0;z-index:7;pointer-events:none;}
+.l4-janitor-cursor{
+  position:absolute;font-size:22px;pointer-events:none;z-index:8;
+  transform:translate(-50%,-40%);filter:drop-shadow(0 0 4px rgba(0,0,0,.7));
+}
+.window-frame.l4-janitor-active{cursor:none;}
 
 /* реплика НПС на экране результата */
 .npc-note{

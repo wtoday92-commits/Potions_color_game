@@ -1129,49 +1129,93 @@
     setTimeout(()=>{ el.remove(); }, 240);
   }
 
-  // ---------- Гонщица Кай: гоночный отсчёт + чекпоинты точности ----------
+  // ---------- Гонщица Кай: гоночный отсчёт + чекпоинты на самом кольце-таймере ----------
+  // 3 засечки на кольце (разного цвета/размера — видно, где именно они) —
+  // при пересечении банка трясётся всё сильнее и играет свой отсчёт "3…2…GO!"
   let l4KaiTimers = [], l4KaiTimer = null, l4KaiCheckpoints = [], l4KaiCheckpointIdx = 0,
       l4KaiCheckpointsDone = 0, l4KaiCraftStartAt = 0;
+  const L4_KAI_MARKS = [
+    { f:0.33, color:'#35e0ff', w:4, len:16 },
+    { f:0.66, color:'#ff4dd2', w:6, len:22 },
+    { f:0.9,  color:'#ff5d6a', w:8, len:30 }
+  ];
   LEVEL4_FX.racer_kai = {
     memorizeStart(){
       const dur = target.memDuration || target.cfg.memorizeMs;
       [3,2,1].forEach((n,i)=>{
-        l4KaiTimers.push(setTimeout(()=> l4KaiShowCountdown(n), Math.max(0,dur-3000)+i*1000));
+        l4KaiTimers.push(setTimeout(()=> l4KaiShowCountdown(String(n), false), Math.max(0,dur-3000)+i*1000));
       });
     },
     craftStart(){
       const dur = target.craftDuration || target.cfg.craftMs;
-      l4KaiCheckpoints = [0.33,0.66,0.9].map(f=> Math.round(dur*f));
+      l4KaiCheckpoints = L4_KAI_MARKS.map(m=> Math.round(dur*m.f));
       l4KaiCheckpointIdx = 0; l4KaiCheckpointsDone = 0;
       l4KaiCraftStartAt = performance.now();
-      l4KaiTimer = setInterval(l4KaiCheckCheckpoint, 250);
+      l4KaiTimer = setInterval(l4KaiCheckCheckpoint, 200);
+      l4KaiDrawRingMarks();
     },
     stop(){
       l4KaiTimers.forEach(clearTimeout); l4KaiTimers = [];
       if(l4KaiTimer){ clearInterval(l4KaiTimer); l4KaiTimer = null; }
       const el = document.getElementById('l4KaiCountdown');
       if(el) el.remove();
+      l4KaiClearRingMarks();
+      const jarSvg = $('jarSvg');
+      if(jarSvg) jarSvg.classList.remove('l4-kai-shake-1','l4-kai-shake-2','l4-kai-shake-3');
     },
     scoreBonus(){
       return l4KaiCheckpointsDone > 0 ? { ratingMultAdd: 0.05*l4KaiCheckpointsDone } : null;
     }
   };
-  function l4KaiShowCountdown(n){
+  function l4KaiShowCountdown(label, big){
     const wf = $('windowFrame');
     if(!wf) return;
     let el = document.getElementById('l4KaiCountdown');
     if(!el){ el = document.createElement('div'); el.id = 'l4KaiCountdown'; el.className = 'l4-race-countdown'; wf.appendChild(el); }
-    el.textContent = n;
+    el.textContent = label;
+    el.classList.toggle('go', !!big);
     el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
     SFX.countdown();
+  }
+  function l4KaiDrawRingMarks(){
+    const svg = $('ringSvg');
+    if(!svg) return;
+    l4KaiClearRingMarks();
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','l4-kai-marks');
+    g.setAttribute('transform', `rotate(-90 ${RING_CX} ${RING_CY})`);
+    L4_KAI_MARKS.forEach(m=>{
+      const a = m.f * Math.PI * 2;
+      const x1 = RING_CX + Math.cos(a)*(RING_R-m.len), y1 = RING_CY + Math.sin(a)*(RING_R-m.len);
+      const x2 = RING_CX + Math.cos(a)*(RING_R+6), y2 = RING_CY + Math.sin(a)*(RING_R+6);
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1', x1.toFixed(1)); line.setAttribute('y1', y1.toFixed(1));
+      line.setAttribute('x2', x2.toFixed(1)); line.setAttribute('y2', y2.toFixed(1));
+      line.setAttribute('stroke', m.color); line.setAttribute('stroke-width', m.w);
+      line.setAttribute('stroke-linecap', 'round');
+      g.appendChild(line);
+    });
+    svg.appendChild(g);
+  }
+  function l4KaiClearRingMarks(){
+    const svg = $('ringSvg');
+    const g = svg && svg.querySelector('.l4-kai-marks');
+    if(g) g.remove();
   }
   function l4KaiCheckCheckpoint(){
     if(!target || target.cfg.id !== 'racer_kai' || currentPhase !== 'craft' || craftLocked) return;
     const elapsed = performance.now() - l4KaiCraftStartAt;
     if(l4KaiCheckpointIdx < l4KaiCheckpoints.length && elapsed >= l4KaiCheckpoints[l4KaiCheckpointIdx]){
       const sd = computeScoreComponents();
-      if(sd.overall >= 0.55){ l4KaiCheckpointsDone++; SFX.tick(); }
+      if(sd.overall >= 0.55) l4KaiCheckpointsDone++;
       l4KaiCheckpointIdx++;
+      const jarSvg = $('jarSvg');
+      if(jarSvg){
+        jarSvg.classList.remove('l4-kai-shake-1','l4-kai-shake-2','l4-kai-shake-3');
+        jarSvg.classList.add('l4-kai-shake-'+Math.min(3,l4KaiCheckpointIdx));
+      }
+      const isLast = l4KaiCheckpointIdx >= l4KaiCheckpoints.length;
+      l4KaiShowCountdown(isLast ? LT(UI_TEXT.L4_KAI_GO) : String(4-l4KaiCheckpointIdx), isLast);
     }
   }
 
@@ -1519,47 +1563,320 @@
     }
   };
 
-  // ---------- Бармен плазма-бара: "потряси коктейль?" ----------
-  let l4BarTimer = null, l4BarShaken = false;
+  // ---------- Бармен плазма-бара: схвати банку курсором и потряси ----------
+  // Пока не тряхнул 3 раза — "Готово!" недоступно. Каждая тряска: обязательно
+  // меняет число сгустков (+1/-1) и сбивает СВОЙ, ещё не тронутый регулятор.
+  let l4BarShakeCount = 0, l4BarUsedKeys = [], l4BarDragging = false, l4BarLastX = 0, l4BarShakeAccum = 0,
+      l4BarDownHandler = null, l4BarMoveHandler = null, l4BarUpHandler = null;
+  function l4BarUpdateHint(){
+    const el = document.getElementById('l4BarHint');
+    if(el) el.textContent = LT(UI_TEXT.L4_BAR_SHAKE_HINT).replace('{n}', Math.min(3,l4BarShakeCount));
+  }
+  function l4BarJitterOne(){
+    const keys = [...target.activeKeys].filter(k => S[k] && !l4BarUsedKeys.includes(k));
+    if(!keys.length) return;
+    const key = pick(keys);
+    l4BarUsedKeys.push(key);
+    const sl = S[key], old = sl.value;
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    sl.value = Math.max(sl.min, Math.min(sl.max, sl.value + dir*(sl.step||1)));
+    onSliderInput(key, sl.value, old);
+  }
+  function l4BarRegisterShake(){
+    if(l4BarShakeCount >= 3) return;
+    l4BarShakeCount++;
+    l4BarJitterOne();
+    // сгустки всегда либо плодятся, либо исчезают — без исключений
+    const delta = Math.random() < 0.5 ? -1 : 1;
+    target.count = Math.max(1, Math.min(target.cfg.countMax, target.count + delta));
+    updatePlayerJar();
+    l4ExtendCraftTimer(2500);
+    SFX.badPop();
+    const jarSvg = $('jarSvg');
+    if(jarSvg){ jarSvg.classList.remove('l4-bar-shaking'); void jarSvg.offsetWidth; jarSvg.classList.add('l4-bar-shaking'); }
+    l4BarUpdateHint();
+    if(l4BarShakeCount >= 3){
+      $('brewBtn').disabled = false;
+      const hint = document.getElementById('l4BarHint');
+      if(hint) hint.classList.add('ready');
+    }
+  }
+  function l4BarAttachGrab(){
+    const jarSvg = $('jarSvg');
+    if(!jarSvg) return;
+    jarSvg.classList.add('l4-bar-grabbable');
+    l4BarDownHandler = (e)=>{
+      if(!target || target.cfg.id !== 'plasma_bartender' || currentPhase !== 'craft' || craftLocked) return;
+      l4BarDragging = true;
+      l4BarLastX = e.clientX;
+      l4BarShakeAccum = 0;
+      jarSvg.classList.add('l4-bar-grabbing');
+      try{ jarSvg.setPointerCapture(e.pointerId); }catch(err){}
+      e.preventDefault();
+    };
+    l4BarMoveHandler = (e)=>{
+      if(!l4BarDragging) return;
+      const dx = e.clientX - l4BarLastX;
+      l4BarLastX = e.clientX;
+      l4BarShakeAccum += Math.abs(dx);
+      if(l4BarShakeAccum >= 260){
+        l4BarShakeAccum = 0;
+        l4BarRegisterShake();
+      }
+    };
+    l4BarUpHandler = ()=>{
+      l4BarDragging = false;
+      jarSvg.classList.remove('l4-bar-grabbing');
+    };
+    jarSvg.addEventListener('pointerdown', l4BarDownHandler);
+    jarSvg.addEventListener('pointermove', l4BarMoveHandler);
+    window.addEventListener('pointerup', l4BarUpHandler);
+  }
+  function l4BarDetachGrab(){
+    const jarSvg = $('jarSvg');
+    if(jarSvg){
+      jarSvg.classList.remove('l4-bar-grabbable','l4-bar-grabbing','l4-bar-shaking');
+      if(l4BarDownHandler) jarSvg.removeEventListener('pointerdown', l4BarDownHandler);
+      if(l4BarMoveHandler) jarSvg.removeEventListener('pointermove', l4BarMoveHandler);
+    }
+    if(l4BarUpHandler) window.removeEventListener('pointerup', l4BarUpHandler);
+    l4BarDownHandler = l4BarMoveHandler = l4BarUpHandler = null;
+  }
   LEVEL4_FX.plasma_bartender = {
     craftStart(){
-      l4BarShaken = false;
-      l4BarTimer = setInterval(l4BarPrompt, rand(6000,9000));
+      l4BarShakeCount = 0; l4BarUsedKeys = []; l4BarDragging = false; l4BarShakeAccum = 0;
+      $('brewBtn').disabled = true;
+      const wf = $('windowFrame');
+      if(wf){
+        const hint = document.createElement('div');
+        hint.id = 'l4BarHint'; hint.className = 'l4-bar-hint';
+        wf.appendChild(hint);
+      }
+      l4BarUpdateHint();
+      l4BarAttachGrab();
     },
     stop(){
-      if(l4BarTimer){ clearInterval(l4BarTimer); l4BarTimer = null; }
-      const el = document.getElementById('l4BarPrompt'); if(el) el.remove();
+      l4BarDetachGrab();
+      const el = document.getElementById('l4BarHint'); if(el) el.remove();
     },
     scoreBonus(){
-      return l4BarShaken ? { ratingMultAdd: 0.08 } : null;
+      return l4BarShakeCount >= 3 ? { ratingMultAdd: 0.08 } : null;
     }
   };
-  function l4BarPrompt(){
-    if(!target || target.cfg.id !== 'plasma_bartender' || currentPhase !== 'craft' || craftLocked) return;
-    if(document.getElementById('l4BarPrompt')) return;
+
+  // ---------- Хозяин Роя: мухи вместо пузырьков — залетают на запоминании,
+  // на воссоздании нужно вручную перетащить каждую с циферблата в банку ----------
+  const L4_FLY_ZONE = { xMin:35, xMax:65, yMin:38, yMax:82 }; // % от #windowFrame — грубая зона "банки"
+  let l4FlyItems = [], l4FlySpawnTimeouts = [], l4FlyWalkTimer = null, l4FlyIsCraft = false;
+  function l4FlyInZone(xPct, yPct){
+    return xPct >= L4_FLY_ZONE.xMin && xPct <= L4_FLY_ZONE.xMax && yPct >= L4_FLY_ZONE.yMin && yPct <= L4_FLY_ZONE.yMax;
+  }
+  function l4FlyUpdateCount(){
+    if(!S.count) return;
+    const inside = l4FlyItems.filter(f=>f.inside).length;
+    S.count.value = Math.max(S.count.min, Math.min(S.count.max, inside));
+  }
+  function l4FlyCreateEl(fly){
     const wf = $('windowFrame');
     if(!wf) return;
     const el = document.createElement('div');
-    el.className = 'l4-bar-prompt'; el.id = 'l4BarPrompt';
-    el.innerHTML = `<span>${LT(UI_TEXT.L4_BAR_SHAKE_PROMPT)}</span><button type="button" class="l4-bar-shake-btn">🍸</button>`;
+    el.className = 'l4-fly';
+    el.textContent = '🪰';
+    el.style.left = fly.x+'%'; el.style.top = fly.y+'%';
     wf.appendChild(el);
-    const timeout = setTimeout(()=>{ el.remove(); }, 5000);
-    el.querySelector('button').addEventListener('click', (e)=>{
+    fly.el = el;
+    el.addEventListener('pointerdown', e=>{
+      if(!l4FlyIsCraft) return;
       e.stopPropagation();
-      clearTimeout(timeout);
-      el.remove();
-      l4BarShaken = true;
-      l4ExtendCraftTimer(3000);
-      const jarSvg = $('jarSvg');
-      if(jarSvg){ jarSvg.classList.add('l4-bar-shaking'); setTimeout(()=>jarSvg.classList.remove('l4-bar-shaking'), 600); }
-      SFX.badPop();
-      if(Math.random() < 0.3){
-        const delta = Math.random() < 0.5 ? -1 : 1;
-        target.count = Math.max(1, Math.min(target.cfg.countMax, target.count+delta));
-      }
+      fly.dragging = true;
+      try{ el.setPointerCapture(e.pointerId); }catch(err){}
+      el.classList.add('dragging');
+    });
+    el.addEventListener('pointermove', e=>{
+      if(!fly.dragging) return;
+      const rect = wf.getBoundingClientRect();
+      fly.x = Math.max(2, Math.min(98, (e.clientX-rect.left)/rect.width*100));
+      fly.y = Math.max(2, Math.min(98, (e.clientY-rect.top)/rect.height*100));
+      el.style.left = fly.x+'%'; el.style.top = fly.y+'%';
+    });
+    el.addEventListener('pointerup', ()=>{
+      if(!fly.dragging) return;
+      fly.dragging = false;
+      el.classList.remove('dragging');
+      fly.inside = l4FlyInZone(fly.x, fly.y);
+      el.classList.toggle('inside', fly.inside);
+      l4FlyUpdateCount();
       updatePlayerJar();
+      SFX.tick();
     });
   }
+  function l4FlyRandomWalk(fly){
+    if(fly.dragging || l4FlyIsCraft || Math.random() < 0.35) return; // мухи иногда замирают
+    fly.x = Math.max(L4_FLY_ZONE.xMin+3, Math.min(L4_FLY_ZONE.xMax-3, fly.x + rand(-4,4)));
+    fly.y = Math.max(L4_FLY_ZONE.yMin+3, Math.min(L4_FLY_ZONE.yMax-3, fly.y + rand(-4,4)));
+    if(fly.el){ fly.el.style.left = fly.x+'%'; fly.el.style.top = fly.y+'%'; }
+  }
+  LEVEL4_FX.swarm_navigator = {
+    memorizeStart(){
+      l4FlyIsCraft = false;
+      l4FlyItems = [];
+      const n = target.count;
+      const half = (target.memDuration || target.cfg.memorizeMs || 6000) / 2;
+      for(let i=0;i<n;i++){
+        const delay = (i/n) * half;
+        l4FlySpawnTimeouts.push(setTimeout(()=>{
+          const fly = { id:i, x:50+rand(-4,4), y:10+rand(-2,2), inside:false, dragging:false, el:null };
+          l4FlyItems.push(fly);
+          l4FlyCreateEl(fly);
+          setTimeout(()=>{
+            fly.x = 50+rand(-10,10); fly.y = 58+rand(-14,14);
+            if(fly.el){ fly.el.style.left = fly.x+'%'; fly.el.style.top = fly.y+'%'; fly.el.classList.add('flying-in'); }
+          }, 260);
+        }, delay));
+      }
+      l4FlyWalkTimer = setInterval(()=>{ l4FlyItems.forEach(l4FlyRandomWalk); }, 900);
+    },
+    craftStart(){
+      l4FlyIsCraft = true;
+      if(l4FlyWalkTimer){ clearInterval(l4FlyWalkTimer); l4FlyWalkTimer = null; }
+      l4FlyItems.forEach((fly,i)=>{
+        const angle = (i/Math.max(1,l4FlyItems.length))*Math.PI*2 + Math.random()*0.4;
+        const r = 32+Math.random()*10;
+        fly.x = 50+Math.cos(angle)*r; fly.y = 50+Math.sin(angle)*r;
+        fly.inside = false; fly.dragging = false;
+        if(fly.el){ fly.el.style.left = fly.x+'%'; fly.el.style.top = fly.y+'%'; fly.el.classList.remove('flying-in','inside'); }
+      });
+      l4FlyUpdateCount();
+      updatePlayerJar();
+      // руками перетаскивать мух дольше, чем крутить ползунок — небольшая добавка времени
+      target.craftDuration += 3000;
+      target.craftBaseDuration += 3000;
+      const mount = $('mCount');
+      const group = mount && mount.closest('.vslider-group');
+      if(group) group.classList.add('l4-fly-hidden');
+    },
+    stop(){
+      l4FlySpawnTimeouts.forEach(clearTimeout); l4FlySpawnTimeouts = [];
+      if(l4FlyWalkTimer){ clearInterval(l4FlyWalkTimer); l4FlyWalkTimer = null; }
+      l4FlyItems.forEach(f=>{ if(f.el) f.el.remove(); });
+      l4FlyItems = [];
+      l4FlyIsCraft = false;
+      const mount = $('mCount');
+      const group = mount && mount.closest('.vslider-group');
+      if(group) group.classList.remove('l4-fly-hidden');
+    }
+  };
+
+  // ---------- Уборщик Пятого Дока: грязная банка, чистка курсором-тряпкой ----------
+  let l4JanitorCanvas = null, l4JanitorCursorEl = null, l4JanitorMoveHandler = null,
+      l4JanitorSampleTimer = null, l4JanitorCleanFrac = 0;
+  function l4JanitorPaintGrime(canvas){
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = 'rgba(55,48,28,.85)';
+    ctx.fillRect(0,0,w,h);
+    for(let i=0;i<18;i++){
+      ctx.beginPath();
+      const cx = Math.random()*w, cy = Math.random()*h, r = 14+Math.random()*26;
+      const g = 25+Math.random()*30|0;
+      ctx.fillStyle = `rgba(${30+Math.random()*40|0},${g},${10+Math.random()*15|0},${(0.5+Math.random()*0.35).toFixed(2)})`;
+      ctx.arc(cx,cy,r,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+  function l4JanitorWipeAt(canvas, clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    if(!rect.width || !rect.height) return;
+    const ctx = canvas.getContext('2d');
+    const x = (clientX-rect.left) * (canvas.width/rect.width);
+    const y = (clientY-rect.top) * (canvas.height/rect.height);
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(x, y, 22, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  function l4JanitorSampleClean(canvas){
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    let cleaned = 0, total = 0;
+    const step = 16;
+    for(let y=step/2; y<h; y+=step){
+      for(let x=step/2; x<w; x+=step){
+        total++;
+        if(ctx.getImageData(x,y,1,1).data[3] < 60) cleaned++;
+      }
+    }
+    return total ? cleaned/total : 0;
+  }
+  function l4JanitorSetupCanvas(){
+    const wf = $('windowFrame');
+    if(!wf) return null;
+    const canvas = document.createElement('canvas');
+    canvas.className = 'l4-grime-canvas';
+    const rect = wf.getBoundingClientRect();
+    canvas.width = Math.round(rect.width) || 460;
+    canvas.height = Math.round(rect.height) || 460;
+    wf.appendChild(canvas);
+    l4JanitorPaintGrime(canvas);
+    return canvas;
+  }
+  function l4JanitorAttachCursor(){
+    const wf = $('windowFrame');
+    if(!wf) return;
+    wf.classList.add('l4-janitor-active');
+    const cursor = document.createElement('div');
+    cursor.className = 'l4-janitor-cursor';
+    cursor.textContent = '🧽';
+    wf.appendChild(cursor);
+    l4JanitorCursorEl = cursor;
+    l4JanitorMoveHandler = (e)=>{
+      const rect = wf.getBoundingClientRect();
+      cursor.style.left = (e.clientX-rect.left)+'px';
+      cursor.style.top = (e.clientY-rect.top)+'px';
+      if(l4JanitorCanvas) l4JanitorWipeAt(l4JanitorCanvas, e.clientX, e.clientY);
+    };
+    wf.addEventListener('pointermove', l4JanitorMoveHandler);
+  }
+  function l4JanitorDetach(){
+    const wf = $('windowFrame');
+    if(wf){
+      wf.classList.remove('l4-janitor-active');
+      if(l4JanitorMoveHandler) wf.removeEventListener('pointermove', l4JanitorMoveHandler);
+    }
+    if(l4JanitorCursorEl){ l4JanitorCursorEl.remove(); l4JanitorCursorEl = null; }
+    if(l4JanitorCanvas){ l4JanitorCanvas.remove(); l4JanitorCanvas = null; }
+    if(l4JanitorSampleTimer){ clearInterval(l4JanitorSampleTimer); l4JanitorSampleTimer = null; }
+    l4JanitorMoveHandler = null;
+  }
+  LEVEL4_FX.janitor = {
+    memorizeStart(){
+      l4JanitorCleanFrac = 0;
+      l4JanitorCanvas = l4JanitorSetupCanvas();
+      l4JanitorAttachCursor();
+    },
+    craftStart(){
+      // грязь возвращается заново — чистка на запоминании сюда не переносится
+      if(l4JanitorCanvas){ l4JanitorCanvas.remove(); l4JanitorCanvas = null; }
+      l4JanitorCleanFrac = 0;
+      l4JanitorCanvas = l4JanitorSetupCanvas();
+      if(!l4JanitorCursorEl) l4JanitorAttachCursor();
+      l4JanitorSampleTimer = setInterval(()=>{
+        if(l4JanitorCanvas) l4JanitorCleanFrac = l4JanitorSampleClean(l4JanitorCanvas);
+      }, 400);
+    },
+    stop(){
+      // финальный замер — ДО удаления канваса, чтобы scoreBonus() (он вызовется
+      // уже после stop() в finalizeResult) увидел точный итоговый процент
+      if(l4JanitorCanvas) l4JanitorCleanFrac = l4JanitorSampleClean(l4JanitorCanvas);
+      l4JanitorDetach();
+    },
+    scoreBonus(){
+      if(l4JanitorCleanFrac <= 0) return null;
+      return { ratingMultAdd: 0.5*l4JanitorCleanFrac, repBonus: Math.round(4*l4JanitorCleanFrac) };
+    }
+  };
 
   // ---------- сложность регуляторов (Фаза C) ----------
   // Возвращает Set ключей регуляторов, доступных игроку на данном уровне
@@ -2093,12 +2410,15 @@
     // цветового цикла — обычный кадр с настоящим цветом тут пропускаем,
     // иначе игрок увидит верный ответ на долю секунды раньше цикла
     const skipInitialDraw = cfg.id === 'fashionista' && regLevel === 4;
+    // Патч "УР.4" (Хозяин Роя): мухи рисуются отдельными DOM-элементами,
+    // а не SVG-пузырьками — банка всегда пустая по count для него
+    const isFlySwarm = cfg.id === 'swarm_navigator' && regLevel === 4;
     if(cfg.type === 'moving'){
       startMovingAnim();
     } else if(!skipInitialDraw){
       drawJar({ hue:target.hue, hue2: target.hue2 ?? null, sat:target.sat, sizePct:target.size,
         heightPct: target.size2 ?? null,
-        bubbleCount: noBubblesPreview ? 0 : target.count,
+        bubbleCount: isFlySwarm ? 0 : (noBubblesPreview ? 0 : target.count),
         bubbleR:targetR, seed:target.seed, shapeIdx: target.shapeIdx ?? 0 });
     }
 
@@ -2368,7 +2688,8 @@
     // если и число, и размер сгустков недоступны на текущей сложности —
     // игра вообще их не генерирует (нечего показывать/угадывать)
     const noBubbles = target.activeKeys && !target.activeKeys.has('count') && !target.activeKeys.has('bsize');
-    const effCount = noBubbles ? 0 : count;
+    const isFlySwarm = cfg.id === 'swarm_navigator' && target.regLevel === 4;
+    const effCount = (noBubbles || isFlySwarm) ? 0 : count;
     drawJar({ hue, hue2, sat, sizePct:size, heightPct, bubbleCount:effCount, bubbleR:r, shapeIdx,
       rotationDeg, glareSize, garnishPts: target.garnishPts || null,
       seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles });

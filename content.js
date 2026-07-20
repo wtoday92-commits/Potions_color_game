@@ -171,7 +171,9 @@ const UI_TEXT = {
   REL_LEFT_TOAST:    { ru:'Обиделся и не появится до конца цикла', en:'Got offended — won’t show up for the rest of the cycle' },
   REL_DISCOVERED_TOAST: { ru:'Новая связь между персонажами', en:'New connection between characters' },
   // УР.4 (Бармен плазма-бара): предложение тряхнуть коктейль
-  L4_BAR_SHAKE_PROMPT: { ru:'Тряхнуть коктейль?', en:'Shake the cocktail?' },
+  L4_BAR_SHAKE_HINT: { ru:'Схвати банку и тряхни: {n}/3', en:'Grab the jar and shake it: {n}/3' },
+  // УР.4 (Гонщица Кай): надпись на последней засечке кольца-таймера
+  L4_KAI_GO: { ru:'GO!', en:'GO!' },
 };
 
 // ---------- СТИКЕРЫ РЕЗУЛЬТАТА ----------
