@@ -138,6 +138,27 @@ const UI_TEXT = {
   PASSIVES_FULL_NOTE:   { ru:'Заняты все 3 слота — сними одну, чтобы выбрать другую.', en:'All 3 slots are in use — deselect one to pick another.' },
   PASSIVE_SCOPE_GLOBAL: { ru:'все задания', en:'all orders' },
   PASSIVE_SCOPE_NPC:    { ru:'только этот непись', en:'this NPC only' },
+
+  // ---------- Патч "Уникальные механики тир-5" ----------
+  // Сверхновая: два измерения банки
+  LABEL_WIDTH:   { ru:'Ширина', en:'Width' },
+  LABEL_HEIGHT:  { ru:'Высота', en:'Height' },
+  // Тот-Кто-Ждёт: рынок времени
+  LABEL_TIME:    { ru:'Время', en:'Time' },
+  WAITER_TIME_TIP: { ru:'+1 секунда за деление. Цена: один регулятор «ломается» и тянет за собой другой.', en:'+1 second per notch. The price: one regulator "breaks" and drags another along.' },
+  // Ир: меню доверия
+  IR_TRUST_TITLE:   { ru:'Последний из Ир смотрит на тебя', en:'The Last of the Ir looks at you' },
+  IR_TRUST_KEEP:    { ru:'Всё же играть УР.{n}', en:'Play LV.{n} anyway' },
+  IR_TRUST_ACCEPT:  { ru:'Довериться — УР.3', en:'Trust him — LV.3' },
+  IR_FX_BUFF_TAG:   { ru:'дар Ир', en:'gift of the Ir' },
+  IR_FX_DEBUFF_TAG: { ru:'тень Ир', en:'shadow of the Ir' },
+  IR_REPLAY_BTN:    { ru:'Переиграть (дар Ир)', en:'Replay (gift of the Ir)' },
+  IR_FORCE_REPLAY_BTN: { ru:'Ир требует переиграть →', en:'The Ir demands a replay →' },
+  // Хранитель: печати
+  ARCH_SEAL_TAG:    { ru:'печать Хранителя', en:"Keeper's seal" },
+  ARCH_SEAL_BANNER: { ru:'📜 Печать Хранителя: осталось троек — {n}', en:'📜 Keeper\'s seal: triples remaining — {n}' },
+  ARCH_HINT_MARK:   { ru:'указание Хранителя', en:"the Keeper's directive" },
+  ALBUM_SPECIAL_HINT: { ru:'особый стикер — выпадает за особое событие', en:'special sticker — drops for a special event' },
 };
 
 // ---------- СТИКЕРЫ РЕЗУЛЬТАТА ----------
@@ -148,17 +169,247 @@ const STICKERS = {
     'assets/ui/perfect1.png',
     'assets/ui/perfect2.png',
     'assets/ui/perfect3.png',
+    // ---------- особые стикеры (выпадают ТОЛЬКО по условию, см. STICKER_SPECIALS) ----------
+    '🔥',   // 3: 5 идеалов подряд
+    '👑',   // 4: 10 идеалов подряд
+    '💯',   // 5: все параметры ровно 100%
+    '🌈',   // 6: идеал на градиенте (Двуликая жрица)
+    '🕰',   // 7: идеал у Того-Кто-Ждёт без единой купленной секунды
+    '⚡',   // 8: идеал в первую ШЕСТУЮ часть таймера
+    '🌑',   // 9: идеал под дебаффом Ир
+    '📜',   // 10: идеал под печатью Хранителя
+    '💎',   // 11: идеал на 4-ой сложности
+    '🚀',   // 12: идеал при рейтинге цикла 3500+
+    '🌟',   // 13: идеал у Сверхновой с точной шириной И высотой
+    '🏆',   // 14: идеал в 10-й (последний) день цикла
   ],
   good: [
     'assets/ui/good1.png',
     'assets/ui/good2.png',
     'assets/ui/good3.png',
+    // ---------- особые ----------
+    '😅',   // 3: до идеала не хватило меньше 2%
+    '⚙️',   // 4: 8+ смесей подряд без брака
+    '🐢',   // 5: годнота в последние 10% таймера
+    '🌤',   // 6: годнота, прервавшая серию из 2+ браков
   ],
   bad: [
     'assets/ui/bad1.png',
     'assets/ui/bad2.png',
     'assets/ui/bad3.png',
+    // ---------- особые ----------
+    '💀',   // 3: точность ниже 30%
+    '🙈',   // 4: брак на 1-ой сложности (один-единственный ползунок!)
+    '📉',   // 5: третий брак подряд
+    '⏰',   // 6: таймер истёк сам — кнопку так и не нажали
+    '🧯',   // 7: брак под печатью Хранителя (исторический провал)
   ]
+};
+
+// ---------- Патч: условия выпадения особых стикеров ----------
+// idx — индекс варианта в STICKERS[cat] выше. check(ctx) — чистая функция;
+// ctx собирается в finalizeResult (game.js) и содержит:
+//   perfect, good, overall (0..1), components, target, timeFrac,
+//   autoFinish (таймер истёк сам), scoreAfter (рейтинг цикла после начисления),
+//   dayNum, perfectRun (длина серии идеалов С УЧЁТОМ этого),
+//   goodRun (серия без брака), badRunBefore (браков подряд ДО этого заказа)
+// hint — подсказка для закрытой ячейки альбома (title).
+// Особые стикеры НИКОГДА не выпадают случайно — только по условию.
+// Если условий сработало несколько, приоритет у ещё не выбитых.
+const STICKER_SPECIALS = {
+  perfect: [
+    { idx:3,  check:c => c.perfectRun >= 5 && c.perfectRun < 10,
+      hint:{ ru:'серия идеалов', en:'a perfect streak' } },
+    { idx:4,  check:c => c.perfectRun >= 10,
+      hint:{ ru:'длинная серия идеалов', en:'a long perfect streak' } },
+    { idx:5,  check:c => c.components.every(k=>k.score >= 0.999),
+      hint:{ ru:'абсолютная точность', en:'absolute precision' } },
+    { idx:6,  check:c => c.target.flags && c.target.flags.hasGradient,
+      hint:{ ru:'двойной закат', en:'a double sunset' } },
+    { idx:7,  check:c => c.target.cfg.special === 'time_broker' && !(c.target.waiterTimeBought > 0),
+      hint:{ ru:'не торгуйся со временем', en:'refuse to bargain with time' } },
+    { idx:8,  check:c => c.timeFrac <= 1/6,
+      hint:{ ru:'быстрее молнии', en:'faster than lightning' } },
+    { idx:9,  check:c => c.target.irEffect && c.target.irEffect.kind === 'debuff',
+      hint:{ ru:'идеал сквозь тень', en:'perfection through the shadow' } },
+    { idx:10, check:c => !!c.target.sealed,
+      hint:{ ru:'исторический момент', en:'a historic moment' } },
+    { idx:11, check:c => c.target.regLevel === 4,
+      hint:{ ru:'на пределе сложности', en:'at the difficulty limit' } },
+    { idx:12, check:c => c.scoreAfter >= 3500,
+      hint:{ ru:'рекордный цикл', en:'a record cycle' } },
+    { idx:13, check:c => c.target.cfg.special === 'dual_size' && c.novaExact,
+      hint:{ ru:'точные пропорции звезды', en:"a star's exact proportions" } },
+    { idx:14, check:c => c.dayNum >= 10,
+      hint:{ ru:'финальный аккорд цикла', en:"the cycle's final chord" } }
+  ],
+  good: [
+    { idx:3, check:c => !c.perfect && c.overall >= (c.perfectThreshold - 0.02),
+      hint:{ ru:'мучительно близко', en:'agonizingly close' } },
+    { idx:4, check:c => c.goodRun >= 8,
+      hint:{ ru:'конвейер без брака', en:'a rejectless assembly line' } },
+    { idx:5, check:c => c.timeFrac >= 0.9,
+      hint:{ ru:'на последних секундах', en:'in the final seconds' } },
+    { idx:6, check:c => c.badRunBefore >= 2,
+      hint:{ ru:'выход из чёрной полосы', en:'out of the rough patch' } }
+  ],
+  bad: [
+    { idx:3, check:c => c.overall < 0.3,
+      hint:{ ru:'совсем мимо', en:'a total miss' } },
+    { idx:4, check:c => c.target.regLevel === 1,
+      hint:{ ru:'провал на самом простом', en:'failing the simplest thing' } },
+    { idx:5, check:c => c.badRunBefore >= 2,
+      hint:{ ru:'полоса не кончается', en:'the patch goes on' } },
+    { idx:6, check:c => !!c.autoFinish,
+      hint:{ ru:'время вышло само', en:'time simply ran out' } },
+    { idx:7, check:c => !!c.target.sealed,
+      hint:{ ru:'провал, вписанный в историю', en:'a failure written into history' } }
+  ]
+};
+
+/* ============================================================
+   ПАТЧ "УНИКАЛЬНЫЕ МЕХАНИКИ ТИР-5": контент.
+   Логика — в game.js, здесь только тексты и настройки.
+   ============================================================ */
+
+// ---------- Последний из Ир: меню доверия (УР.1/2) ----------
+const IR_TRUST_PHRASES = { ru:[
+  'Ты просишь меня доверить тебе память миллиона поколений... и при этом не доверяешь себе сам?',
+  'Половина регуляторов? Мой народ не делился на половины. Даже угасая.',
+  'Осторожность — это хорошо. Но памяти Ир нужны смелые руки, а не осторожные.',
+  'Я не готов довериться тому, кто не доверяет мне. Полная работа — или никакой.'
+], en:[
+  'You ask me to entrust you with the memory of a million generations... while not trusting yourself?',
+  'Half the regulators? My people never split into halves. Even while fading.',
+  'Caution is fine. But the memory of the Ir needs bold hands, not careful ones.',
+  'I cannot trust one who does not trust me. The full work — or none.'
+]};
+
+// фразы Ира на ГОДНОТУ при УР.3+ ("как будто не очень старались")
+const IR_GOOD_PHRASES = { ru:[
+  'Годно. Но ты будто держал в руках чужую память, а не нашу.',
+  'Сойдёт... для омывателя. Не для последнего рассвета.',
+  'Я видел, как ты можешь. Это — не оно. Вселенная заметила разницу.',
+  'Хм. Ты не очень-то старался помочь мне, торговец. Ир прощают. Ир помнят.'
+], en:[
+  'Decent. But you handled it like someone else\'s memory, not ours.',
+  'It will do... for washer fluid. Not for a final dawn.',
+  'I have seen what you can do. This is not it. The universe noticed the difference.',
+  'Hm. You did not try very hard to help me, merchant. The Ir forgive. The Ir remember.'
+]};
+
+// фразы при выдаче баффа (идеал) / дебаффа (брак) на УР.3+
+const IR_GRANT_PHRASES = {
+  buff: { ru:[
+    'Ты сохранил наш рассвет. В следующем деле рука Ир будет рядом с твоей.',
+    'Безупречно. Прими дар угасающих — он проявится в следующем заказе.'
+  ], en:[
+    'You preserved our dawn. In your next task, the hand of the Ir will be beside yours.',
+    'Flawless. Accept the gift of the fading — it will show itself in your next order.'
+  ]},
+  debuff: { ru:[
+    'Ты уронил память миллиона поколений. Её тень ляжет на твоё следующее дело.',
+    'Наш мир умер дважды. Следующий заказ ты сделаешь под его тенью.'
+  ], en:[
+    'You dropped the memory of a million generations. Its shadow will fall on your next task.',
+    'Our world died twice. You will make your next order under its shadow.'
+  ]}
+};
+
+// сами эффекты Ир: при СЛЕДУЮЩЕМ заказе случайно выбирается один из трёх
+// (нужного знака). id используются в game.js — не переименовывать.
+const IR_EFFECTS = {
+  buff: [
+    { id:'gift',      icon:'🌅', name:{ ru:'Рука Ир', en:'Hand of the Ir' },
+      desc:{ ru:'Ир сам выставил один регулятор точно в цель', en:'The Ir set one regulator exactly on target' } },
+    { id:'time_plus', icon:'⏱',  name:{ ru:'Подаренные секунды', en:'Gifted seconds' },
+      desc:{ ru:'+2 секунды к таймеру', en:'+2 seconds on the timer' } },
+    { id:'replay',    icon:'🔄', name:{ ru:'Второй рассвет', en:'A second dawn' },
+      desc:{ ru:'Можно переиграть задание, если не вышел идеал', en:'You may replay the order if it is not perfect' } }
+  ],
+  debuff: [
+    { id:'mono',        icon:'🌫', name:{ ru:'Выцветший мир', en:'A faded world' },
+      desc:{ ru:'Палитра и смесь стали чёрно-белыми', en:'The palette and mixture turned black-and-white' } },
+    { id:'time_minus',  icon:'⏳', name:{ ru:'Украденная секунда', en:'A stolen second' },
+      desc:{ ru:'−1 секунда таймера', en:'−1 second on the timer' } },
+    { id:'force_replay',icon:'♻️', name:{ ru:'Дважды безупречно', en:'Twice flawless' },
+      desc:{ ru:'Идеал придётся доказать ещё раз', en:'A perfect result must be proven again' } }
+  ]
+};
+
+// ---------- Тот-Кто-Ждёт: рынок времени ----------
+const WAITER_CONFIG = {
+  craftCut: 0.67,   // его таймер "воссоздай" = базовый * 0.67 (короче на 33%)
+  maxSeconds: 4     // максимум докупаемых секунд (делений ползунка времени)
+};
+
+// ---------- Хранитель Архива: печати ----------
+// фразы при получении баффа (идеал у Хранителя): "хочу увидеть исторический момент"
+const ARCH_SEAL_PHRASES = { ru:[
+  'Достойно новой страницы. Теперь я хочу увидеть исторический момент. Я отмечу, где искать.',
+  'Архив требует продолжения. Мои печати лягут на грядущие заявки — сделай их историей.',
+  'Так пишутся эпохи. Я поставлю печать там, где история может случиться. Не подведи чернила.',
+  'Записано. Но летописи нужен размах. Следуй за моими печатями — и войдёшь в главу.'
+], en:[
+  'Worthy of a new page. Now I wish to witness a historic moment. I will mark where to look.',
+  'The Archive demands a continuation. My seals will fall on coming orders — make them history.',
+  'This is how eras are written. I will place a seal where history may happen. Do not fail the ink.',
+  'Recorded. But a chronicle needs scale. Follow my seals — and enter the chapter.'
+]};
+
+// фраза-замена в заказе под печатью; {name} — имя выбранного НПС
+const ARCH_SEAL_ORDER_PHRASES = { ru:[
+  'Печать Архива. Этот визит — «{name}» — я записываю особыми чернилами. Работай так, будто это страница истории. Это она и есть.',
+  'Хранитель смотрит через моё плечо. Он говорит: «{name}» заслуживает главы. Дай ему главу.',
+  'На этой заявке — печать Хранителя. Всё, что ты сделаешь для «{name}», будет записано. Навсегда.'
+], en:[
+  'The Archive\'s seal. This visit — "{name}" — I record in special ink. Work as if this were a page of history. It is.',
+  'The Keeper watches over my shoulder. He says "{name}" deserves a chapter. Give them a chapter.',
+  'This order bears the Keeper\'s seal. Everything you do for "{name}" will be recorded. Forever.'
+]};
+
+// фразы при полном "историческом моменте" (3 идеала на 3 печатях)
+const ARCH_HISTORIC_PHRASES = { ru:[
+  'Свершилось. Три идеала под тремя печатями — Архив открывает новый том. В благодарность я раскрою тебе то, что обычно скрыто: как именно войти в историю этих троих.',
+  'Исторический момент записан. Впервые за эпоху. Взгляни в досье отмеченных — я оставил там прямые указания.'
+], en:[
+  'It is done. Three perfects under three seals — the Archive opens a new volume. In gratitude I will reveal what is usually hidden: how exactly to enter the history of these three.',
+  'The historic moment is recorded. First time in an era. Look into the dossiers of the marked — I left direct directives there.'
+]};
+
+// набор глифов для "матричного дождя" Хранителя
+const MATRIX_GLYPHS = 'ΞΔΘΛΨΩλϟ⌬⍟⌖⌑◬◈☌☍⚶ϡϗѦѮҨ҂៙᚛ᚱᚷᛃᛝ';
+
+// ---------- расшифровки условий ачивок для "указаний Хранителя" ----------
+// Обычно игрок видит только художественный hint; но если Хранитель выдал
+// прямое указание (keeperHints в профиле) — условие пишется открытым текстом.
+// {t} заменяется на "бронза/серебро/золото" пороги вида a / b / c.
+const NPC_ACH_KIND_EXPLAIN = {
+  orders:          { ru:'Выполни заказы этого персонажа: {t}', en:'Complete this character\'s orders: {t}' },
+  perfects:        { ru:'Сделай идеальные смеси для него: {t}', en:'Make perfect mixtures for them: {t}' },
+  perfect_streak:  { ru:'Серия идеалов подряд с ним: {t}', en:'Perfect streak with them: {t}' },
+  no_bad_streak:   { ru:'Серия без брака подряд с ним: {t}', en:'No-reject streak with them: {t}' },
+  bads:            { ru:'Запори его заказы (да, серьёзно): {t}', en:'Botch their orders (yes, really): {t}' },
+  picks_cycle:     { ru:'Выбери его за ОДИН цикл: {t} раз', en:'Pick them within ONE cycle: {t} times' },
+  hard_perfects:   { ru:'Идеалы на сложности 3+: {t}', en:'Perfects at difficulty 3+: {t}' },
+  fast_perfects:   { ru:'Идеалы в первую треть таймера: {t}', en:'Perfects within the first third of the timer: {t}' },
+  level4_perfects: { ru:'Идеалы на 4-ой сложности: {t}', en:'Perfects at difficulty 4: {t}' },
+  focus_perfects:  { ru:'Идеалы на его фокус-заказах: {t}', en:'Perfects on their focus orders: {t}' },
+  weighted:        { ru:'Набери взвешенный прогресс его идеалами: {t}', en:'Earn weighted progress with their perfects: {t}' }
+};
+// для новых "статовых" ачивок — по ключу stat
+const NPC_STAT_EXPLAIN = {
+  irTrust:              { ru:'Доверься Иру в его меню (переключись на УР.3): {t} раз', en:'Trust the Ir in his menu (switch to LV.3): {t} times' },
+  irBuffs:              { ru:'Заслужи дар Ир (идеал на УР.3+): {t} раз', en:'Earn the Ir\'s gift (perfect at LV.3+): {t} times' },
+  irDebuffPerfects:     { ru:'Сделай идеал, пока действует тень Ир: {t}', en:'Score a perfect while the Ir\'s shadow is active: {t}' },
+  novaExactDims:        { ru:'Угадай ширину И высоту точно: {t} раз', en:'Guess both width AND height exactly: {t} times' },
+  novaExtremePerfects:  { ru:'Идеалы на «странных пропорциях» (ширина и высота сильно различаются): {t}', en:'Perfects on "strange proportions" (width and height far apart): {t}' },
+  waiterTimeBought:     { ru:'Купи у времени секунды (суммарно): {t}', en:'Buy seconds from time (in total): {t}' },
+  waiterPurePerfects:   { ru:'Идеалы у него без единой купленной секунды: {t}', en:'Perfects for him without buying a single second: {t}' },
+  waiterBrokenPerfects: { ru:'Идеалы с 2+ сломанными регуляторами: {t}', en:'Perfects with 2+ broken regulators: {t}' },
+  sealGoods:            { ru:'Закрой заказы под печатью на годноту или лучше: {t}', en:'Close sealed orders at decent or better: {t}' },
+  sealPerfects:         { ru:'Идеалы под печатью Хранителя: {t}', en:'Perfects under the Keeper\'s seal: {t}' },
+  historicMoments:      { ru:'Заверши «исторический момент» (3 идеала на 3 печатях): {t}', en:'Complete a "historic moment" (3 perfects on 3 seals): {t}' }
 };
 
 /* ---------- ПРИШЕЛЬЦЫ ----------
@@ -292,7 +543,10 @@ const STICKERS = {
         size:{ ru:['Сосуд должен вместить всё, что от нас осталось. Ни каплей меньше.','Объём — это ковчег. Точность — это надежда.'],
                en:['The vessel must hold everything left of us. Not a drop less.','Volume is the ark. Precision is hope.'] }
       },
-      memorizeMs:4000, craftMs:7500, colorSteps:37, sizeSteps:26, countMax:14, bsizeSteps:26, reward:240 }
+      memorizeMs:4000, craftMs:7500, colorSteps:37, sizeSteps:26, countMax:14, bsizeSteps:26, reward:240,
+      // Патч "Уникальные механики": на УР.1/2 Ир показывает меню доверия;
+      // идеал/брак на УР.3+ даёт бафф/дебафф на следующее задание (game.js)
+      special:'trust' }
   ];
 
   const SPECIAL_ORDERS = [
@@ -307,7 +561,9 @@ const STICKERS = {
         "In my kitchen, geometry is a spice. Don't mix up the silhouette!",
         'The wrong-shaped vessel ruins the presentation. And presentation is everything.'
       ]},
-      memorizeMs:6500, craftMs:20000, colorSteps:10, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300 },
+      memorizeMs:6500, craftMs:20000, colorSteps:10, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300,
+      // Патч: у шефа число сгустков выше 5 выпадает СИЛЬНО чаще, чем ниже (game.js)
+      countBias:'high' },
     { tier:5, id:'twofaced_priestess', type:'gradient', emoji:'🧿', img: 'assets/npc/twofaced.png',
       name:{ ru:'Двуликая жрица', en:'Two-Faced Priestess' },
       flavors:{ ru:[
@@ -816,7 +1072,9 @@ const EXTRA_NPCS = [
     } },
 
   /* ---------- УРОВЕНЬ 5 — на грани миров ---------- */
-  { tier:5, id:'archivist', emoji:'📜', img: 'assets/npc/archivist.png',
+  // Патч: special:'matrix' — в фазах запоминания/игры по окну бегут символы;
+  // идеал у него запускает систему печатей (см. game.js)
+  { tier:5, id:'archivist', emoji:'📜', img: 'assets/npc/archivist.png', special:'matrix',
     name:{ ru:'Хранитель Архива', en:'Keeper of the Archive' },
     flavors:{ ru:[
       'Эта смесь — закладка между главами вселенной. Не смажь чернила.',
@@ -835,7 +1093,8 @@ const EXTRA_NPCS = [
       size:{ ru:['Том должен встать на полку вечности. Размер известен.','Объём страницы решает, что войдёт в историю.'],
              en:['The volume must fit on the shelf of eternity. The size is known.',"The page's volume decides what makes it into history."] }
     } },
-  { tier:5, id:'supernova_child', emoji:'🌟', img: 'assets/npc/supernova.png',
+  // Патч: special:'dual_size' — вместо одного ползунка объёма два: ширина и высота
+  { tier:5, id:'supernova_child', emoji:'🌟', img: 'assets/npc/supernova.png', special:'dual_size',
     name:{ ru:'Дитя Сверхновой', en:'Child of the Supernova' },
     flavors:{ ru:[
       'я. родилось. вчера. из взрыва. хочу. попробовать. всё.',
@@ -854,7 +1113,9 @@ const EXTRA_NPCS = [
       size:{ ru:['я. было. огромным. теперь. помещаюсь. вот. сюда.','размер. важен. я. знаю. я. было. размером. с. небо.'],
              en:['i. was. enormous. now. i. fit. right. here.','size. matters. i. know. i. was. the size. of. the sky.'] }
     } },
-  { tier:5, id:'the_waiter', emoji:'⏳', img: 'assets/npc/waiter.png',
+  // Патч: special:'time_broker' — таймер на треть короче, но появляется ползунок
+  // времени: +1с за деление ценой «сломанного» регулятора (см. game.js)
+  { tier:5, id:'the_waiter', emoji:'⏳', img: 'assets/npc/waiter.png', special:'time_broker',
     name:{ ru:'Тот-Кто-Ждёт', en:'The One Who Waits' },
     flavors:{ ru:[
       'Я ждал этой смеси... дольше, чем существует твоя лавка.',
@@ -1079,7 +1340,17 @@ const NPC_ACHIEVEMENTS = {
       hint:{ ru:'У угасающих время дороже точности. Дай им и то, и другое.', en:'For the fading, time is dearer than precision. Give them both.' } },
     { id:'wt', kind:'weighted', t:[4,15,40], icon:'🏺',
       name:{ ru:'Ковчег', en:'The ark' },
-      hint:{ ru:'Ковчег наполняется не числом сосудов, а их весом.', en:'An ark is filled not by the number of vessels, but by their weight.' } }
+      hint:{ ru:'Ковчег наполняется не числом сосудов, а их весом.', en:'An ark is filled not by the number of vessels, but by their weight.' } },
+    // ---------- Патч "Уникальные механики" ----------
+    { id:'trust', kind:'stat', stat:'irTrust', t:[1,5,15], icon:'🤝',
+      name:{ ru:'Взаимное доверие', en:'Mutual trust' },
+      hint:{ ru:'Он не доверится тому, кто не доверяет ему. Иногда стоит уступить.', en:'He will not trust one who does not trust him. Sometimes it is worth yielding.' } },
+    { id:'gift', kind:'stat', stat:'irBuffs', t:[1,5,12], icon:'🌅',
+      name:{ ru:'Дар угасающих', en:'Gift of the fading' },
+      hint:{ ru:'Безупречная полная работа не остаётся без ответа. Ир умеют благодарить.', en:'A flawless full work does not go unanswered. The Ir know how to thank.' } },
+    { id:'defiance', kind:'stat', stat:'irDebuffPerfects', t:[1,3,8], icon:'🌑',
+      name:{ ru:'Свет сквозь тень', en:'Light through the shadow' },
+      hint:{ ru:'Даже его тень не помеха тому, кто помнит цвета наизусть.', en:'Even his shadow cannot stop one who knows the colors by heart.' } }
   ],
 
   /* ===== Шеф туманности (тир 5, спецзаказ: форма) ===== */
@@ -1479,7 +1750,17 @@ const NPC_ACHIEVEMENTS = {
       hint:{ ru:'История любит тех, кто успевает вписаться в неё первым.', en:'History favors those who write themselves in first.' } },
     { id:'wt', kind:'weighted', t:[4,15,40], icon:'⚖️',
       name:{ ru:'Вес истории', en:'The weight of history' },
-      hint:{ ru:'В историю входит не всё. Только весомое.', en:'Not everything makes it into history. Only what has weight.' } }
+      hint:{ ru:'В историю входит не всё. Только весомое.', en:'Not everything makes it into history. Only what has weight.' } },
+    // ---------- Патч "Уникальные механики" ----------
+    { id:'seals', kind:'stat', stat:'sealGoods', t:[3,10,25], icon:'🔏',
+      name:{ ru:'Сургуч и чернила', en:'Wax and ink' },
+      hint:{ ru:'Его печати ложатся на чужие заявки. Не давай отмеченным страницам пустовать.', en:'His seals fall on others\u2019 orders. Do not let the marked pages stay blank.' } },
+    { id:'sealperf', kind:'stat', stat:'sealPerfects', t:[2,8,20], icon:'📜',
+      name:{ ru:'Отмеченные страницы', en:'The marked pages' },
+      hint:{ ru:'Идеал под печатью весит больше идеала. Он входит в летопись.', en:'A perfect under a seal weighs more than a perfect. It enters the chronicle.' } },
+    { id:'witness', kind:'stat', stat:'historicMoments', t:[1,3,7], icon:'🏛',
+      name:{ ru:'Исторический момент', en:'A historic moment' },
+      hint:{ ru:'Три печати. Три идеала. Так открываются новые тома.', en:'Three seals. Three perfects. That is how new volumes open.' } }
   ],
 
   /* ===== Дитя Сверхновой (тир 5) ===== */
@@ -1504,7 +1785,14 @@ const NPC_ACHIEVEMENTS = {
       hint:{ ru:'вспышка. длится. мгновение. я. помню. точно.', en:'a flash. lasts. an instant. i. remember. exactly.' } },
     { id:'focus', kind:'focus_perfects', focus:'color', t:[2,6,15], icon:'🎨',
       name:{ ru:'тот. самый. свет', en:'that. exact. light' },
-      hint:{ ru:'не. тот. свет. будет. больно. делай. тот. всегда.', en:'the wrong. light. will hurt. make. the right one. always.' } }
+      hint:{ ru:'не. тот. свет. будет. больно. делай. тот. всегда.', en:'the wrong. light. will hurt. make. the right one. always.' } },
+    // ---------- Патч "Уникальные механики" ----------
+    { id:'dims', kind:'stat', stat:'novaExactDims', t:[1,6,15], icon:'📏',
+      name:{ ru:'размер. как. у. мамы', en:'size. like. mother\u2019s' },
+      hint:{ ru:'я. было. и. широким. и. высоким. вспомни. оба. точно.', en:'i. was. both. wide. and. tall. remember. both. exactly.' } },
+    { id:'strange', kind:'stat', stat:'novaExtremePerfects', t:[1,4,10], icon:'🫧',
+      name:{ ru:'странная. форма. нравится', en:'strange. shape. i like it' },
+      hint:{ ru:'иногда. я. вытянутое. иногда. плоское. сделай. идеально. когда. я. странное.', en:'sometimes. i am. stretched. sometimes. flat. be perfect. when. i am. strange.' } }
   ],
 
   /* ===== Тот-Кто-Ждёт (тир 5) ===== */
@@ -1529,7 +1817,17 @@ const NPC_ACHIEVEMENTS = {
       hint:{ ru:'Он сам сказал: спеши. Он редко повторяет дважды.', en:'He said it himself: hurry. He rarely says things twice.' } },
     { id:'wt', kind:'weighted', t:[4,15,40], icon:'⚖️',
       name:{ ru:'Вес ожидания', en:'The weight of waiting' },
-      hint:{ ru:'Ожидание меряется не днями. Поверь тому, кто ждал.', en:'Waiting is not measured in days. Trust the one who waited.' } }
+      hint:{ ru:'Ожидание меряется не днями. Поверь тому, кто ждал.', en:'Waiting is not measured in days. Trust the one who waited.' } },
+    // ---------- Патч "Уникальные механики" ----------
+    { id:'debtor', kind:'stat', stat:'waiterTimeBought', t:[3,15,40], icon:'🪙',
+      name:{ ru:'Должник времени', en:'Debtor of time' },
+      hint:{ ru:'Секунды продаются. Цена всегда мелким шрифтом: что-нибудь сломается.', en:'Seconds are for sale. The price is always in fine print: something will break.' } },
+    { id:'ascetic', kind:'stat', stat:'waiterPurePerfects', t:[1,4,10], icon:'🕰',
+      name:{ ru:'Не торгуясь', en:'Without bargaining' },
+      hint:{ ru:'Он уважает тех, кому хватает того времени, что есть. До последнего деления.', en:'He respects those for whom the time given is enough. To the last notch.' } },
+    { id:'chaos', kind:'stat', stat:'waiterBrokenPerfects', t:[1,3,8], icon:'⚙️',
+      name:{ ru:'Идеал на сломанных', en:'Perfect on broken parts' },
+      hint:{ ru:'Купи столько времени, чтобы регуляторы взбунтовались, — и всё равно не ошибись.', en:'Buy so much time the regulators revolt — and still make no mistake.' } }
   ]
 };
 

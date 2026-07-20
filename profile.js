@@ -81,7 +81,20 @@
       level4Perfects: 0,
       focusPerfects: { bubbles: 0, color: 0, size: 0 },
       weighted: 0,
-      picksCycle: 0, picksCycleBest: 0
+      picksCycle: 0, picksCycleBest: 0,
+      // ---------- Патч "Уникальные механики тир-5" ----------
+      // (заполняются только у "своих" НПС, у остальных лежат нулями)
+      irTrust: 0,              // last_of_ir: сколько раз игрок доверился (переключился на УР.3 в меню)
+      irBuffs: 0,              // last_of_ir: полученных благословений (идеал на УР.3+)
+      irDebuffPerfects: 0,     // last_of_ir: идеалов, сделанных ПОД его дебаффом
+      novaExactDims: 0,        // supernova_child: заказов, где ширина И высота угаданы точно
+      novaExtremePerfects: 0,  // supernova_child: идеалов на "странных пропорциях" (|ширина-высота| велика)
+      waiterTimeBought: 0,     // the_waiter: всего куплено секунд у времени
+      waiterPurePerfects: 0,   // the_waiter: идеалов без единой купленной секунды
+      waiterBrokenPerfects: 0, // the_waiter: идеалов с 2+ сломанными регуляторами
+      sealGoods: 0,            // archivist: заказов под печатью, закрытых на годноту+
+      sealPerfects: 0,         // archivist: идеалов под печатью
+      historicMoments: 0       // archivist: полных "исторических моментов" (3 идеала на 3 печатях)
     };
   }
 
@@ -112,7 +125,11 @@
       achievements: { general: {}, npc: {} },
       lorePhrases: { unlockedByNpc: {} },
       rewards: { byNpc: {} },
-      passives: { unlockedByNpc: {}, active: [] }
+      passives: { unlockedByNpc: {}, active: [] },
+      // Патч "Уникальные механики": прямые указания Хранителя Архива —
+      // { [npcId]: achId }. Ачивка с таким id показывает в меню персонажей
+      // печать Хранителя и ОТКРЫТЫМ ТЕКСТОМ условие получения.
+      keeperHints: { byNpc: {} }
     };
   }
 
@@ -382,6 +399,26 @@
       load();
       ensureNpc(npcId);
       profile.rewards.byNpc[npcId][key] = value;
+      save();
+    },
+
+    // ---------- Патч "Уникальные механики" ----------
+    // универсальный инкремент любого счётчика в npcStats[npcId]
+    // (используется game.js для новых механик Ир/Сверхновой/Ждущего/Хранителя)
+    bumpNpcStat(npcId, key, amount){
+      if(!npcId || !key) return;
+      const ns = ensureNpcStats(npcId);
+      if(typeof ns[key] !== 'number') ns[key] = 0;
+      ns[key] += (typeof amount === 'number' ? amount : 1);
+      save();
+      return ns[key];
+    },
+    // прямое указание Хранителя: для НПС npcId раскрыть условие ачивки achId
+    setKeeperHint(npcId, achId){
+      load();
+      if(!profile.keeperHints) profile.keeperHints = { byNpc: {} };
+      if(!profile.keeperHints.byNpc) profile.keeperHints.byNpc = {};
+      profile.keeperHints.byNpc[npcId] = achId;
       save();
     },
 

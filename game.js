@@ -155,7 +155,13 @@
       let raw = _min + p*(_max-_min);
       raw = Math.round(raw/_step)*_step;
       raw = Math.min(_max, Math.max(_min, raw));
-      if(raw !== _value){ _value = raw; render(); SFX.tick(); if(onChange) onChange(_value); }
+      if(raw !== _value){
+        const prev = _value;
+        _value = raw; render(); SFX.tick();
+        // onChange получает и старое значение — нужно механикам патча
+        // (рынок времени / "сломанные" регуляторы Того-Кто-Ждёт)
+        if(onChange) onChange(_value, prev);
+      }
     }
     let dragging = false;
     wrap.addEventListener('pointerdown', e=>{
@@ -182,19 +188,82 @@
       // отдельный "серый и перечёркнутый" вид для регулятора, недоступного
       // на текущей сложности (отличается от .disabled — блокировки после варки)
       setDiffLocked(d){ wrap.classList.toggle('diff-locked', !!d); },
+      // Патч: произвольный CSS-флаг на обёртке ползунка ('ir-gift' — регулятор,
+      // выставленный рукой Ир; 'link-broken' — сломанный регулятор Ждущего)
+      setFlag(cls, on){ wrap.classList.toggle(cls, !!on); },
       setTrackBackground(css){ track.style.background = css; }
     };
   }
 
   const S = {};
   function initSliders(){
-    S.color = VSlider({ mount:$('mColor'), min:0,max:5,step:1,value:2, thickness:32, thumbSize:38, colorStrip:true, staticBackground:RAINBOW_BG, onChange:updatePlayerJar });
-    S.colorB = VSlider({ mount:$('mColorB'), min:0,max:5,step:1,value:2, thickness:32, thumbSize:38, colorStrip:true, staticBackground:RAINBOW_BG, onChange:updatePlayerJar });
-    S.sat = VSlider({ mount:$('mSat'), min:0,max:9,step:1,value:7, thickness:32, thumbSize:38, colorStrip:true, onChange:updatePlayerJar });
-    S.size = VSlider({ mount:$('mSize'), min:0,max:4,step:1,value:2, thickness:26, thumbSize:32, onChange:updatePlayerJar });
-    S.count = VSlider({ mount:$('mCount'), min:1,max:5,step:1,value:3, thickness:26, thumbSize:32, onChange:updatePlayerJar });
-    S.bsize = VSlider({ mount:$('mBsize'), min:0,max:4,step:1,value:2, thickness:26, thumbSize:32, onChange:updatePlayerJar });
-    S.shape = VSlider({ mount:$('mShape'), min:0,max:9,step:1,value:0, thickness:26, thumbSize:32, onChange:updatePlayerJar });
+    // Патч: все игровые ползунки идут через onSliderInput(key, ...) —
+    // это позволяет "сломанным" регуляторам Того-Кто-Ждёт тащить за собой
+    // соседей, а ползунку времени — докупать секунды
+    const oc = key => (v, old) => onSliderInput(key, v, old);
+    S.color = VSlider({ mount:$('mColor'), min:0,max:5,step:1,value:2, thickness:32, thumbSize:38, colorStrip:true, staticBackground:RAINBOW_BG, onChange:oc('color') });
+    S.colorB = VSlider({ mount:$('mColorB'), min:0,max:5,step:1,value:2, thickness:32, thumbSize:38, colorStrip:true, staticBackground:RAINBOW_BG, onChange:oc('colorB') });
+    S.sat = VSlider({ mount:$('mSat'), min:0,max:9,step:1,value:7, thickness:32, thumbSize:38, colorStrip:true, onChange:oc('sat') });
+    S.size = VSlider({ mount:$('mSize'), min:0,max:4,step:1,value:2, thickness:26, thumbSize:32, onChange:oc('size') });
+    S.count = VSlider({ mount:$('mCount'), min:1,max:5,step:1,value:3, thickness:26, thumbSize:32, onChange:oc('count') });
+    S.bsize = VSlider({ mount:$('mBsize'), min:0,max:4,step:1,value:2, thickness:26, thumbSize:32, onChange:oc('bsize') });
+    S.shape = VSlider({ mount:$('mShape'), min:0,max:9,step:1,value:0, thickness:26, thumbSize:32, onChange:oc('shape') });
+    // Патч (Сверхновая): второй ползунок габарита — высота
+    S.size2 = VSlider({ mount:$('mSize2'), min:0,max:4,step:1,value:2, thickness:26, thumbSize:32, onChange:oc('size2') });
+  }
+  // Патч (Тот-Кто-Ждёт): ползунок времени — НЕ игровой параметр, живёт отдельно
+  let timeSlider = null;
+  function initTimeSlider(){
+    const maxSec = (typeof WAITER_CONFIG !== 'undefined' && WAITER_CONFIG.maxSeconds) || 4;
+    timeSlider = VSlider({ mount:$('mTime'), min:0, max:maxSec, step:1, value:0, thickness:26, thumbSize:32,
+      onChange:(v, old)=> onTimeSliderChange(v, old) });
+  }
+
+  // ---------- Патч: единая точка входа изменений ползунков ----------
+  // "Сломанные" регуляторы (Тот-Кто-Ждёт): brokenLinks[key] = key2 —
+  // движение key тянет key2 на одно деление в ту же сторону.
+  let brokenLinks = {};
+  function onSliderInput(key, v, old){
+    const link = brokenLinks[key];
+    if(link && S[link] && currentPhase === 'craft' && !craftLocked){
+      const dir = v > old ? 1 : -1;
+      const sl = S[link];
+      const nv = Math.min(sl.max, Math.max(sl.min, sl.value + dir*(sl.step||1)));
+      if(nv !== sl.value){ sl.value = nv; }
+    }
+    updatePlayerJar();
+  }
+  // покупка секунд у Того-Кто-Ждёт: только вверх; каждое деление = +1с
+  // таймера и один свежесломанный регулятор
+  function onTimeSliderChange(v, old){
+    if(!target || target.cfg.special !== 'time_broker' || currentPhase !== 'craft' || craftLocked){
+      timeSlider.value = old; return;
+    }
+    if(v < old){ timeSlider.value = old; return; } // время назад не продаётся
+    const bought = v - old;
+    target.waiterTimeBought = v;
+    extendTimer(bought * 1000);
+    for(let i=0;i<bought;i++) breakRandomRegulator();
+    const lbl = $('lblTime');
+    if(lbl) lbl.textContent = '+' + v + 's';
+    SFX.badPop();
+    jarGlitchFlash();
+  }
+  // ломает случайный АКТИВНЫЙ регулятор: связывает его со случайным другим
+  function breakRandomRegulator(){
+    if(!target || !target.activeKeys) return;
+    const keys = [...target.activeKeys].filter(k => S[k] && !brokenLinks[k]);
+    if(!keys.length) return;
+    const from = pick(keys);
+    const others = [...target.activeKeys].filter(k => S[k] && k !== from);
+    if(!others.length) return;
+    brokenLinks[from] = pick(others);
+    S[from].setFlag('link-broken', true);
+    target.waiterBrokenCount = Object.keys(brokenLinks).length;
+  }
+  function clearBrokenLinks(){
+    Object.keys(brokenLinks).forEach(k=>{ if(S[k]) S[k].setFlag('link-broken', false); });
+    brokenLinks = {};
   }
 
   // (контент вынесен в content.js)
@@ -271,12 +340,21 @@
       hand.setAttribute('transform', `rotate(${angle.toFixed(2)} ${RING_CX} ${RING_CY})`);
     }
   }
+  // Патч: длительность таймера сделана "живой" — рынок времени
+  // Того-Кто-Ждёт и эффекты Ир могут менять её прямо по ходу раунда
+  let timerDurationMs = 0;
+  function extendTimer(ms){
+    timerDurationMs = Math.max(500, timerDurationMs + ms);
+    if(target && currentPhase === 'craft') target.craftDuration = timerDurationMs;
+  }
   function runTimer(durationMs, onDone){
     cancelAnimationFrame(rafId);
     const start = performance.now();
+    timerDurationMs = durationMs;
     let lastCountdownSec = -1;
     $('windowFrame').classList.remove('urgent');
     function frame(now){
+      const durationMs = timerDurationMs;
       const elapsed = now - start;
       const frac = Math.min(1, elapsed/durationMs);
       setRingFraction(frac);
@@ -418,10 +496,12 @@
   }
 
   function drawJar(opts){
-    const { hue, hue2=null, sat=70, sizePct, bubbleCount, bubbleR, seed, shapeIdx=0, overridePositions=null, badBubbles=[] } = opts;
+    // Патч (Сверхновая): heightPct — независимая высота банки; если не
+    // передана, высота как раньше следует за sizePct (единый "объём")
+    const { hue, hue2=null, sat=70, sizePct, heightPct=null, bubbleCount, bubbleR, seed, shapeIdx=0, overridePositions=null, badBubbles=[] } = opts;
     const svg = $('jarSvg');
     const w = 60 + (sizePct/100)*60;
-    const h = 140 + (sizePct/100)*70;
+    const h = 140 + ((heightPct ?? sizePct)/100)*70;
     const cx = 100, baseY = 240, topY = baseY - h;
     const sp = SHAPE_PROFILES[shapeIdx] || SHAPE_PROFILES[0];
     const bodyPath = jarOutlinePath(cx, topY, baseY, w, sp.points, sp.smooth);
@@ -601,6 +681,47 @@
     movingRafId = requestAnimationFrame(frame);
   }
 
+  // ---------- Патч (Хранитель Архива): "матричный дождь" ----------
+  // Полупрозрачные колонки странных символов бегут сверху вниз по окну
+  // (циферблат + область банки) в фазах запоминания и игры. Символы
+  // постоянно меняются, но прозрачность подобрана так, чтобы даже самые
+  // мелкие сгустки оставались различимыми.
+  let matrixEl = null, matrixInterval = null;
+  function startMatrixRain(){
+    stopMatrixRain();
+    const frame = $('windowFrame');
+    if(!frame) return;
+    const glyphs = (typeof MATRIX_GLYPHS !== 'undefined') ? MATRIX_GLYPHS : '01ΞΔΨ';
+    matrixEl = document.createElement('div');
+    matrixEl.className = 'matrix-rain';
+    const cols = 9;
+    for(let i=0;i<cols;i++){
+      const col = document.createElement('div');
+      col.className = 'matrix-col';
+      col.style.left = (4 + i*(92/(cols-1))) + '%';
+      col.style.animationDuration = (5 + Math.random()*6).toFixed(2) + 's';
+      col.style.animationDelay = (-Math.random()*8).toFixed(2) + 's';
+      col.style.fontSize = (12 + Math.random()*7).toFixed(0) + 'px';
+      matrixEl.appendChild(col);
+    }
+    // вставляем ПОД банку (перед jarSvg), чтобы символы не перекрывали сгустки
+    frame.insertBefore(matrixEl, $('jarSvg'));
+    const refill = ()=>{
+      matrixEl.querySelectorAll('.matrix-col').forEach(col=>{
+        let txt = '';
+        const n = 14 + ((Math.random()*6)|0);
+        for(let j=0;j<n;j++) txt += glyphs[(Math.random()*glyphs.length)|0] + '\n';
+        col.textContent = txt;
+      });
+    };
+    refill();
+    matrixInterval = setInterval(refill, 160);
+  }
+  function stopMatrixRain(){
+    if(matrixInterval){ clearInterval(matrixInterval); matrixInterval = null; }
+    if(matrixEl){ matrixEl.remove(); matrixEl = null; }
+  }
+
   // ---------- Фаза E: логика "плохих" пузырей ----------
   // Работают только когда target.regLevel === 4 и мы в фазе "craft".
   // Растут сами по себе; если игрок не успевает кликнуть — лопаются и
@@ -718,7 +839,11 @@
   //    один регулятор по тому же принципу (цвет, если его не было)
   function computeActiveKeys(level, target){
     const flags = target.flags, focus = target.focus, cfg = target.cfg;
+    // Патч (Сверхновая): при dual_size габарит распадается на ширину
+    // ('size') и высоту ('size2') — они всегда ходят парой
+    const dual = cfg.special === 'dual_size';
     const allKeys = ['color','size','count','bsize'];
+    if(dual) allKeys.splice(2, 0, 'size2');
     if(flags.hasSat) allKeys.push('sat');
     if(flags.hasGradient) allKeys.push('colorB');
     if(flags.hasShape) allKeys.push('shape');
@@ -739,6 +864,7 @@
       base = ['color'];
     }
     const set1 = new Set(base);
+    if(dual && set1.has('size')) set1.add('size2');
     if(level === 1) return set1;
 
     // level === 2: добавляем цвет, если его ещё нет; если он уже есть —
@@ -747,6 +873,7 @@
     if(!set2.has('color')) set2.add('color');
     else set2.add('size');
     if(set2.has('color') && flags.hasSat) set2.add('sat');
+    if(dual && set2.has('size')) set2.add('size2');
     return set2;
   }
 
@@ -839,7 +966,7 @@
       const npcNameStr = LT(cfg.name);
 
       const card = document.createElement('div');
-      card.className = 'customer-card';
+      card.className = 'customer-card' + (ord.sealed ? ' sealed' : '');
       card.style.setProperty('--tier-color', tierColor);
 
       // Фаза E: 4-й уровень сложности показывается только у НПС с cfg.level4
@@ -860,6 +987,7 @@
           <div class="icon-glow">
             <div class="icon-img">${visualHTML(avatar,'npc-img')}</div>
           </div>
+          ${ord.sealed ? `<div class="seal-badge" title="${LT(UI_TEXT.ARCH_SEAL_TAG)}">📜</div>` : ''}
           <div class="icon-name-reveal"><span>${npcNameStr}</span></div>
         </div>
         <div class="plaque-stack">
@@ -896,12 +1024,54 @@
         btn.addEventListener('click', (e)=>{
           e.stopPropagation();
           SFX.cardPick();
-          startOrder(ord, parseInt(btn.dataset.level,10));
+          const lvl = parseInt(btn.dataset.level,10);
+          // Патч (Ир): на УР.1/2 он сперва показывает меню доверия
+          if(cfg.special === 'trust' && lvl < 3){ openIrTrustMenu(ord, lvl); return; }
+          startOrder(ord, lvl);
         });
       });
 
       wrap.appendChild(card);
     });
+  }
+
+  // ============================================================
+  // Патч "Уникальные механики тир-5": состояние сессии
+  // ============================================================
+  // Ир: ожидающий бафф/дебафф на следующее задание — {kind:'buff'|'debuff'}
+  let irPending = null;
+  // Хранитель: активная кампания печатей — { remaining, total, resolved,
+  // perfects, perfectNpcs:[], tripleActive }
+  let archSeal = null;
+  // снимок состояния цикла до применения результата — для "переигровок" Ир
+  let preResultSnapshot = null;
+
+  // локализованная строка с подстановкой {name}
+  function localizedWithName(tpl, nameObj){
+    const nm = (v)=> (nameObj && typeof nameObj === 'object') ? (nameObj[v] ?? nameObj.ru ?? nameObj.en) : nameObj;
+    if(tpl && typeof tpl === 'object'){
+      return { ru: String(tpl.ru ?? tpl.en).replace('{name}', nm('ru')),
+               en: String(tpl.en ?? tpl.ru).replace('{name}', nm('en')) };
+    }
+    return String(tpl).replace('{name}', nm('ru'));
+  }
+
+  // баннеры эффектов на экране выбора ("поле заданий")
+  function renderSelectBanners(){
+    const host = $('selectBanners');
+    if(!host) return;
+    let html = '';
+    if(irPending){
+      const isBuff = irPending.kind === 'buff';
+      html += `<div class="fx-banner ${isBuff?'buff':'debuff'}">
+        <span class="fx-banner-icon">${isBuff?'🌅':'🌑'}</span>
+        <span>${LT(isBuff ? UI_TEXT.IR_FX_BUFF_TAG : UI_TEXT.IR_FX_DEBUFF_TAG)}</span></div>`;
+    }
+    if(archSeal && archSeal.remaining >= 0 && (archSeal.remaining > 0 || archSeal.tripleActive)){
+      const shown = archSeal.remaining + (archSeal.tripleActive ? 1 : 0);
+      html += `<div class="fx-banner seal">${LT(UI_TEXT.ARCH_SEAL_BANNER).replace('{n}', shown)}</div>`;
+    }
+    host.innerHTML = html;
   }
 
   function showSelectScreen(){
@@ -913,8 +1083,54 @@
     const tiers = getCardTiers();
     const usedNames = new Set();
     currentOrders = tiers.map(t=> buildOrderDescriptor(pickConfigForTier(t, usedNames)));
+
+    // Патч (Хранитель): пока идёт кампания печатей — в каждой тройке одно
+    // задание отмечается печатью (кроме самого Хранителя). Заряд тратится
+    // на тройку независимо от того, выберет ли игрок отмеченного.
+    if(archSeal && archSeal.remaining > 0){
+      const candidates = currentOrders.filter(o => o.cfg.id !== 'archivist');
+      if(candidates.length){
+        const chosen = pick(candidates);
+        chosen.sealed = true;
+        chosen.isKeeper = true;
+        chosen.focus = null; // печать заменяет реплику — фокус снимается, чтобы не терять игровую информацию
+        chosen.flavor = localizedWithName(pickLocalized(ARCH_SEAL_ORDER_PHRASES), chosen.cfg.name);
+        archSeal.remaining--;
+        archSeal.tripleActive = true;
+      }
+    }
+    renderSelectBanners();
     renderCustomerCards(currentOrders);
   }
+
+  // ---------- Патч (Ир): меню доверия ----------
+  let irTrustCtx = null; // {ord, level}
+  function openIrTrustMenu(ord, level){
+    irTrustCtx = { ord, level };
+    const ov = $('irTrustOverlay');
+    if(!ov){ startOrder(ord, level); return; }
+    $('irTrustPortrait').innerHTML = visualHTML(ord.avatar, 'npc-img');
+    $('irTrustPhrase').textContent = LT(pickLocalized(IR_TRUST_PHRASES));
+    $('irTrustKeepBtn').textContent = LT(UI_TEXT.IR_TRUST_KEEP).replace('{n}', level);
+    $('irTrustAcceptBtn').textContent = LT(UI_TEXT.IR_TRUST_ACCEPT);
+    ov.classList.add('show');
+  }
+  const irKeepBtnEl = $('irTrustKeepBtn');
+  if(irKeepBtnEl) irKeepBtnEl.addEventListener('click', ()=>{
+    SFX.uiClick();
+    $('irTrustOverlay').classList.remove('show');
+    if(irTrustCtx) startOrder(irTrustCtx.ord, irTrustCtx.level);
+    irTrustCtx = null;
+  });
+  const irAcceptBtnEl = $('irTrustAcceptBtn');
+  if(irAcceptBtnEl) irAcceptBtnEl.addEventListener('click', ()=>{
+    SFX.cardPick();
+    $('irTrustOverlay').classList.remove('show');
+    if(window.PotionProfile) window.PotionProfile.bumpNpcStat('last_of_ir', 'irTrust', 1);
+    checkNpcAchievements('last_of_ir');
+    if(irTrustCtx) startOrder(irTrustCtx.ord, 3);
+    irTrustCtx = null;
+  });
 
   let currentOrd = null; // remembered so a language switch can re-translate the order bubble
   let currentPhase = null; // 'scan' | 'craft' — so a language switch re-translates the phase label
@@ -929,12 +1145,16 @@
     orderNum++;
     stopMovingAnim();
     stopBadBubbles(); // сбрасываем "плохие" пузыри прошлого заказа, если были
+    stopMatrixRain();      // Патч: дождь символов прошлого заказа
+    clearBrokenLinks();    // Патч: сломанные регуляторы прошлого заказа
+    $('windowFrame').classList.remove('ir-mono');
     $('selectScreen').classList.remove('show');
     $('roundScreen').classList.add('show');
     $('orderNum').textContent = orderNum;
     $('orderAvatar').innerHTML = visualHTML(avatar,'npc-img');
     $('orderText').textContent = LT(flavor);
     $('orderText').classList.toggle('lore', !!ord.isLore); // Фаза I: лор — другим цветом
+    $('orderText').classList.toggle('keeper', !!ord.isKeeper); // Патч: фраза Хранителя — золотом
     $('orderBubble').style.borderLeftColor = TIER_COLORS[cfg.tier];
     $('orderFocusTag').innerHTML = focus ? `${visualHTML(FOCUS_ICONS[focus],'focus-img')} ${LT(UI_TEXT.FOCUS_PREFIX)} ${LT(FOCUS_NAMES[focus])}` : '';
     const levelTag = $('orderLevelTag');
@@ -946,6 +1166,10 @@
     const sizeIdx = randInt(0, cfg.sizeSteps-1);
     const bsizeIdx = randInt(0, cfg.bsizeSteps-1);
     let count = randInt(1, cfg.countMax);
+    // Патч (Шеф туманности): число сгустков выше 5 выпадает СИЛЬНО чаще
+    if(cfg.countBias === 'high' && cfg.countMax > 5){
+      count = Math.random() < 0.82 ? randInt(6, cfg.countMax) : randInt(1, 5);
+    }
 
     target = {
       cfg, type: cfg.type, flags, focus, regLevel,
@@ -957,10 +1181,48 @@
       seed: randInt(1,99999)
     };
     if(flags.hasGradient){
-      const hue2Idx = randInt(0, cfg.colorSteps-1);
+      // Патч (Двуликая жрица): оба оттенка очень редко совпадают —
+      // при совпадении переигрываем второй спектр (кроме редких ~5%)
+      let hue2Idx = randInt(0, cfg.colorSteps-1);
+      if(cfg.colorSteps > 1 && hue2Idx === hueIdx && Math.random() > 0.05){
+        let guard = 12;
+        while(hue2Idx === hueIdx && guard-- > 0) hue2Idx = randInt(0, cfg.colorSteps-1);
+      }
       target.hue2 = idxToVal(hue2Idx, cfg.colorSteps, 360);
       target.hue2Idx = hue2Idx;
     }
+    // Патч (Сверхновая): второй габарит — высота ('size' здесь = ширина)
+    if(cfg.special === 'dual_size'){
+      const size2Idx = randInt(0, cfg.sizeSteps-1);
+      target.size2 = idxToVal(size2Idx, cfg.sizeSteps, 100);
+      target.size2Idx = size2Idx;
+    }
+    // Патч (Ир): ожидающий бафф/дебафф превращается в конкретный эффект
+    // этого заказа — один из трёх соответствующего знака
+    if(irPending && typeof IR_EFFECTS !== 'undefined'){
+      const def = pick(IR_EFFECTS[irPending.kind] || IR_EFFECTS.buff);
+      target.irEffect = { kind: irPending.kind, id: def.id, def };
+      irPending = null;
+    }
+    // Патч (Хранитель): печать на заказе
+    if(ord.sealed) target.sealed = true;
+    // Патч (Тот-Кто-Ждёт): счётчики рынка времени
+    target.waiterTimeBought = 0;
+    target.waiterBrokenCount = 0;
+
+    // тег активного эффекта в шапке заказа ("поле заданий")
+    const fxTag = $('orderFxTag');
+    if(fxTag){
+      let fxHtml = '';
+      if(target.irEffect){
+        const d = target.irEffect.def;
+        fxHtml += `<span class="fx-chip ${target.irEffect.kind}" title="${LT(d.desc)}">${d.icon} ${LT(d.name)}</span>`;
+      }
+      if(target.sealed) fxHtml += `<span class="fx-chip seal">📜 ${LT(UI_TEXT.ARCH_SEAL_TAG)}</span>`;
+      fxTag.innerHTML = fxHtml;
+    }
+    // Патч (Хранитель): дождь символов в фазах запоминания и игры
+    if(cfg.special === 'matrix' || target.sealed) startMatrixRain();
     if(flags.hasShape){ target.shapeIdx = randInt(0, SHAPE_PROFILES.length-1); }
     if(flags.hasSat){
       const satIdx = randInt(0,9);
@@ -983,6 +1245,7 @@
       startMovingAnim();
     } else {
       drawJar({ hue:target.hue, hue2: target.hue2 ?? null, sat:target.sat, sizePct:target.size,
+        heightPct: target.size2 ?? null,
         bubbleCount: noBubblesPreview ? 0 : target.count,
         bubbleR:targetR, seed:target.seed, shapeIdx: target.shapeIdx ?? 0 });
     }
@@ -1045,8 +1308,51 @@
       $('shapeGroup').classList.add('hidden');
     }
 
+    // ---------- Патч (Сверхновая): ширина + высота вместо объёма ----------
+    const dual = cfg.special === 'dual_size';
+    const sizeLabelEl = $('sizeLabel');
+    if(sizeLabelEl){
+      // меняем и текст, и data-i18n — так переключение языка (applyI18n)
+      // само подхватит правильную подпись
+      sizeLabelEl.setAttribute('data-i18n', dual ? 'LABEL_WIDTH' : 'LABEL_VOLUME');
+      sizeLabelEl.textContent = LT(dual ? UI_TEXT.LABEL_WIDTH : UI_TEXT.LABEL_VOLUME);
+    }
+    if(dual){
+      $('size2Group').classList.remove('hidden');
+      S.size2.configure({ min:0, max:cfg.sizeSteps-1, step:1, value:Math.floor((cfg.sizeSteps-1)/2) });
+    } else {
+      $('size2Group').classList.add('hidden');
+    }
+
+    // сброс визуальных флагов патча с прошлого раунда
+    Object.values(S).forEach(s=>{ if(s.setFlag){ s.setFlag('ir-gift', false); s.setFlag('link-broken', false); } });
+    S.color.setTrackBackground(RAINBOW_BG);
+    S.colorB.setTrackBackground(RAINBOW_BG);
+
     Object.values(S).forEach(s=>{ s.setDisabled(false); s.setDiffLocked(false); });
     applyDifficultyGating();
+
+    // ---------- Патч (Ир): эффекты фазы геймплея ----------
+    const irFx = target.irEffect;
+    if(irFx && irFx.id === 'mono'){
+      // выцветший мир: банка и палитра — чёрно-белые, вспоминай цвета сам
+      $('windowFrame').classList.add('ir-mono');
+      const GRAY_BG = 'linear-gradient(to top, hsl(0,0%,18%), hsl(0,0%,88%))';
+      S.color.setTrackBackground(GRAY_BG);
+      S.colorB.setTrackBackground(GRAY_BG);
+    }
+    if(irFx && irFx.id === 'gift'){
+      // рука Ир: один случайный доступный регулятор выставлен точно в цель,
+      // светится и не двигается
+      const keys = [...(target.activeKeys||[])].filter(k => S[k]);
+      if(keys.length){
+        const k = pick(keys);
+        freezeLockedValue(k);
+        S[k].setFlag('ir-gift', true);
+        target.irGiftKey = k;
+      }
+    }
+
     updatePlayerJar();
     updateIngredientCounter(0);
 
@@ -1054,9 +1360,31 @@
     // компенсация за то, что внимание постоянно отвлекается на "плохие" пузыри.
     // Фаза J: пассивка craftTime растягивает (или ужимает, если < 0) базу.
     const pfx = target.passiveFx || {};
-    const craftDuration = Math.round(cfg.craftMs * (1 + (pfx.craftTime || 0)))
+    let craftDuration = Math.round(cfg.craftMs * (1 + (pfx.craftTime || 0)))
       + (target.regLevel === 4 ? (typeof LEVEL4_TIME_BONUS_MS !== 'undefined' ? LEVEL4_TIME_BONUS_MS : 0) : 0);
+    // Патч (Тот-Кто-Ждёт): его таймер короче на 33% — зато время можно докупить
+    if(cfg.special === 'time_broker'){
+      craftDuration = Math.round(craftDuration * ((typeof WAITER_CONFIG !== 'undefined' && WAITER_CONFIG.craftCut) || 0.67));
+    }
+    // Патч (Ир): подаренные / украденные секунды
+    if(irFx && irFx.id === 'time_plus') craftDuration += 2000;
+    if(irFx && irFx.id === 'time_minus') craftDuration = Math.max(1500, craftDuration - 1000);
     target.craftDuration = craftDuration;
+    target.craftBaseDuration = craftDuration; // для честного timeFrac при докупке времени
+
+    // ---------- Патч (Тот-Кто-Ждёт): ползунок времени ----------
+    if(cfg.special === 'time_broker'){
+      if(!timeSlider) initTimeSlider();
+      const maxSec = (typeof WAITER_CONFIG !== 'undefined' && WAITER_CONFIG.maxSeconds) || 4;
+      timeSlider.configure({ min:0, max:maxSec, step:1, value:0 });
+      timeSlider.setDisabled(false);
+      timeSlider.setDiffLocked(false);
+      const lblTime = $('lblTime');
+      if(lblTime) lblTime.textContent = '+0s';
+      $('timeGroup').classList.remove('hidden');
+    } else {
+      $('timeGroup').classList.add('hidden');
+    }
 
     let used = 0;
     const totalDots = 20;
@@ -1071,7 +1399,7 @@
 
     setRingFraction(0);
     craftStartTime = performance.now();
-    runTimer(craftDuration, ()=>{ if(!craftLocked) finishCraft(); });
+    runTimer(craftDuration, ()=>{ if(!craftLocked) finishCraft(true); }); // Патч: true = таймер истёк сам
 
     // запускаем "плохие" пузыри только на 4-ом уровне сложности
     if(target.regLevel === 4){
@@ -1096,6 +1424,7 @@
       case 'colorB': S.colorB.value = t.hue2Idx ?? t.hueIdx; break;
       case 'sat':    S.sat.value = t.satIdx ?? 7; break;
       case 'size':   S.size.value = t.sizeIdx; break;
+      case 'size2':  S.size2.value = t.size2Idx ?? t.sizeIdx; break; // Патч (Сверхновая)
       case 'count':  S.count.value = t.count; break;
       case 'bsize':  S.bsize.value = t.bsizeIdx; break;
       case 'shape':  S.shape.value = t.shapeIdx ?? 0; break;
@@ -1110,6 +1439,7 @@
     target.activeKeys = active;
 
     const relevant = ['color','size','count','bsize'];
+    if(target.cfg.special === 'dual_size') relevant.push('size2'); // Патч (Сверхновая)
     if(flags.hasSat) relevant.push('sat');
     if(flags.hasGradient) relevant.push('colorB');
     if(flags.hasShape) relevant.push('shape');
@@ -1144,7 +1474,11 @@
     }
     if(flags.hasSat){
       sat = satFromIdx(S.sat.value);
-      S.sat.setTrackBackground(`linear-gradient(to top, hsl(${hue},0%,45%), hsl(${hue},100%,50%))`);
+      // Патч (Ир, дебафф "выцветший мир"): дорожка оттенка тоже серая
+      const mono = target.irEffect && target.irEffect.id === 'mono' && currentPhase === 'craft';
+      S.sat.setTrackBackground(mono
+        ? 'linear-gradient(to top, hsl(0,0%,25%), hsl(0,0%,80%))'
+        : `linear-gradient(to top, hsl(${hue},0%,45%), hsl(${hue},100%,50%))`);
       $('lblSat').textContent = Math.round(sat) + '%';
     }
     let shapeIdx = 0;
@@ -1152,6 +1486,13 @@
       shapeIdx = S.shape.value;
       renderShapePreview(shapeIdx);
       $('lblShape').textContent = LT(SHAPE_NAMES[shapeIdx]);
+    }
+    // Патч (Сверхновая): высота банки живёт на отдельном ползунке
+    let heightPct = null;
+    if(cfg.special === 'dual_size'){
+      heightPct = idxToVal(S.size2.value, cfg.sizeSteps, 100);
+      const lbl2 = $('lblSize2');
+      if(lbl2) lbl2.textContent = Math.round(heightPct) + '%';
     }
     $('lblColor').textContent = Math.round(hue) + '°';
     $('lblSize').textContent = Math.round(size) + '%';
@@ -1162,7 +1503,7 @@
     // игра вообще их не генерирует (нечего показывать/угадывать)
     const noBubbles = target.activeKeys && !target.activeKeys.has('count') && !target.activeKeys.has('bsize');
     const effCount = noBubbles ? 0 : count;
-    drawJar({ hue, hue2, sat, sizePct:size, bubbleCount:effCount, bubbleR:r, shapeIdx,
+    drawJar({ hue, hue2, sat, sizePct:size, heightPct, bubbleCount:effCount, bubbleR:r, shapeIdx,
       seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles });
   }
 
@@ -1226,6 +1567,21 @@
       ];
     }
 
+    // Патч (Сверхновая): компонент "объём" распадается на "ширину" и
+    // "высоту" — каждая по половине исходного веса
+    if(cfg.special === 'dual_size'){
+      const si = components.findIndex(c => c.key === 'size');
+      if(si !== -1){
+        const half = components[si].weight / 2;
+        const height = idxToVal(S.size2.value, cfg.sizeSteps, 100);
+        const size2Score = curveScore(1 - Math.abs(height - (target.size2 ?? target.size))/100);
+        components.splice(si, 1,
+          {key:'size',  label:UI_TEXT.LABEL_WIDTH,  score:sizeScore,  weight:half},
+          {key:'size2', label:UI_TEXT.LABEL_HEIGHT, score:size2Score, weight:half}
+        );
+      }
+    }
+
     // сложность регуляторов (Фаза C): недоступные игроку регуляторы не
     // участвуют в подсчёте очков — веса оставшихся нормализуются к 1
     if(target.activeKeys){
@@ -1238,7 +1594,8 @@
     if(target.focus){
       const fkeys = FOCUS_KEYS[target.focus];
       components.forEach(c=>{
-        c.focused = fkeys.includes(c.key);
+        // Патч (Сверхновая): 'size2' считается фокусным вместе с 'size'
+        c.focused = fkeys.includes(c.key) || (c.key === 'size2' && fkeys.includes('size'));
         c.weight *= c.focused ? 2.2 : 0.55;
       });
       const total = components.reduce((s,c)=>s+c.weight,0);
@@ -1249,21 +1606,27 @@
     return { cfg, flags, components, overall };
   }
 
-  function finishCraft(){
+  function finishCraft(auto){
     craftLocked = true;
     cancelAnimationFrame(rafId);
     stopMovingAnim();
     stopBadBubbles();
+    stopMatrixRain(); // Патч (Хранитель): дождь символов гаснет с таймером
     clearInterval(ingTimerHandle);
     $('windowFrame').classList.remove('urgent');
+    $('windowFrame').classList.remove('ir-mono'); // Патч (Ир): мир снова цветной
     $('jarSvg').classList.remove('brewing');
     $('brewBtn').disabled = true;
     $('panel').classList.add('locked');
     Object.values(S).forEach(s=>s.setDisabled(true));
+    if(timeSlider) timeSlider.setDisabled(true);
+    target.autoFinish = !!auto; // Патч (стикеры): таймер истёк сам
 
     const scoreData = computeScoreComponents();
     const elapsed = performance.now() - craftStartTime;
-    const craftDuration = target.craftDuration || scoreData.cfg.craftMs;
+    // Патч (Тот-Кто-Ждёт): timeFrac считаем от БАЗОВОЙ длительности —
+    // докупленные секунды не должны раздувать бонус за скорость
+    const craftDuration = target.craftBaseDuration || target.craftDuration || scoreData.cfg.craftMs;
     const timeFrac = Math.min(1, elapsed/craftDuration);
     finalizeResult(scoreData, timeFrac);
   }
@@ -1275,6 +1638,21 @@
     const perfectThreshold = cfg.tier >= 5 ? 0.97 : 0.95;
     const good = overall >= goodThreshold;
     const perfect = overall >= perfectThreshold;
+
+    // ---------- Патч: контекст для особых стикеров + снимок для переигровок ----------
+    // серии читаем из профиля ДО recordOrderResult (он их обновит ниже)
+    const pData0 = window.PotionProfile ? window.PotionProfile.data : null;
+    const st0 = (pData0 && pData0.streaks) || {};
+    const perfectRunNow = perfect ? ((st0.perfectCurrent||0) + 1) : 0;
+    const goodRunNow   = good ? ((st0.goodPlusCurrent||0) + 1) : 0;
+    const badRunBefore = st0.badCurrent || 0;
+    // снимок состояния цикла — если Ир заставит/позволит переиграть заказ,
+    // всё это откатывается ровно к моменту "до результата"
+    preResultSnapshot = {
+      score, streak, stage, perfectStreakAtMax, goodStreakAtMax,
+      stickerCounts: { ...stickerCounts },
+      archSeal: archSeal ? { ...archSeal, perfectNpcs: [...(archSeal.perfectNpcs||[])] } : null
+    };
 
     // бонус за скорость: потолок зависит от выбранного уровня сложности
     // регуляторов (см. SPEED_BONUS_MULT в content.js) — полный потолок при
@@ -1303,6 +1681,17 @@
       delta = -Math.round(effReward*(1-overall));
       streak = 0;
     }
+    // Патч (Хранитель): печать переписывает арифметику — брак не отнимает
+    // очки (просто ноль), годнота и идеал приносят больше рейтинга и
+    // дополнительную репутацию этого НПС
+    if(target.sealed){
+      if(!good) delta = 0;
+      else if(perfect) delta = Math.round(delta * 1.3);
+      else delta = Math.round(delta * 1.15);
+      if(good && window.PotionProfile){
+        window.PotionProfile.adjustReputation(cfg.id, perfect ? 4 : 2);
+      }
+    }
     score = Math.max(0, score + delta);
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
@@ -1323,10 +1712,36 @@
 
     // Фаза G: фиксируем КОНКРЕТНЫЙ вариант стикера один раз здесь (а не
     // внутри visualHTML), чтобы одно и то же значение ушло и на экран
-    // результата, и в profile.stats.stickersSeen для альбома в Коллекции
+    // результата, и в profile.stats.stickersSeen для альбома в Коллекции.
+    // Патч: особые стикеры выпадают ТОЛЬКО по своим условиям (см.
+    // STICKER_SPECIALS в content.js); обычные — случайно из "базовых".
     const stickerCat = perfect ? 'perfect' : good ? 'good' : 'bad';
     const stickerArr = STICKERS[stickerCat];
-    const stickerIdx = Array.isArray(stickerArr) ? randInt(0, stickerArr.length-1) : 0;
+    let stickerIdx = 0;
+    if(Array.isArray(stickerArr)){
+      const specials = (typeof STICKER_SPECIALS !== 'undefined' && STICKER_SPECIALS[stickerCat]) || [];
+      const dualNow = cfg.special === 'dual_size';
+      const novaExact = dualNow && components
+        .filter(c => c.key === 'size' || c.key === 'size2')
+        .every(c => c.score >= 0.999) && components.some(c => c.key === 'size2');
+      const stickCtx = {
+        perfect, good, overall, components, target, timeFrac,
+        autoFinish: !!target.autoFinish,
+        scoreAfter: score, dayNum,
+        perfectRun: perfectRunNow, goodRun: goodRunNow, badRunBefore,
+        perfectThreshold, novaExact
+      };
+      const eligible = specials.filter(sp => { try { return !!sp.check(stickCtx); } catch(e){ return false; } });
+      if(eligible.length){
+        const seen = (pData0 && pData0.stats && pData0.stats.stickersSeen && pData0.stats.stickersSeen[stickerCat]) || [];
+        const unseen = eligible.filter(sp => !seen.includes(sp.idx));
+        stickerIdx = (unseen.length ? pick(unseen) : pick(eligible)).idx;
+      } else {
+        const specialIdx = new Set(specials.map(sp => sp.idx));
+        const commons = stickerArr.map((_,i)=>i).filter(i => !specialIdx.has(i));
+        stickerIdx = commons.length ? pick(commons) : randInt(0, stickerArr.length-1);
+      }
+    }
     const stickerVal = Array.isArray(stickerArr) ? stickerArr[stickerIdx] : stickerArr;
 
     // Фаза G (доп.): вес этого зелья для "коллекционного" прогресса — см.
@@ -1364,6 +1779,105 @@
     // Фаза I: ачивки этого НПС (градации, лорные фразы, награда за комплект)
     checkNpcAchievements(cfg.id);
 
+    // ============================================================
+    // Патч "Уникальные механики тир-5": развязка заказа
+    // ============================================================
+    let npcNoteText = '';   // реплика НПС на экране результата
+    let replayMode = null;  // null | 'optional' (дар Ир) | 'forced' (испытание Ир)
+
+    // ---------- Ир: выдача баффа/дебаффа (только его заказ, УР.3+) ----------
+    if(cfg.id === 'last_of_ir' && target.regLevel >= 3){
+      if(perfect){
+        irPending = { kind:'buff' };
+        npcNoteText = LT(pickLocalized(IR_GRANT_PHRASES.buff));
+        if(window.PotionProfile) window.PotionProfile.bumpNpcStat('last_of_ir', 'irBuffs', 1);
+        checkNpcAchievements('last_of_ir');
+      } else if(!good){
+        irPending = { kind:'debuff' };
+        npcNoteText = LT(pickLocalized(IR_GRANT_PHRASES.debuff));
+      } else {
+        // годнота: "ты не очень-то старался" — только рейтинг, ничего больше
+        npcNoteText = LT(pickLocalized(IR_GOOD_PHRASES));
+      }
+    }
+
+    // ---------- Ир: срабатывание эффекта на ЭТОМ заказе ----------
+    const irFx = target.irEffect;
+    if(irFx){
+      if(irFx.kind === 'debuff' && perfect && window.PotionProfile){
+        // идеал под тенью Ир — отдельная ачивка
+        window.PotionProfile.bumpNpcStat('last_of_ir', 'irDebuffPerfects', 1);
+        checkNpcAchievements('last_of_ir');
+      }
+      if(irFx.id === 'replay' && !perfect) replayMode = 'optional';
+      if(irFx.id === 'force_replay' && perfect) replayMode = 'forced';
+      // эффект одноразовый: после этого заказа иконка исчезает
+      target.irEffectConsumed = true;
+    }
+
+    // ---------- Тот-Кто-Ждёт: статистика рынка времени ----------
+    if(cfg.special === 'time_broker' && window.PotionProfile){
+      if(target.waiterTimeBought > 0)
+        window.PotionProfile.bumpNpcStat('the_waiter', 'waiterTimeBought', target.waiterTimeBought);
+      if(perfect && !(target.waiterTimeBought > 0))
+        window.PotionProfile.bumpNpcStat('the_waiter', 'waiterPurePerfects', 1);
+      if(perfect && (target.waiterBrokenCount||0) >= 2)
+        window.PotionProfile.bumpNpcStat('the_waiter', 'waiterBrokenPerfects', 1);
+      checkNpcAchievements('the_waiter');
+    }
+
+    // ---------- Сверхновая: точные габариты / странные пропорции ----------
+    if(cfg.special === 'dual_size' && window.PotionProfile){
+      const dims = components.filter(c => c.key === 'size' || c.key === 'size2');
+      if(dims.length === 2 && dims.every(c => c.score >= 0.999))
+        window.PotionProfile.bumpNpcStat('supernova_child', 'novaExactDims', 1);
+      if(perfect && Math.abs((target.size ?? 0) - (target.size2 ?? 0)) >= 60)
+        window.PotionProfile.bumpNpcStat('supernova_child', 'novaExtremePerfects', 1);
+      checkNpcAchievements('supernova_child');
+    }
+
+    // ---------- Хранитель: заказ под печатью ----------
+    if(target.sealed && window.PotionProfile){
+      if(good) window.PotionProfile.bumpNpcStat('archivist', 'sealGoods', 1);
+      if(perfect) window.PotionProfile.bumpNpcStat('archivist', 'sealPerfects', 1);
+      checkNpcAchievements('archivist');
+    }
+    // тройка с печатью сыграна (выбрали отмеченного или нет — заряд ушёл)
+    if(archSeal && archSeal.tripleActive){
+      archSeal.resolved++;
+      archSeal.tripleActive = false;
+      if(target.sealed && perfect){
+        archSeal.perfects++;
+        archSeal.perfectNpcs.push(cfg.id);
+      }
+      if(archSeal.resolved >= archSeal.total){
+        // кампания печатей завершена
+        if(archSeal.perfects === 3 && archSeal.total === 3){
+          // ИСТОРИЧЕСКИЙ МОМЕНТ: 3 идеала на 3 печатях
+          npcNoteText = LT(pickLocalized(ARCH_HISTORIC_PHRASES));
+          if(window.PotionProfile){
+            window.PotionProfile.bumpNpcStat('archivist', 'historicMoments', 1);
+            // Хранитель раскрывает по одной случайной незакрытой ачивке
+            // каждого из троих — прямым текстом (см. renderCharacters)
+            archSeal.perfectNpcs.forEach(npcId=>{
+              const defs = NPC_ACHIEVEMENTS[npcId] || [];
+              const pAch = ((window.PotionProfile.data.achievements||{}).npc||{})[npcId] || {};
+              const locked = defs.filter(d => (pAch[d.id]||0) < 3);
+              if(locked.length) window.PotionProfile.setKeeperHint(npcId, pick(locked).id);
+            });
+            checkNpcAchievements('archivist');
+          }
+        }
+        archSeal = null;
+      }
+    }
+    // ---------- Хранитель: идеал у него самого запускает печати ----------
+    if(cfg.id === 'archivist' && perfect){
+      const n = Math.min(3, Math.max(1, target.regLevel >= 3 ? 3 : target.regLevel));
+      archSeal = { remaining:n, total:n, resolved:0, perfects:0, perfectNpcs:[], tripleActive:false };
+      npcNoteText = LT(pickLocalized(ARCH_SEAL_PHRASES));
+    }
+
     // cached so a language switch can re-translate the overlay without recomputing scores
     lastResult = { perfect, good, delta, speedBonusPct, overallPct, components, focus: target.focus };
 
@@ -1378,6 +1892,20 @@
       `<div class="row ${c.focused?'focused':''}"><span>${c.focused?visualHTML(FOCUS_ICONS[target.focus],'focus-img')+' ':''}${LT(c.label)}</span><span class="val">${Math.round(c.score*100)}%</span></div>`
     ).join('');
 
+    // Патч: реплика НПС (Ир / Хранитель) + кнопки переигровки Ир
+    const npcNoteEl = $('npcNote');
+    if(npcNoteEl){
+      npcNoteEl.textContent = npcNoteText;
+      npcNoteEl.style.display = npcNoteText ? '' : 'none';
+    }
+    const replayBtnEl = $('replayBtn');
+    if(replayBtnEl){
+      replayBtnEl.style.display = replayMode ? '' : 'none';
+      if(replayMode) replayBtnEl.textContent = LT(replayMode === 'forced' ? UI_TEXT.IR_FORCE_REPLAY_BTN : UI_TEXT.IR_REPLAY_BTN);
+    }
+    // принудительная переигровка: "Дальше" спрятана, идеал придётся доказать дважды
+    $('nextBtn').style.display = (replayMode === 'forced') ? 'none' : '';
+
     const jar = $('jarSvg');
     jar.classList.remove('shake','celebrate');
     void jar.offsetWidth;
@@ -1390,6 +1918,7 @@
   $('nextBtn').addEventListener('click', ()=>{
     SFX.uiClick();
     Object.values(S).forEach(s=>s.setDisabled(false));
+    preResultSnapshot = null; // Патч: снимок больше не нужен
     // Фаза F: 1 день = 1 выполненный заказ, см. profile.js
     if(window.PotionProfile) window.PotionProfile.recordDayPlayed();
     if(dayNum >= 10){
@@ -1398,6 +1927,40 @@
       dayNum++;
       showSelectScreen();
     }
+  });
+
+  // ---------- Патч (Ир): переигровка заказа ----------
+  // "Второй рассвет" (бафф, по желанию) и "Дважды безупречно" (дебафф,
+  // принудительно). Откатываем цикл к состоянию "до результата" и заново
+  // запускаем ТОТ ЖЕ заказ (с новой случайной целью). Записи в профиле от
+  // первой попытки остаются — история не переписывается, только рейтинг.
+  const replayBtnHook = $('replayBtn');
+  if(replayBtnHook) replayBtnHook.addEventListener('click', ()=>{
+    SFX.cardPick();
+    if(preResultSnapshot){
+      score = preResultSnapshot.score;
+      streak = preResultSnapshot.streak;
+      stage = preResultSnapshot.stage;
+      perfectStreakAtMax = preResultSnapshot.perfectStreakAtMax;
+      goodStreakAtMax = preResultSnapshot.goodStreakAtMax;
+      stickerCounts.perfect = preResultSnapshot.stickerCounts.perfect;
+      stickerCounts.good = preResultSnapshot.stickerCounts.good;
+      stickerCounts.bad = preResultSnapshot.stickerCounts.bad;
+      archSeal = preResultSnapshot.archSeal
+        ? { ...preResultSnapshot.archSeal, perfectNpcs: [...preResultSnapshot.archSeal.perfectNpcs] }
+        : null;
+      $('scoreVal').textContent = score;
+      $('streakVal').textContent = streak;
+      updateStickerTally();
+      preResultSnapshot = null;
+    }
+    Object.values(S).forEach(s=>s.setDisabled(false));
+    $('resultOverlay').classList.remove('show');
+    $('nextBtn').style.display = '';
+    // эффект Ир уже сработал — на переигровке его не будет
+    if(currentOrd) currentOrd._irReplay = true;
+    irPending = null;
+    startOrder(currentOrd, currentOrd.regLevel);
   });
 
   // ---------- global leaderboard ----------
@@ -1434,11 +1997,17 @@
   }
   // cached so a language switch can re-render the currently open leaderboard(s)
   const lastLb = {};
+  // имя игрока для лидерборда — произвольный пользовательский текст, попадающий
+  // в общую Firebase-базу и рендерящийся у всех остальных игроков, поэтому
+  // экранируем его перед вставкой в innerHTML
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
   function renderLeaderboard(list, highlightScore, elId){
     lastLb[elId] = { list, highlightScore };
     list.sort((a,b)=>b.score-a.score);
     $(elId).innerHTML = list.slice(0,50).map(e=>
-      `<div class="lb-row ${e.score===highlightScore?'me':''}"><span>${e.name}</span><span>${e.score} · ${e.date}</span></div>`
+      `<div class="lb-row ${e.score===highlightScore?'me':''}"><span>${escapeHtml(e.name)}</span><span>${e.score} · ${escapeHtml(e.date)}</span></div>`
     ).join('') || `<div style="color:var(--ink-dim);text-align:center;">${LT(UI_TEXT.LB_EMPTY)}</div>`;
   }
 
@@ -1636,8 +2205,20 @@
         return (fp.bubbles||0)+(fp.color||0)+(fp.size||0);
       }
       case 'weighted':        return ns.weighted||0;
+      // Патч "Уникальные механики": обобщённые "статовые" ачивки —
+      // значение лежит прямо в npcStats под ключом def.stat
+      case 'stat':            return (def && def.stat ? ns[def.stat] : 0) || 0;
       default: return 0;
     }
+  }
+  // Патч (Хранитель): условие ачивки открытым текстом — для "прямых
+  // указаний" из исторического момента. Шаблоны — в content.js.
+  function keeperAchExplain(def){
+    let tpl = null;
+    if(def.kind === 'stat' && typeof NPC_STAT_EXPLAIN !== 'undefined') tpl = NPC_STAT_EXPLAIN[def.stat];
+    if(!tpl && typeof NPC_ACH_KIND_EXPLAIN !== 'undefined') tpl = NPC_ACH_KIND_EXPLAIN[def.kind];
+    if(!tpl) return LT(def.hint);
+    return LT(tpl).replace('{t}', (def.t || []).join(' / '));
   }
   // текущая градация ачивки (0..3) по порогам def.t
   function npcAchTier(def, ns){
@@ -1820,21 +2401,29 @@
     const repLvl = info.level;
     const active = sanitizeActivePassives();
 
+    // Патч (Хранитель): его прямые указания — ачивка помечается печатью,
+    // а вместо туманного намёка пишется условие ОТКРЫТЫМ ТЕКСТОМ
+    const keeperHintId = ((p.keeperHints||{}).byNpc||{})[n.id] || null;
     const achCells = defs.map(def=>{
       const tier = stored[def.id] || 0;
       const pips = [1,2,3].map(t=>`<span class="ach-pip t${t} ${tier>=t?'on':''}"></span>`).join('');
+      const isKeeper = keeperHintId === def.id;
       // подсказка (hint) — художественный намёк курсивом; для пустого
-      // слота это единственная информация об ачивке
-      const hint = `<div class="npc-ach-hint"><i>${LT(def.hint)}</i></div>`;
+      // слота это единственная информация об ачивке. Указание Хранителя
+      // заменяет намёк на прямое условие.
+      const hint = isKeeper
+        ? `<div class="npc-ach-hint keeper-hint"><span class="keeper-mark">📜 ${LT(UI_TEXT.ARCH_HINT_MARK)}</span><br>${keeperAchExplain(def)}</div>`
+        : `<div class="npc-ach-hint"><i>${LT(def.hint)}</i></div>`;
+      const keeperCls = isKeeper ? ' keeper' : '';
       if(tier > 0){
-        return `<div class="npc-ach-cell unlocked tier-${tier}">
-          <div class="npc-ach-icon">${def.icon||'🏆'}</div>
+        return `<div class="npc-ach-cell unlocked tier-${tier}${keeperCls}">
+          <div class="npc-ach-icon">${def.icon||'🏆'}${isKeeper?'<span class="keeper-badge">📜</span>':''}</div>
           <div class="npc-ach-name">${LT(def.name)}</div>
           <div class="ach-pips">${pips}</div>${hint}
         </div>`;
       }
-      return `<div class="npc-ach-cell locked">
-        <div class="npc-ach-icon">?</div>
+      return `<div class="npc-ach-cell locked${keeperCls}">
+        <div class="npc-ach-icon">?${isKeeper?'<span class="keeper-badge">📜</span>':''}</div>
         <div class="ach-pips">${pips}</div>${hint}
       </div>`;
     }).join('');
@@ -1997,10 +2586,16 @@
     const albumRow = (cat, labelKey)=>{
       const arr = STICKERS[cat];
       const variants = Array.isArray(arr) ? arr : [arr];
+      // Патч: особые стикеры (условные) в альбоме помечаются, а закрытые
+      // ячейки несут подсказку-намёк в title — чтобы их хотелось выбить
+      const specials = (typeof STICKER_SPECIALS !== 'undefined' && STICKER_SPECIALS[cat]) || [];
       const cells = variants.map((v,i)=>{
         const unlocked = (seen[cat]||[]).includes(i);
+        const sp = specials.find(s => s.idx === i);
         const lockedHtml = lockIcon ? visualHTML(lockIcon,'album-img') : '<span class="album-lock">?</span>';
-        return `<div class="album-cell ${unlocked?'unlocked':'locked'}">${unlocked ? visualHTML(v,'album-img') : lockedHtml}</div>`;
+        const title = (!unlocked && sp)
+          ? ` title="${LT(sp.hint || UI_TEXT.ALBUM_SPECIAL_HINT)}"` : '';
+        return `<div class="album-cell ${unlocked?'unlocked':'locked'}${sp?' special':''}"${title}>${unlocked ? visualHTML(v,'album-img') : lockedHtml}</div>`;
       }).join('');
       return `<div class="album-row"><div class="album-row-label">${LT(UI_TEXT[labelKey])}</div><div class="album-row-cells">${cells}</div></div>`;
     };
@@ -2193,9 +2788,21 @@
   // ---------- переключатель языка ----------
   function refreshVisibleScreen(){
     if($('selectScreen').classList.contains('show') && currentOrders.length){
+      renderSelectBanners(); // Патч: баннеры Ир/печатей тоже переводим
       renderCustomerCards(currentOrders);
     }
     if($('roundScreen').classList.contains('show') && target && currentOrd){
+      // Патч: фишки активных эффектов в шапке заказа
+      const fxTagEl = $('orderFxTag');
+      if(fxTagEl){
+        let fxHtml = '';
+        if(target.irEffect && !target.irEffectConsumed){
+          const d = target.irEffect.def;
+          fxHtml += `<span class="fx-chip ${target.irEffect.kind}" title="${LT(d.desc)}">${d.icon} ${LT(d.name)}</span>`;
+        }
+        if(target.sealed) fxHtml += `<span class="fx-chip seal">📜 ${LT(UI_TEXT.ARCH_SEAL_TAG)}</span>`;
+        fxTagEl.innerHTML = fxHtml;
+      }
       $('orderText').textContent = LT(currentOrd.flavor);
       $('orderFocusTag').innerHTML = currentOrd.focus
         ? `${visualHTML(FOCUS_ICONS[currentOrd.focus],'focus-img')} ${LT(UI_TEXT.FOCUS_PREFIX)} ${LT(FOCUS_NAMES[currentOrd.focus])}`
