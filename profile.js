@@ -89,9 +89,8 @@
       irDebuffPerfects: 0,     // last_of_ir: идеалов, сделанных ПОД его дебаффом
       novaExactDims: 0,        // supernova_child: заказов, где ширина И высота угаданы точно
       novaExtremePerfects: 0,  // supernova_child: идеалов на "странных пропорциях" (|ширина-высота| велика)
-      waiterTimeBought: 0,     // the_waiter: всего куплено секунд у времени
-      waiterPurePerfects: 0,   // the_waiter: идеалов без единой купленной секунды
-      waiterBrokenPerfects: 0, // the_waiter: идеалов с 2+ сломанными регуляторами
+      waiterRatedPerfects: 0,  // the_waiter: смесей с точностью >99% (только так он даёт рейтинг)
+      waiterNearMisses: 0,     // the_waiter: смесей без рейтинга (стикер есть, до 99% не дотянуло)
       sealGoods: 0,            // archivist: заказов под печатью, закрытых на годноту+
       sealPerfects: 0,         // archivist: идеалов под печатью
       historicMoments: 0       // archivist: полных "исторических моментов" (3 идеала на 3 печатях)
@@ -129,7 +128,12 @@
       // Патч "Уникальные механики": прямые указания Хранителя Архива —
       // { [npcId]: achId }. Ачивка с таким id показывает в меню персонажей
       // печать Хранителя и ОТКРЫТЫМ ТЕКСТОМ условие получения.
-      keeperHints: { byNpc: {} }
+      keeperHints: { byNpc: {} },
+      // Патч "Взаимоотношения": grudge/offended/leftCycle — состояние ЗА ЦИКЛ,
+      // сбрасывается в startCycle(). discoveredRelations — открытые игроком
+      // связи, НАВСЕГДА (ключ — relationKey(a,b) из game.js, отсортированная пара).
+      npcRelationsState: {},
+      discoveredRelations: []
     };
   }
 
@@ -342,6 +346,9 @@
       Object.keys(profile.npcStats || {}).forEach(id=>{
         if(profile.npcStats[id]) profile.npcStats[id].picksCycle = 0;
       });
+      // Патч "Взаимоотношения": обида/уход — состояние ЗА ЦИКЛ, новый цикл
+      // всех прощает (открытые связи в discoveredRelations при этом не трогаем)
+      profile.npcRelationsState = {};
       save();
     },
 
@@ -420,6 +427,44 @@
       if(!profile.keeperHints.byNpc) profile.keeperHints.byNpc = {};
       profile.keeperHints.byNpc[npcId] = achId;
       save();
+    },
+
+    // ---------- Патч "Взаимоотношения" ----------
+    // grudge — сколько раз этого НПС выбрали в пользу его врага/неприятеля
+    // ЗА ЭТОТ ЦИКЛ. Пороги: 3 — "обиделся" (форсирует стикер-какашку, может
+    // отказать в выборе), 6 — уходит из пула до конца цикла. Возвращает
+    // { state, justOffended, justLeft } — чтобы game.js показал тост РОВНО
+    // в момент пересечения порога, а не на каждом инкременте.
+    relationState(npcId){
+      load();
+      if(!profile.npcRelationsState) profile.npcRelationsState = {};
+      if(!profile.npcRelationsState[npcId]){
+        profile.npcRelationsState[npcId] = { grudge: 0, offended: false, leftCycle: false };
+      }
+      return profile.npcRelationsState[npcId];
+    },
+    bumpGrudge(npcId){
+      load();
+      const st = PP.relationState(npcId);
+      st.grudge++;
+      const wasOffended = st.offended, wasLeft = st.leftCycle;
+      if(st.grudge >= 3) st.offended = true;
+      if(st.grudge >= 6) st.leftCycle = true;
+      save();
+      return { state: st, justOffended: st.offended && !wasOffended, justLeft: st.leftCycle && !wasLeft };
+    },
+    // ключ пары — отсортированная строка "a|b" (см. relationKey в game.js)
+    discoverRelation(key){
+      load();
+      if(!profile.discoveredRelations) profile.discoveredRelations = [];
+      if(profile.discoveredRelations.includes(key)) return false;
+      profile.discoveredRelations.push(key);
+      save();
+      return true;
+    },
+    isRelationDiscovered(key){
+      load();
+      return !!(profile.discoveredRelations && profile.discoveredRelations.includes(key));
     },
 
     // ---------- Фаза J: активные пассивки ----------

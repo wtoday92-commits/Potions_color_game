@@ -189,7 +189,7 @@
       // на текущей сложности (отличается от .disabled — блокировки после варки)
       setDiffLocked(d){ wrap.classList.toggle('diff-locked', !!d); },
       // Патч: произвольный CSS-флаг на обёртке ползунка ('ir-gift' — регулятор,
-      // выставленный рукой Ир; 'link-broken' — сломанный регулятор Ждущего)
+      // выставленный рукой Ир)
       setFlag(cls, on){ wrap.classList.toggle(cls, !!on); },
       setTrackBackground(css){ track.style.background = css; }
     };
@@ -197,9 +197,7 @@
 
   const S = {};
   function initSliders(){
-    // Патч: все игровые ползунки идут через onSliderInput(key, ...) —
-    // это позволяет "сломанным" регуляторам Того-Кто-Ждёт тащить за собой
-    // соседей, а ползунку времени — докупать секунды
+    // все игровые ползунки идут через onSliderInput(key, ...) — единая точка входа
     const oc = key => (v, old) => onSliderInput(key, v, old);
     S.color = VSlider({ mount:$('mColor'), min:0,max:5,step:1,value:2, thickness:32, thumbSize:38, colorStrip:true, staticBackground:RAINBOW_BG, onChange:oc('color') });
     S.colorB = VSlider({ mount:$('mColorB'), min:0,max:5,step:1,value:2, thickness:32, thumbSize:38, colorStrip:true, staticBackground:RAINBOW_BG, onChange:oc('colorB') });
@@ -211,59 +209,9 @@
     // Патч (Сверхновая): второй ползунок габарита — высота
     S.size2 = VSlider({ mount:$('mSize2'), min:0,max:4,step:1,value:2, thickness:26, thumbSize:32, onChange:oc('size2') });
   }
-  // Патч (Тот-Кто-Ждёт): ползунок времени — НЕ игровой параметр, живёт отдельно
-  let timeSlider = null;
-  function initTimeSlider(){
-    const maxSec = (typeof WAITER_CONFIG !== 'undefined' && WAITER_CONFIG.maxSeconds) || 4;
-    timeSlider = VSlider({ mount:$('mTime'), min:0, max:maxSec, step:1, value:0, thickness:26, thumbSize:32,
-      onChange:(v, old)=> onTimeSliderChange(v, old) });
-  }
-
-  // ---------- Патч: единая точка входа изменений ползунков ----------
-  // "Сломанные" регуляторы (Тот-Кто-Ждёт): brokenLinks[key] = key2 —
-  // движение key тянет key2 на одно деление в ту же сторону.
-  let brokenLinks = {};
+  // ---------- единая точка входа изменений игровых ползунков ----------
   function onSliderInput(key, v, old){
-    const link = brokenLinks[key];
-    if(link && S[link] && currentPhase === 'craft' && !craftLocked){
-      const dir = v > old ? 1 : -1;
-      const sl = S[link];
-      const nv = Math.min(sl.max, Math.max(sl.min, sl.value + dir*(sl.step||1)));
-      if(nv !== sl.value){ sl.value = nv; }
-    }
     updatePlayerJar();
-  }
-  // покупка секунд у Того-Кто-Ждёт: только вверх; каждое деление = +1с
-  // таймера и один свежесломанный регулятор
-  function onTimeSliderChange(v, old){
-    if(!target || target.cfg.special !== 'time_broker' || currentPhase !== 'craft' || craftLocked){
-      timeSlider.value = old; return;
-    }
-    if(v < old){ timeSlider.value = old; return; } // время назад не продаётся
-    const bought = v - old;
-    target.waiterTimeBought = v;
-    extendTimer(bought * 1000);
-    for(let i=0;i<bought;i++) breakRandomRegulator();
-    const lbl = $('lblTime');
-    if(lbl) lbl.textContent = '+' + v + 's';
-    SFX.badPop();
-    jarGlitchFlash();
-  }
-  // ломает случайный АКТИВНЫЙ регулятор: связывает его со случайным другим
-  function breakRandomRegulator(){
-    if(!target || !target.activeKeys) return;
-    const keys = [...target.activeKeys].filter(k => S[k] && !brokenLinks[k]);
-    if(!keys.length) return;
-    const from = pick(keys);
-    const others = [...target.activeKeys].filter(k => S[k] && k !== from);
-    if(!others.length) return;
-    brokenLinks[from] = pick(others);
-    S[from].setFlag('link-broken', true);
-    target.waiterBrokenCount = Object.keys(brokenLinks).length;
-  }
-  function clearBrokenLinks(){
-    Object.keys(brokenLinks).forEach(k=>{ if(S[k]) S[k].setFlag('link-broken', false); });
-    brokenLinks = {};
   }
 
   // (контент вынесен в content.js)
@@ -340,13 +288,7 @@
       hand.setAttribute('transform', `rotate(${angle.toFixed(2)} ${RING_CX} ${RING_CY})`);
     }
   }
-  // Патч: длительность таймера сделана "живой" — рынок времени
-  // Того-Кто-Ждёт и эффекты Ир могут менять её прямо по ходу раунда
   let timerDurationMs = 0;
-  function extendTimer(ms){
-    timerDurationMs = Math.max(500, timerDurationMs + ms);
-    if(target && currentPhase === 'craft') target.craftDuration = timerDurationMs;
-  }
   function runTimer(durationMs, onDone){
     cancelAnimationFrame(rafId);
     const start = performance.now();
@@ -682,10 +624,8 @@
   }
 
   // ---------- Патч (Хранитель Архива): "матричный дождь" ----------
-  // Полупрозрачные колонки странных символов бегут сверху вниз по окну
-  // (циферблат + область банки) в фазах запоминания и игры. Символы
-  // постоянно меняются, но прозрачность подобрана так, чтобы даже самые
-  // мелкие сгустки оставались различимыми.
+  // Плотные колонки символов бегут сверху вниз ПОВЕРХ банки — специально
+  // мешают разглядеть точный цвет/форму/число сгустков, а не просто украшают фон.
   let matrixEl = null, matrixInterval = null;
   function startMatrixRain(){
     stopMatrixRain();
@@ -694,22 +634,22 @@
     const glyphs = (typeof MATRIX_GLYPHS !== 'undefined') ? MATRIX_GLYPHS : '01ΞΔΨ';
     matrixEl = document.createElement('div');
     matrixEl.className = 'matrix-rain';
-    const cols = 9;
+    const cols = 16;
     for(let i=0;i<cols;i++){
       const col = document.createElement('div');
       col.className = 'matrix-col';
-      col.style.left = (4 + i*(92/(cols-1))) + '%';
-      col.style.animationDuration = (5 + Math.random()*6).toFixed(2) + 's';
+      col.style.left = (2 + i*(96/(cols-1))) + '%';
+      col.style.animationDuration = (3 + Math.random()*4).toFixed(2) + 's';
       col.style.animationDelay = (-Math.random()*8).toFixed(2) + 's';
-      col.style.fontSize = (12 + Math.random()*7).toFixed(0) + 'px';
+      col.style.fontSize = (14 + Math.random()*10).toFixed(0) + 'px';
       matrixEl.appendChild(col);
     }
-    // вставляем ПОД банку (перед jarSvg), чтобы символы не перекрывали сгустки
-    frame.insertBefore(matrixEl, $('jarSvg'));
+    // вставляем ПОСЛЕ банки (поверх jarSvg) — теперь дождь реально закрывает обзор
+    frame.appendChild(matrixEl);
     const refill = ()=>{
       matrixEl.querySelectorAll('.matrix-col').forEach(col=>{
         let txt = '';
-        const n = 14 + ((Math.random()*6)|0);
+        const n = 20 + ((Math.random()*8)|0);
         for(let j=0;j<n;j++) txt += glyphs[(Math.random()*glyphs.length)|0] + '\n';
         col.textContent = txt;
       });
@@ -914,10 +854,32 @@
       });
     return [base, ...extras];
   }
+  // ---------- Патч "Взаимоотношения между НПС" ----------
+  // граф связей — NPC_RELATIONS (content.js): {a, b, kind:'friend'|'enemy'|'buddy'|'dislike', lore}
+  const REL_REP_FRIEND = 3, REL_REP_BUDDY = 1, REL_REP_ENEMY_BASE = 3, REL_REP_DISLIKE_BASE = 1;
+  function relationKey(a, b){ return [a, b].sort().join('|'); }
+  function findRelation(idA, idB){
+    if(typeof NPC_RELATIONS === 'undefined') return null;
+    return NPC_RELATIONS.find(r => (r.a===idA && r.b===idB) || (r.a===idB && r.b===idA)) || null;
+  }
+  function relationState(npcId){
+    if(!window.PotionProfile) return null;
+    return (window.PotionProfile.data.npcRelationsState || {})[npcId] || null;
+  }
+  function isRelationLeftCycle(npcId){
+    const st = relationState(npcId);
+    return !!(st && st.leftCycle);
+  }
+
   function pickConfigForTier(tierNum, usedNames){
     const pool = tierNum < 5 ? tierPool(tierNum) : [...tierPool(5), ...SPECIAL_ORDERS];
-    const fresh = pool.filter(c => !usedNames.has(c.name));
-    const cfg = pick(fresh.length ? fresh : pool);
+    // Патч "Взаимоотношения": НПС, который "ушёл" из-за обиды, не выпадает
+    // до конца цикла — если это оставит пул пустым, лучше не блокировать
+    // генерацию тройки вовсе, чем сломать раунд
+    const notLeft = pool.filter(c => !isRelationLeftCycle(c.id));
+    const basePool = notLeft.length ? notLeft : pool;
+    const fresh = basePool.filter(c => !usedNames.has(c.name));
+    const cfg = pick(fresh.length ? fresh : basePool);
     usedNames.add(cfg.name);
     return cfg;
   }
@@ -950,6 +912,54 @@
 
   // cached so a language switch can re-render the same cards without rerolling them
   let currentOrders = [];
+
+  // Патч "Взаимоотношения": разовые эффекты на ДРУГИХ НПС тройки, связанных с
+  // тем, кого игрок только что выбрал для заказа. Возвращает мс задержки
+  // перед стартом заказа (чтобы анимация на карточке успела доиграть), 0 —
+  // если эффектов не было (тройка без связей — без задержки).
+  function applyRelationPickEffects(chosenId, orders, chosenIdx, wrap){
+    if(!window.PotionProfile) return 0;
+    let anyAnimated = false;
+    orders.forEach((o, j)=>{
+      if(j === chosenIdx) return;
+      const otherId = o.cfg.id;
+      const rel = findRelation(chosenId, otherId);
+      if(!rel) return;
+      const otherCard = wrap.children[j];
+      const before = window.PotionProfile.data.npcReputation[otherId] || { value:0 };
+      const beforeVal = before.value;
+      if(rel.kind === 'friend'){
+        const rep = window.PotionProfile.adjustReputation(otherId, REL_REP_FRIEND);
+        maybeRepLevelUp(otherId, beforeVal, rep.value);
+        if(otherCard){
+          otherCard.classList.add('relation-hit-good');
+          setTimeout(()=> otherCard.classList.remove('relation-hit-good'), 700);
+        }
+        anyAnimated = true;
+      } else if(rel.kind === 'buddy'){
+        const rep = window.PotionProfile.adjustReputation(otherId, REL_REP_BUDDY);
+        maybeRepLevelUp(otherId, beforeVal, rep.value);
+      } else if(rel.kind === 'enemy' || rel.kind === 'dislike'){
+        const bump = window.PotionProfile.bumpGrudge(otherId);
+        const scale = Math.min(bump.state.grudge, 3);
+        const base = rel.kind === 'enemy' ? REL_REP_ENEMY_BASE : REL_REP_DISLIKE_BASE;
+        window.PotionProfile.adjustReputation(otherId, -base * scale);
+        if(rel.kind === 'enemy' && otherCard){
+          otherCard.classList.add('relation-hit-bad');
+          setTimeout(()=> otherCard.classList.remove('relation-hit-bad'), 700);
+          anyAnimated = true;
+        }
+        const npc = npcById(otherId);
+        if(bump.justOffended && npc){
+          showToast({ icon:'😤', prefix: UI_TEXT.REL_OFFENDED_TOAST, name: LT(npc.name) });
+        }
+        if(bump.justLeft && npc){
+          showToast({ icon:'🚪', prefix: UI_TEXT.REL_LEFT_TOAST, name: LT(npc.name) });
+        }
+      }
+    });
+    return anyAnimated ? 650 : 0;
+  }
 
   // Фаза D (v2): иконка непися — просто круг с портретом (2x крупнее) и
   // свечением/рамкой в цвет tier. Имя больше не рисуется полукругом (было
@@ -999,15 +1009,40 @@
           </div>
           <div class="plaque-levels">${levelCardsHTML}</div>
         </div>
+        <div class="relation-notes"></div>
       `;
 
       const icon = card.querySelector('.npc-icon');
       const quote = card.querySelector('.plaque-quote');
+      const relNotesEl = card.querySelector('.relation-notes');
+
+      // Патч "Взаимоотношения": с кем из ЭТОЙ тройки у этого НПС есть связь
+      const relMatches = orders
+        .map((o, j) => j===i ? null : { other:o, rel: findRelation(cfg.id, o.cfg.id) })
+        .filter(m => m && m.rel);
 
       function expand(){
         wrap.querySelectorAll('.customer-card.expanded').forEach(c=>{ if(c!==card) c.classList.remove('expanded'); });
         card.classList.remove('name-open');
         card.classList.add('expanded');
+        if(relMatches.length && window.PotionProfile){
+          relNotesEl.innerHTML = relMatches.map(m=>{
+            const pool = (typeof RELATION_COMMENTS !== 'undefined') ? RELATION_COMMENTS[m.rel.kind] : null;
+            const line = pool ? LT(pickLocalized(pool)).replace('{name}', LT(m.other.cfg.name)) : '';
+            return `<div class="relation-note ${m.rel.kind}">${line}</div>`;
+          }).join('');
+          relNotesEl.classList.add('has-notes');
+          relMatches.forEach(m=>{
+            const key = relationKey(cfg.id, m.other.cfg.id);
+            if(window.PotionProfile.discoverRelation(key)){
+              showToast({ icon:'🔗', prefix: UI_TEXT.REL_DISCOVERED_TOAST,
+                name: LT(cfg.name) + ' × ' + LT(m.other.cfg.name) });
+            }
+          });
+        } else {
+          relNotesEl.classList.remove('has-notes');
+          relNotesEl.innerHTML = '';
+        }
       }
       function collapse(){ card.classList.remove('expanded'); }
 
@@ -1023,11 +1058,22 @@
       card.querySelectorAll('.level-card').forEach(btn=>{
         btn.addEventListener('click', (e)=>{
           e.stopPropagation();
-          SFX.cardPick();
           const lvl = parseInt(btn.dataset.level,10);
+          // Патч "Взаимоотношения": обиженный на игрока НПС может отказать
+          const st = relationState(cfg.id);
+          if(st && st.offended && Math.random() < 0.5){
+            SFX.badPop();
+            card.classList.add('relation-hit-bad');
+            setTimeout(()=> card.classList.remove('relation-hit-bad'), 500);
+            showToast({ icon:'😤', prefix: LT(cfg.name), name: LT(pickLocalized(RELATION_REFUSE_PHRASES)) });
+            return;
+          }
+          SFX.cardPick();
           // Патч (Ир): на УР.1/2 он сперва показывает меню доверия
           if(cfg.special === 'trust' && lvl < 3){ openIrTrustMenu(ord, lvl); return; }
-          startOrder(ord, lvl);
+          const delayMs = applyRelationPickEffects(cfg.id, orders, i, wrap);
+          if(delayMs > 0) setTimeout(()=> startOrder(ord, lvl), delayMs);
+          else startOrder(ord, lvl);
         });
       });
 
@@ -1146,7 +1192,6 @@
     stopMovingAnim();
     stopBadBubbles(); // сбрасываем "плохие" пузыри прошлого заказа, если были
     stopMatrixRain();      // Патч: дождь символов прошлого заказа
-    clearBrokenLinks();    // Патч: сломанные регуляторы прошлого заказа
     $('windowFrame').classList.remove('ir-mono');
     $('selectScreen').classList.remove('show');
     $('roundScreen').classList.add('show');
@@ -1206,9 +1251,6 @@
     }
     // Патч (Хранитель): печать на заказе
     if(ord.sealed) target.sealed = true;
-    // Патч (Тот-Кто-Ждёт): счётчики рынка времени
-    target.waiterTimeBought = 0;
-    target.waiterBrokenCount = 0;
 
     // тег активного эффекта в шапке заказа ("поле заданий")
     const fxTag = $('orderFxTag');
@@ -1265,7 +1307,19 @@
     // Фаза J: эффекты активных пассивок фиксируются на весь заказ
     target.passiveFx = computePassiveFx(cfg.id);
     const memDuration = Math.round(cfg.memorizeMs * (1 + (target.passiveFx.memTime || 0)));
-    runTimer(memDuration, ()=>{ stopMovingAnim(); startGuessPhase(); });
+    // Тот-Кто-Ждёт: у него нет таймера ни на запоминание, ни на варку —
+    // игрок сам решает, когда готов, кнопкой "Готово, воссоздаю"
+    $('waiterReadyWrap').classList.remove('show');
+    if(cfg.special === 'no_timer'){
+      $('waiterReadyBtn').onclick = () => {
+        $('waiterReadyWrap').classList.remove('show');
+        stopMovingAnim();
+        startGuessPhase();
+      };
+      $('waiterReadyWrap').classList.add('show');
+    } else {
+      runTimer(memDuration, ()=>{ stopMovingAnim(); startGuessPhase(); });
+    }
   }
 
   function startGuessPhase(){
@@ -1325,7 +1379,7 @@
     }
 
     // сброс визуальных флагов патча с прошлого раунда
-    Object.values(S).forEach(s=>{ if(s.setFlag){ s.setFlag('ir-gift', false); s.setFlag('link-broken', false); } });
+    Object.values(S).forEach(s=>{ if(s.setFlag){ s.setFlag('ir-gift', false); } });
     S.color.setTrackBackground(RAINBOW_BG);
     S.colorB.setTrackBackground(RAINBOW_BG);
 
@@ -1362,44 +1416,29 @@
     const pfx = target.passiveFx || {};
     let craftDuration = Math.round(cfg.craftMs * (1 + (pfx.craftTime || 0)))
       + (target.regLevel === 4 ? (typeof LEVEL4_TIME_BONUS_MS !== 'undefined' ? LEVEL4_TIME_BONUS_MS : 0) : 0);
-    // Патч (Тот-Кто-Ждёт): его таймер короче на 33% — зато время можно докупить
-    if(cfg.special === 'time_broker'){
-      craftDuration = Math.round(craftDuration * ((typeof WAITER_CONFIG !== 'undefined' && WAITER_CONFIG.craftCut) || 0.67));
-    }
     // Патч (Ир): подаренные / украденные секунды
     if(irFx && irFx.id === 'time_plus') craftDuration += 2000;
     if(irFx && irFx.id === 'time_minus') craftDuration = Math.max(1500, craftDuration - 1000);
     target.craftDuration = craftDuration;
-    target.craftBaseDuration = craftDuration; // для честного timeFrac при докупке времени
-
-    // ---------- Патч (Тот-Кто-Ждёт): ползунок времени ----------
-    if(cfg.special === 'time_broker'){
-      if(!timeSlider) initTimeSlider();
-      const maxSec = (typeof WAITER_CONFIG !== 'undefined' && WAITER_CONFIG.maxSeconds) || 4;
-      timeSlider.configure({ min:0, max:maxSec, step:1, value:0 });
-      timeSlider.setDisabled(false);
-      timeSlider.setDiffLocked(false);
-      const lblTime = $('lblTime');
-      if(lblTime) lblTime.textContent = '+0s';
-      $('timeGroup').classList.remove('hidden');
-    } else {
-      $('timeGroup').classList.add('hidden');
-    }
-
-    let used = 0;
-    const totalDots = 20;
-    const tickMs = craftDuration/totalDots;
-    ingTimerHandle = setInterval(()=>{
-      used++;
-      updateIngredientCounter(used);
-      if(used>=totalDots) clearInterval(ingTimerHandle);
-    }, tickMs);
+    target.craftBaseDuration = craftDuration; // для честного timeFrac, даже когда таймер не тикает
 
     $('brewBtn').onclick = () => { SFX.brew(); finishCraft(); };
 
     setRingFraction(0);
     craftStartTime = performance.now();
-    runTimer(craftDuration, ()=>{ if(!craftLocked) finishCraft(true); }); // Патч: true = таймер истёк сам
+    // Тот-Кто-Ждёт: без таймера на "воссоздай" — ни дозаполнения счётчика,
+    // ни автозавершения; кнопка "Готово!" — единственный выход из фазы
+    if(cfg.special !== 'no_timer'){
+      let used = 0;
+      const totalDots = 20;
+      const tickMs = craftDuration/totalDots;
+      ingTimerHandle = setInterval(()=>{
+        used++;
+        updateIngredientCounter(used);
+        if(used>=totalDots) clearInterval(ingTimerHandle);
+      }, tickMs);
+      runTimer(craftDuration, ()=>{ if(!craftLocked) finishCraft(true); }); // Патч: true = таймер истёк сам
+    }
 
     // запускаем "плохие" пузыри только на 4-ом уровне сложности
     if(target.regLevel === 4){
@@ -1619,7 +1658,6 @@
     $('brewBtn').disabled = true;
     $('panel').classList.add('locked');
     Object.values(S).forEach(s=>s.setDisabled(true));
-    if(timeSlider) timeSlider.setDisabled(true);
     target.autoFinish = !!auto; // Патч (стикеры): таймер истёк сам
 
     const scoreData = computeScoreComponents();
@@ -1681,6 +1719,10 @@
       delta = -Math.round(effReward*(1-overall));
       streak = 0;
     }
+    // Патч (Тот-Кто-Ждёт): у него рейтинг дают только за точность выше 99% —
+    // во всех остальных случаях очки за заказ не начисляются и не отнимаются
+    // (стикер и стадия прогресса при этом идут своим обычным чередом)
+    if(cfg.special === 'no_timer' && overall < 0.99) delta = 0;
     // Патч (Хранитель): печать переписывает арифметику — брак не отнимает
     // очки (просто ноль), годнота и идеал приносят больше рейтинга и
     // дополнительную репутацию этого НПС
@@ -1710,15 +1752,27 @@
       else { goodStreakAtMax++; perfectStreakAtMax = 0; }
     }
 
+    // Патч "Взаимоотношения": обиженный на игрока НПС форсирует стикер-какашку
+    // (экран результата + альбом коллекции показывают именно его) и добавочно
+    // подъедает репутацию (см. ниже) — очки/streak/стадия и ачивки этого НПС
+    // считаются по НАСТОЯЩЕМУ результату и не трогаются, спойлится только вид
+    const offendedSt = relationState(cfg.id);
+    const forcedBad = !!(offendedSt && offendedSt.offended);
+    const effGood = forcedBad ? false : good;
+    const effPerfect = forcedBad ? false : perfect;
+
     // Фаза G: фиксируем КОНКРЕТНЫЙ вариант стикера один раз здесь (а не
     // внутри visualHTML), чтобы одно и то же значение ушло и на экран
     // результата, и в profile.stats.stickersSeen для альбома в Коллекции.
     // Патч: особые стикеры выпадают ТОЛЬКО по своим условиям (см.
     // STICKER_SPECIALS в content.js); обычные — случайно из "базовых".
-    const stickerCat = perfect ? 'perfect' : good ? 'good' : 'bad';
+    const stickerCat = effPerfect ? 'perfect' : effGood ? 'good' : 'bad';
     const stickerArr = STICKERS[stickerCat];
     let stickerIdx = 0;
-    if(Array.isArray(stickerArr)){
+    if(forcedBad){
+      const poopIdx = stickerArr.indexOf('💩');
+      stickerIdx = poopIdx >= 0 ? poopIdx : 0;
+    } else if(Array.isArray(stickerArr)){
       const specials = (typeof STICKER_SPECIALS !== 'undefined' && STICKER_SPECIALS[stickerCat]) || [];
       const dualNow = cfg.special === 'dual_size';
       const novaExact = dualNow && components
@@ -1765,6 +1819,9 @@
         repMult: 1 + (pfx.rep || 0)
       });
       if(repRes) maybeRepLevelUp(cfg.id, repRes.repBefore, repRes.repAfter);
+      // Патч "Взаимоотношения": обиженный НПС не ценит даже настоящий успех —
+      // репутация всё равно немного проседает, поверх обычного расчёта выше
+      if(forcedBad) window.PotionProfile.adjustReputation(cfg.id, -2);
     }
     // Фаза J: с первого выполненного заказа состав пассивок заморожен до нового цикла
     cycleStarted = true;
@@ -1815,14 +1872,16 @@
       target.irEffectConsumed = true;
     }
 
-    // ---------- Тот-Кто-Ждёт: статистика рынка времени ----------
-    if(cfg.special === 'time_broker' && window.PotionProfile){
-      if(target.waiterTimeBought > 0)
-        window.PotionProfile.bumpNpcStat('the_waiter', 'waiterTimeBought', target.waiterTimeBought);
-      if(perfect && !(target.waiterTimeBought > 0))
-        window.PotionProfile.bumpNpcStat('the_waiter', 'waiterPurePerfects', 1);
-      if(perfect && (target.waiterBrokenCount||0) >= 2)
-        window.PotionProfile.bumpNpcStat('the_waiter', 'waiterBrokenPerfects', 1);
+    // ---------- Тот-Кто-Ждёт: рейтинг только за >99% — иначе его ирония ----------
+    if(cfg.special === 'no_timer' && window.PotionProfile){
+      if(overall >= 0.99){
+        window.PotionProfile.bumpNpcStat('the_waiter', 'waiterRatedPerfects', 1);
+      } else {
+        window.PotionProfile.bumpNpcStat('the_waiter', 'waiterNearMisses', 1);
+        npcNoteText = good
+          ? LT(pickLocalized(WAITER_NOTE_CLOSE))
+          : LT(pickLocalized(WAITER_NOTE_FAR));
+      }
       checkNpcAchievements('the_waiter');
     }
 
@@ -2446,6 +2505,29 @@
     const rwGot = rwType === 'background' ? !!rw.background : !!rw.bottleSkin;
     const l4need = (typeof REP_L4_UNLOCK_LEVEL !== 'undefined') ? REP_L4_UNLOCK_LEVEL : 0;
 
+    // Патч "Взаимоотношения": показываем только связи, которые игрок уже
+    // встретил на экране выбора (см. expand() в renderCustomerCards) —
+    // неоткрытые не спойлерим вообще
+    const REL_ICON = { friend:'🤝', enemy:'⚔️', buddy:'🍺', dislike:'😒' };
+    const REL_LABEL_KEY = { friend:'REL_KIND_FRIEND', enemy:'REL_KIND_ENEMY', buddy:'REL_KIND_BUDDY', dislike:'REL_KIND_DISLIKE' };
+    const discoveredRels = (typeof NPC_RELATIONS !== 'undefined' ? NPC_RELATIONS : [])
+      .filter(r => r.a === n.id || r.b === n.id)
+      .map(r => ({ rel:r, otherId: r.a === n.id ? r.b : r.a }))
+      .filter(x => window.PotionProfile.isRelationDiscovered(relationKey(n.id, x.otherId)));
+    const relRows = discoveredRels.map(x=>{
+      const otherNpc = npcById(x.otherId);
+      return `<div class="char-relation-row ${x.rel.kind}">
+        <div class="char-relation-icon">${REL_ICON[x.rel.kind]}</div>
+        <div class="char-relation-info">
+          <div class="char-relation-head">
+            <span class="char-relation-kind">${LT(UI_TEXT[REL_LABEL_KEY[x.rel.kind]])}</span>
+            <span class="char-relation-name">${otherNpc ? LT(otherNpc.name) : x.otherId}</span>
+          </div>
+          <div class="char-relation-lore">${LT(x.rel.lore)}</div>
+        </div>
+      </div>`;
+    }).join('');
+
     host.innerHTML = `
       <div class="char-detail" style="--tier-color:${tierColor}">
         <div class="char-detail-head">
@@ -2463,6 +2545,8 @@
         ${desc ? `<div class="char-section"><div class="collection-section-title">${LT(UI_TEXT.CHAR_LORE_TITLE)}</div>
           <div class="char-lore-desc">${LT(desc)}</div>
           <div class="char-lore-count">${loreUnl}/${loreArr.length} ${LT(UI_TEXT.CHAR_LORE_UNLOCKED)}</div></div>` : ''}
+        ${relRows ? `<div class="char-section"><div class="collection-section-title">${LT(UI_TEXT.REL_SECTION_TITLE)}</div>
+          <div class="char-relation-list">${relRows}</div></div>` : ''}
         <div class="char-section"><div class="collection-section-title">${LT(UI_TEXT.CHAR_PASSIVES_TITLE)}</div>
           <div class="passive-list">${passRows}</div></div>
         <div class="char-section"><div class="collection-section-title">${LT(UI_TEXT.CHAR_ACH_TITLE)}</div>

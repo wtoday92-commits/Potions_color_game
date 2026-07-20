@@ -295,6 +295,32 @@
   .level-card.level-4 .level-tag{color:var(--danger);}
   .level-card.level-4:hover{box-shadow:0 0 14px -3px var(--danger);}
 
+  /* ---------- Патч "Взаимоотношения": реплика-реакция + анимации карточки ---------- */
+  .customer-card{flex-wrap:wrap;}
+  .relation-notes{
+    flex:0 0 100%;max-height:0;opacity:0;overflow:hidden;
+    transition:max-height .28s ease, opacity .22s ease, margin-top .28s ease;
+  }
+  .customer-card.expanded .relation-notes.has-notes{max-height:160px;opacity:1;margin-top:8px;}
+  .relation-note{
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;line-height:1.35;
+    padding:6px 10px;border-radius:8px;background:rgba(10,13,32,.6);margin-bottom:4px;
+  }
+  .relation-note.friend{color:var(--good);border-left:3px solid var(--good);}
+  .relation-note.enemy{color:var(--danger);border-left:3px solid var(--danger);}
+  .relation-note.buddy, .relation-note.dislike{color:var(--ink);border-left:3px solid var(--ink-dim);}
+  .customer-card.relation-hit-good .icon-glow{animation:relationPulseGood .7s ease;}
+  .customer-card.relation-hit-bad .icon-glow{animation:relationShakeBad .5s ease;}
+  @keyframes relationPulseGood{
+    0%,100%{box-shadow:0 0 20px 2px var(--tier-color, var(--t1)), inset 0 0 16px rgba(0,0,0,.5);}
+    50%{box-shadow:0 0 34px 10px var(--good), inset 0 0 16px rgba(0,0,0,.5);}
+  }
+  @keyframes relationShakeBad{
+    0%,100%{transform:translateX(0);}
+    20%{transform:translateX(-4px);} 40%{transform:translateX(4px);}
+    60%{transform:translateX(-3px);} 80%{transform:translateX(3px);}
+  }
+
   .round-screen{display:none;}
   .round-screen.show{display:block;}
 
@@ -1021,6 +1047,26 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
   font-size:9px; letter-spacing:.5px; text-transform:uppercase;
   opacity:.6; white-space:nowrap; flex:0 0 auto;
 }
+/* ---------- Патч "Взаимоотношения": раздел связей в карточке персонажа ---------- */
+.char-relation-list{display:flex;flex-direction:column;gap:8px;}
+.char-relation-row{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:9px 11px;border-radius:10px;background:rgba(10,13,32,.6);
+}
+.char-relation-row.friend{border-left:3px solid var(--good);}
+.char-relation-row.enemy{border-left:3px solid var(--danger);}
+.char-relation-row.buddy, .char-relation-row.dislike{border-left:3px solid var(--ink-dim);}
+.char-relation-icon{font-size:20px;flex:0 0 auto;line-height:1;}
+.char-relation-info{flex:1;min-width:0;}
+.char-relation-head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}
+.char-relation-kind{
+  font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  font-family:'IBM Plex Mono',monospace;opacity:.75;
+}
+.char-relation-row.friend .char-relation-kind{color:var(--good);}
+.char-relation-row.enemy .char-relation-kind{color:var(--danger);}
+.char-relation-name{font-size:13px;font-weight:700;}
+.char-relation-lore{font-size:11px;opacity:.75;margin-top:3px;line-height:1.35;}
 /* награда за полный комплект золота */
 .char-reward{
   display:flex; align-items:center; gap:8px; flex-wrap:wrap;
@@ -1327,41 +1373,20 @@ body::after{
 }
 .replay-btn:hover{background:rgba(184,102,255,.22);}
 
-/* ---------- Тот-Кто-Ждёт: рынок времени + сломанные регуляторы ---------- */
-#timeGroup .vslider-label{color:#ffd98a;text-shadow:0 0 8px rgba(255,217,138,.5);}
-#timeGroup .vslide-track{
-  background:linear-gradient(to top, rgba(255,217,138,.12), rgba(255,217,138,.5)) !important;
-  box-shadow:0 0 10px rgba(255,217,138,.25);
-}
-#lblTime{color:#ffd98a;font-family:'IBM Plex Mono',monospace;}
-/* сломанный регулятор: красный дребезг — тянет за собой соседа */
-.vslide-wrap.link-broken .vslide-thumb{
-  border-color:var(--danger) !important;
-  box-shadow:0 0 10px 2px rgba(255,93,106,.7) !important;
-  animation:brokenJitter .5s steps(2) infinite;
-}
-.vslide-wrap.link-broken .vslide-track{box-shadow:inset 0 0 8px rgba(255,93,106,.4);}
-@keyframes brokenJitter{
-  0%{transform:translateX(-1px);}
-  50%{transform:translateX(1.5px);}
-  100%{transform:translateX(-1px);}
-}
-
 /* ---------- Хранитель: матричный дождь ---------- */
 .matrix-rain{
   position:absolute;inset:0;overflow:hidden;pointer-events:none;
-  z-index:1; /* поверх циферблата, но ПОД банкой и туманом (правила ниже) */
+  z-index:2; /* поверх банки (см. #jarSvg ниже) — специально мешает разглядеть смесь */
   mix-blend-mode:screen;
 }
-/* банка и туман приподняты над дождём символов — сгустки всегда различимы */
 .window-frame #jarSvg{position:relative;z-index:2;}
 .window-frame .fog{z-index:3;}
 .matrix-col{
   position:absolute;top:-110%;
-  white-space:pre;line-height:1.08;
+  white-space:pre;line-height:1.02;
   font-family:'IBM Plex Mono',monospace;
-  color:#7dffb8;opacity:.17;
-  text-shadow:0 0 6px rgba(125,255,184,.8);
+  color:#7dffb8;opacity:.48;
+  text-shadow:0 0 7px rgba(125,255,184,.95);
   animation-name:matrixFall;animation-timing-function:linear;animation-iteration-count:infinite;
 }
 @keyframes matrixFall{

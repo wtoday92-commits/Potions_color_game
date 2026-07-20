@@ -143,9 +143,8 @@ const UI_TEXT = {
   // Сверхновая: два измерения банки
   LABEL_WIDTH:   { ru:'Ширина', en:'Width' },
   LABEL_HEIGHT:  { ru:'Высота', en:'Height' },
-  // Тот-Кто-Ждёт: рынок времени
-  LABEL_TIME:    { ru:'Время', en:'Time' },
-  WAITER_TIME_TIP: { ru:'+1 секунда за деление. Цена: один регулятор «ломается» и тянет за собой другой.', en:'+1 second per notch. The price: one regulator "breaks" and drags another along.' },
+  // Тот-Кто-Ждёт: без таймера — игрок сам жмёт кнопку, когда готов
+  WAITER_READY_BTN: { ru:'Готово, воссоздаю', en:'Ready, recreating' },
   // Ир: меню доверия
   IR_TRUST_TITLE:   { ru:'Последний из Ир смотрит на тебя', en:'The Last of the Ir looks at you' },
   IR_TRUST_KEEP:    { ru:'Всё же играть УР.{n}', en:'Play LV.{n} anyway' },
@@ -159,6 +158,15 @@ const UI_TEXT = {
   ARCH_SEAL_BANNER: { ru:'📜 Печать Хранителя: осталось троек — {n}', en:'📜 Keeper\'s seal: triples remaining — {n}' },
   ARCH_HINT_MARK:   { ru:'указание Хранителя', en:"the Keeper's directive" },
   ALBUM_SPECIAL_HINT: { ru:'особый стикер — выпадает за особое событие', en:'special sticker — drops for a special event' },
+  // ---------- Взаимоотношения между НПС ----------
+  REL_SECTION_TITLE: { ru:'Связи', en:'Connections' },
+  REL_KIND_FRIEND:   { ru:'Друг', en:'Friend' },
+  REL_KIND_ENEMY:    { ru:'Враг', en:'Enemy' },
+  REL_KIND_BUDDY:    { ru:'Собутыльник', en:'Drinking buddy' },
+  REL_KIND_DISLIKE:  { ru:'Неприязнь', en:'Dislike' },
+  REL_OFFENDED_TOAST: { ru:'Обиделся — не рассчитывай на честные стикеры', en:'Got offended — don’t expect honest stickers' },
+  REL_LEFT_TOAST:    { ru:'Обиделся и не появится до конца цикла', en:'Got offended — won’t show up for the rest of the cycle' },
+  REL_DISCOVERED_TOAST: { ru:'Новая связь между персонажами', en:'New connection between characters' },
 };
 
 // ---------- СТИКЕРЫ РЕЗУЛЬТАТА ----------
@@ -203,6 +211,7 @@ const STICKERS = {
     '📉',   // 5: третий брак подряд
     '⏰',   // 6: таймер истёк сам — кнопку так и не нажали
     '🧯',   // 7: брак под печатью Хранителя (исторический провал)
+    '💩',   // 8: обиженный связями НПС форсирует этот стикер (см. NPC_RELATIONS в game.js)
   ]
 };
 
@@ -226,8 +235,8 @@ const STICKER_SPECIALS = {
       hint:{ ru:'абсолютная точность', en:'absolute precision' } },
     { idx:6,  check:c => c.target.flags && c.target.flags.hasGradient,
       hint:{ ru:'двойной закат', en:'a double sunset' } },
-    { idx:7,  check:c => c.target.cfg.special === 'time_broker' && !(c.target.waiterTimeBought > 0),
-      hint:{ ru:'не торгуйся со временем', en:'refuse to bargain with time' } },
+    { idx:7,  check:c => c.target.cfg.special === 'no_timer' && c.overall >= 0.99,
+      hint:{ ru:'заслужил рейтинг у Того, Кто Ждёт', en:'earned rating from the One Who Waits' } },
     { idx:8,  check:c => c.timeFrac <= 1/6,
       hint:{ ru:'быстрее молнии', en:'faster than lightning' } },
     { idx:9,  check:c => c.target.irEffect && c.target.irEffect.kind === 'debuff',
@@ -337,11 +346,34 @@ const IR_EFFECTS = {
   ]
 };
 
-// ---------- Тот-Кто-Ждёт: рынок времени ----------
-const WAITER_CONFIG = {
-  craftCut: 0.67,   // его таймер "воссоздай" = базовый * 0.67 (короче на 33%)
-  maxSeconds: 4     // максимум докупаемых секунд (делений ползунка времени)
-};
+// ---------- Тот-Кто-Ждёт: без таймера, рейтинг только за точность >99% ----------
+// В остальных случаях (даже если смесь "годная" или "идеальная" по обычным
+// порогам) очки за заказ не начисляются — игрок получает только стикер и
+// одну из этих ироничных реплик (см. finalizeResult в game.js).
+// WAITER_NOTE_CLOSE — смесь была "годной" или "идеальной", но не дотянула до 99%.
+const WAITER_NOTE_CLOSE = { ru:[
+  'Почти то, что я видел. «Почти» я уже видел слишком много раз.',
+  'Неплохо. Но я жду не «неплохо» — я жду точно то самое.',
+  'Ты приблизился. Ожидание умеет ждать и дальше.',
+  'Сойдётся — но не с тем будущим, которое мне нужно. Пока не с тем.'
+], en:[
+  "Close to what I've seen. I have seen 'close' too many times already.",
+  "Not bad. But I'm not waiting for 'not bad' — I'm waiting for exactly that.",
+  'You came near. Waiting knows how to keep waiting.',
+  "It matches — but not the future I need. Not yet."
+]};
+// WAITER_NOTE_FAR — смесь была браком.
+const WAITER_NOTE_FAR = { ru:[
+  'Это не тот вариант будущего. Даже не близко.',
+  'Я подожду ещё. У меня, в отличие от тебя, есть время.',
+  'Забавно. Ты только что доказал, зачем я жду именно смесь, а не тебя.',
+  'Список исходов, где это сработало, не включает этот.'
+], en:[
+  "That is not the future I'm waiting for. Not even close.",
+  "I'll wait a little longer. Unlike you, I have the time.",
+  'Funny. You just proved why I wait for the mixture, not for you.',
+  'The list of outcomes where this worked does not include this one.'
+]};
 
 // ---------- Хранитель Архива: печати ----------
 // фразы при получении баффа (идеал у Хранителя): "хочу увидеть исторический момент"
@@ -404,9 +436,8 @@ const NPC_STAT_EXPLAIN = {
   irDebuffPerfects:     { ru:'Сделай идеал, пока действует тень Ир: {t}', en:'Score a perfect while the Ir\'s shadow is active: {t}' },
   novaExactDims:        { ru:'Угадай ширину И высоту точно: {t} раз', en:'Guess both width AND height exactly: {t} times' },
   novaExtremePerfects:  { ru:'Идеалы на «странных пропорциях» (ширина и высота сильно различаются): {t}', en:'Perfects on "strange proportions" (width and height far apart): {t}' },
-  waiterTimeBought:     { ru:'Купи у времени секунды (суммарно): {t}', en:'Buy seconds from time (in total): {t}' },
-  waiterPurePerfects:   { ru:'Идеалы у него без единой купленной секунды: {t}', en:'Perfects for him without buying a single second: {t}' },
-  waiterBrokenPerfects: { ru:'Идеалы с 2+ сломанными регуляторами: {t}', en:'Perfects with 2+ broken regulators: {t}' },
+  waiterRatedPerfects:  { ru:'Точность выше 99% (только так он даёт рейтинг): {t}', en:'Accuracy above 99% (the only way he gives rating): {t}' },
+  waiterNearMisses:     { ru:'Смеси, которых не хватило до 99% (стикер есть, рейтинга нет): {t}', en:'Mixtures that fell short of 99% (sticker, but no rating): {t}' },
   sealGoods:            { ru:'Закрой заказы под печатью на годноту или лучше: {t}', en:'Close sealed orders at decent or better: {t}' },
   sealPerfects:         { ru:'Идеалы под печатью Хранителя: {t}', en:'Perfects under the Keeper\'s seal: {t}' },
   historicMoments:      { ru:'Заверши «исторический момент» (3 идеала на 3 печатях): {t}', en:'Complete a "historic moment" (3 perfects on 3 seals): {t}' }
@@ -1113,18 +1144,19 @@ const EXTRA_NPCS = [
       size:{ ru:['я. было. огромным. теперь. помещаюсь. вот. сюда.','размер. важен. я. знаю. я. было. размером. с. небо.'],
              en:['i. was. enormous. now. i. fit. right. here.','size. matters. i. know. i. was. the size. of. the sky.'] }
     } },
-  // Патч: special:'time_broker' — таймер на треть короче, но появляется ползунок
-  // времени: +1с за деление ценой «сломанного» регулятора (см. game.js)
-  { tier:5, id:'the_waiter', emoji:'⏳', img: 'assets/npc/waiter.png', special:'time_broker',
+  // Патч: special:'no_timer' — ни таймера показа, ни таймера варки; игрок сам
+  // жмёт кнопку "Готово", когда готов. Рейтинг дают только за точность >99%
+  // (см. finalizeResult в game.js) — иначе просто стикер + ироничная реплика.
+  { tier:5, id:'the_waiter', emoji:'⏳', img: 'assets/npc/waiter.png', special:'no_timer',
     name:{ ru:'Тот-Кто-Ждёт', en:'The One Who Waits' },
     flavors:{ ru:[
-      'Я ждал этой смеси... дольше, чем существует твоя лавка.',
-      'Когда всё закончится — а всё закончится — останется только она.',
-      'Не спеши. Хотя... нет. Спеши. Времени меньше, чем кажется.'
+      'Я ждал этой смеси... дольше, чем существует твоя лавка. Подожду и точности — сколько нужно.',
+      'Когда всё закончится — а всё закончится — останется только она. Пусть она будет точной, а не просто похожей.',
+      'Спешить незачем — я никуда не тороплюсь. Но и снисхождения у меня почти не осталось.'
     ], en:[
-      'I have waited for this mixture... longer than your shop has existed.',
-      'When everything ends — and everything ends — only it will remain.',
-      "Take your time. Although... no. Hurry. There's less time than it seems."
+      'I have waited for this mixture... longer than your shop has existed. I can wait a little longer for it to be exact.',
+      'When everything ends — and everything ends — only it will remain. Let it be precise, not merely similar.',
+      "No need to hurry — I'm going nowhere. But I have almost no leniency left, either."
     ]},
     ff:{
       bubbles:{ ru:['Сгустков должно быть столько, сколько осталось... неважно. Просто столько.','Я пересчитывал их в каждом из вариантов будущего. Сойдись с одним.'],
@@ -1813,21 +1845,18 @@ const NPC_ACHIEVEMENTS = {
       name:{ ru:'Всё, что нужно вместить', en:'All that must be held' },
       hint:{ ru:'Ожидание имеет объём. И все параметры сразу.', en:'The waiting has volume. And every parameter at once.' } },
     { id:'fast', kind:'fast_perfects', t:[1,3,8], icon:'⚡',
-      name:{ ru:'Не спеши. Хотя нет — спеши', en:'Take your time. No — hurry' },
-      hint:{ ru:'Он сам сказал: спеши. Он редко повторяет дважды.', en:'He said it himself: hurry. He rarely says things twice.' } },
+      name:{ ru:'Красота без часов', en:'Beauty without a clock' },
+      hint:{ ru:'У него больше нет часов. Но если получилось быстро — что ж, в этом тоже есть своя красота.', en:"He no longer keeps a clock. But if it came out fast anyway — well, there's a certain beauty in that too." } },
     { id:'wt', kind:'weighted', t:[4,15,40], icon:'⚖️',
       name:{ ru:'Вес ожидания', en:'The weight of waiting' },
       hint:{ ru:'Ожидание меряется не днями. Поверь тому, кто ждал.', en:'Waiting is not measured in days. Trust the one who waited.' } },
-    // ---------- Патч "Уникальные механики" ----------
-    { id:'debtor', kind:'stat', stat:'waiterTimeBought', t:[3,15,40], icon:'🪙',
-      name:{ ru:'Должник времени', en:'Debtor of time' },
-      hint:{ ru:'Секунды продаются. Цена всегда мелким шрифтом: что-нибудь сломается.', en:'Seconds are for sale. The price is always in fine print: something will break.' } },
-    { id:'ascetic', kind:'stat', stat:'waiterPurePerfects', t:[1,4,10], icon:'🕰',
-      name:{ ru:'Не торгуясь', en:'Without bargaining' },
-      hint:{ ru:'Он уважает тех, кому хватает того времени, что есть. До последнего деления.', en:'He respects those for whom the time given is enough. To the last notch.' } },
-    { id:'chaos', kind:'stat', stat:'waiterBrokenPerfects', t:[1,3,8], icon:'⚙️',
-      name:{ ru:'Идеал на сломанных', en:'Perfect on broken parts' },
-      hint:{ ru:'Купи столько времени, чтобы регуляторы взбунтовались, — и всё равно не ошибись.', en:'Buy so much time the regulators revolt — and still make no mistake.' } }
+    // ---------- Патч "Без таймера": рейтинг только за точность >99% ----------
+    { id:'rated', kind:'stat', stat:'waiterRatedPerfects', t:[1,5,15], icon:'💯',
+      name:{ ru:'Наконец-то рейтинг', en:'Rating, at last' },
+      hint:{ ru:'Обычно ему всё равно. Пока точность не переваливает за 99 — тогда он вдруг вспоминает, что умеет считать.', en:"Usually he doesn't care. Until accuracy crosses 99 — then he suddenly remembers he can count." } },
+    { id:'close', kind:'stat', stat:'waiterNearMisses', t:[3,10,25], icon:'🕰',
+      name:{ ru:'Мучительно рядом', en:'Agonizingly near' },
+      hint:{ ru:'Стикер у тебя есть. Рейтинга у тебя нет. Он находит это забавным.', en:"You have the sticker. You don't have the rating. He finds that amusing." } }
   ]
 };
 
@@ -1859,6 +1888,189 @@ const NPC_LORE_DESC = {
   supernova_child: { ru:'Существо, родившееся из вспышки сверхновой. Вчера. Учится всему сразу.', en:'A being born from a supernova flash. Yesterday. Learning everything at once.' },
   the_waiter: { ru:'Никто не знает, чего он ждёт. Известно только, что уже очень давно.', en:'No one knows what he is waiting for. Only that it has been a very long time.' }
 };
+
+// ---------- Взаимоотношения между НПС (заглушки — переписать своими текстами!) ----------
+// kind: 'friend' | 'enemy' | 'buddy' | 'dislike'. Друг/враг — редкие, штучные пары;
+// собутыльник/неприязнь — основная масса связей. lore — почему так (заглушка,
+// структуру графа менять не обязательно, текст — свободно). Направление a/b не
+// важно — обе стороны читают связь одинаково (см. relationsOf в game.js).
+//
+// Сейчас пара может реально встретиться в одной тройке заказов ТОЛЬКО если их
+// тиры соседствуют по STAGE_TABLE в game.js ([1,1,1] → [2,2,3] → [3,4,4] →
+// [4,4,4]/[..,5]): валидны 1-1, 2-2, 2-3, 3-3, 3-4, 4-4, 4-5, 5-5. Тир 1 —
+// изолированная группа (только между собой).
+//
+// "СПЯЩИЕ" связи (ниже, отдельным блоком) — межтирные пары (например,
+// тир5-бармен и тир1-стажёр), которые пока НЕ могут выпасть вместе физически.
+// Оставлены в графе намеренно: как только появится механика "все тиры
+// мешаются в одном пуле", они заработают сами — без правок структуры графа,
+// просто начнут реально пересекаться в тройках.
+const NPC_RELATIONS = [
+  { a:'drone', b:'janitor', kind:'friend',
+    lore:{ ru:'Дрон и уборщик пересекаются на каждой смене дольше, чем кто-либо ещё на станции — тихая дружба работяг.',
+           en:'The drone and the janitor cross paths every shift longer than anyone else on the station — a quiet friendship between two workers.' } },
+  { a:'last_of_ir', b:'archivist', kind:'friend',
+    lore:{ ru:'Хранитель памяти своего народа и хранитель архива узнали друг в друге родственную миссию — оба берегут то, что иначе будет забыто.',
+           en:'The keeper of his people’s memory and the keeper of the archive recognized a kindred mission in each other — both guard what would otherwise be forgotten.' } },
+  { a:'tentacloid', b:'fashionista', kind:'enemy',
+    lore:{ ru:'Два самых взыскательных эстета лавки не могут договориться, чей вкус безупречен — конкуренция давно перешла в открытую войну мнений.',
+           en:'The shop’s two most demanding aesthetes cannot agree whose taste is flawless — the rivalry has long since become open war.' } },
+  { a:'racer_kai', b:'guild_inspector', kind:'enemy',
+    lore:{ ru:'Инспектор оштрафовал её больше раз, чем она финишировала первой — теперь это личное.',
+           en:'The inspector has fined her more times than she’s finished first — now it’s personal.' } },
+  { a:'plasma_bartender', b:'racer_kai', kind:'buddy',
+    lore:{ ru:'Она отмечает у него каждую победу — и каждое поражение тоже.',
+           en:'She celebrates every win here — and every loss too.' } },
+  { a:'plasma_bartender', b:'swarm_navigator', kind:'buddy',
+    lore:{ ru:'Никто толком не понимает, как Рой пьёт одним организмом, но бармен давно перестал спрашивать.',
+           en:'No one quite understands how the Swarm drinks as one organism, but the bartender stopped asking long ago.' } },
+  { a:'plasma_bartender', b:'nebula_chef', kind:'buddy',
+    lore:{ ru:'После смены в туманности шеф заходит выпить туда, где никто не просит рецепт.',
+           en:'After a shift in the nebula, the chef comes here to drink somewhere no one asks for the recipe.' } },
+  { a:'plasma_bartender', b:'twofaced_priestess', kind:'buddy',
+    lore:{ ru:'Она разрешает себе один земной грех — его коктейль на двойной закат.',
+           en:'She allows herself one earthly sin — his cocktail for the double sunset.' } },
+  { a:'plasma_bartender', b:'the_waiter', kind:'buddy',
+    lore:{ ru:'Единственный посетитель, которого бармен никогда не торопит закрытием — тот и не заметит.',
+           en:'The one patron the bartender never rushes toward closing — he wouldn’t notice anyway.' } },
+  { a:'gourmet_vega', b:'perfumer', kind:'buddy',
+    lore:{ ru:'Дегустатор и парфюмер часами спорят, что первично — вкус или запах — за бутылкой лучшего, что есть в лавке.',
+           en:'The taster and the perfumer argue for hours over whether taste or scent comes first — over the best bottle the shop has.' } },
+  { a:'apothecary_mo', b:'vex', kind:'buddy',
+    lore:{ ru:'Один латает пациентов, другой — корабли; оба знают, каково это, когда пациент живой и хрупкий.',
+           en:'One patches up patients, the other ships; both know what it’s like when the patient is alive and fragile.' } },
+  { a:'intern_beep', b:'trucker_chrome', kind:'buddy',
+    lore:{ ru:'Стажёр и дальнобойщик коротают смены одними и теми же историями — обоим всё равно, слышал ли другой их уже.',
+           en:'The intern and the trucker pass their shifts on the same stories — neither minds that the other’s heard them before.' } },
+  { a:'twofaced_priestess', b:'supernova_child', kind:'buddy',
+    lore:{ ru:'Жрица двух богов и существо из вспышки нашли общий язык быстрее всех — обе говорят о свете как о родном.',
+           en:'The priestess of two gods and the being from the flash found common ground faster than anyone — both speak of light like family.' } },
+  { a:'guild_inspector', b:'dj_pulsar', kind:'dislike',
+    lore:{ ru:'Пульсарные трансляции ДJ не проходят ни по одной лицензии Гильдии — инспектор ведёт на него отдельную папку.',
+           en:'The DJ’s pulsar broadcasts don’t clear a single Guild license — the inspector keeps a separate file on him.' } },
+  { a:'guild_inspector', b:'vex', kind:'dislike',
+    lore:{ ru:'Механик модифицирует корабли за пределами любого допуска Гильдии — инспектор давно сбился со счёта нарушений.',
+           en:'The mechanic modifies ships well past any Guild tolerance — the inspector lost count of the violations long ago.' } },
+  { a:'guild_inspector', b:'collector_gz', kind:'dislike',
+    lore:{ ru:'Коллекция хранится с нарушением половины норм складского учёта — инспектор уверен, что там нарушена и вторая половина.',
+           en:'The collection is stored in violation of half the warehousing code — the inspector is sure the other half is broken too.' } },
+  { a:'tentacloid', b:'dj_pulsar', kind:'dislike',
+    lore:{ ru:'Пульсарный шум ДJ эстет называет искусством только в кавычках.',
+           en:'The aesthete calls the DJ’s pulsar noise "art" — with heavy air quotes.' } },
+  { a:'tentacloid', b:'perfumer', kind:'dislike',
+    lore:{ ru:'Два самых чувствительных «носа» лавки спорят, чьё чувство прекрасного первично — зрение или обоняние.',
+           en:'The shop’s two most sensitive "noses" argue over whose sense of beauty comes first — sight or scent.' } },
+  { a:'nebula_chef', b:'swarm_navigator', kind:'dislike',
+    lore:{ ru:'Рой заказывает порциями на всех сразу — для шефа это варварство по отношению к подаче.',
+           en:'The Swarm orders in bulk for everyone at once — to the chef, that’s barbarism toward presentation.' } },
+  { a:'fashionista', b:'collector_gz', kind:'dislike',
+    lore:{ ru:'Икона стиля называет коллекцию «музеем нафталина» при каждой встрече.',
+           en:'The style icon calls the collection a "mothball museum" every single time they meet.' } },
+  { a:'logic9', b:'apothecary_mo', kind:'dislike',
+    lore:{ ru:'Слово «примерно» в устах аптекаря звучит для вычислителя как саботаж точности.',
+           en:'The word "approximately" from the apothecary sounds like sabotage of precision to the computer.' } },
+  { a:'vex', b:'racer_kai', kind:'dislike',
+    lore:{ ru:'Механик считает, что она гоняет свой корабль на убой — и каждый раз молча латает то, что она «не заметила».',
+           en:'The mechanic thinks she runs her ship into the ground — and silently patches up what she "didn’t notice" every time.' } },
+  { a:'archivist', b:'supernova_child', kind:'dislike',
+    lore:{ ru:'Хранитель хочет описать её рождение по протоколу — ей неприятно быть строчкой в чужом каталоге.',
+           en:'The Keeper wants to document her birth by the book — she hates being a line in someone else’s catalog.' } },
+
+  // ---------- "спящие" межтирные связи (см. комментарий в начале файла) ----------
+  { a:'plasma_bartender', b:'intern_beep', kind:'buddy',
+    lore:{ ru:'После первой смены Бип приходит в бар отойти — бармен уже знает его заказ.',
+           en:'After every first shift, Beep comes to the bar to decompress — the bartender already knows his order.' } },
+  { a:'plasma_bartender', b:'trucker_chrome', kind:'buddy',
+    lore:{ ru:'Дальнобойщик заходит сюда чаще, чем домой — бармен держит для него табурет.',
+           en:'The trucker stops by here more often than home — the bartender keeps a stool for him.' } },
+  { a:'plasma_bartender', b:'dj_pulsar', kind:'buddy',
+    lore:{ ru:'ДJ сводит сеты прямо за барной стойкой — бармен единственный, кто выносит громкость.',
+           en:'The DJ mixes sets right at the bar — the bartender is the only one who can stand the volume.' } },
+  { a:'the_waiter', b:'collector_gz', kind:'buddy',
+    lore:{ ru:'Один ждёт неизвестно чего, другой коллекционирует три века без спешки — редкое взаимопонимание двух бесконечно терпеливых.',
+           en:'One waits for who-knows-what, the other has collected for three centuries without hurry — a rare understanding between two infinitely patient souls.' } },
+  { a:'guild_inspector', b:'nebula_chef', kind:'dislike',
+    lore:{ ru:'Шеф нарушает кодекс кухонной безопасности с художественным вдохновением — инспектор считает это отягчающим.',
+           en:'The chef violates kitchen safety code with artistic inspiration — the inspector considers that an aggravating factor.' } },
+  { a:'guild_inspector', b:'trucker_chrome', kind:'dislike',
+    lore:{ ru:'Груз дальнобойщика никогда не совпадает с накладной идеально — инспектор находит это подозрительным систематически.',
+           en:'The trucker’s cargo never quite matches the manifest — the inspector finds that suspicious, systematically.' } },
+  { a:'guild_inspector', b:'twofaced_priestess', kind:'dislike',
+    lore:{ ru:'Культ двойного заката не зарегистрирован ни в одном реестре Гильдии — с точки зрения инспектора, это уже нарушение.',
+           en:'The double-sunset cult isn’t registered in any Guild ledger — as far as the inspector is concerned, that’s already a violation.' } },
+  { a:'tentacloid', b:'janitor', kind:'dislike',
+    lore:{ ru:'Эстет считает, что уборщик своим ведром оскорбляет саму идею прекрасного в этих стенах.',
+           en:'The aesthete believes the janitor’s bucket insults the very idea of beauty within these walls.' } },
+  { a:'tentacloid', b:'intern_beep', kind:'dislike',
+    lore:{ ru:'Старание стажёра эстету кажется безвкусным — по его мнению, усердие и элегантность несовместимы.',
+           en:'The intern’s eagerness strikes the aesthete as tasteless — in his view, effort and elegance don’t mix.' } },
+  { a:'nebula_chef', b:'gourmet_vega', kind:'dislike',
+    lore:{ ru:'Один отзыв критика может закрыть ресторан — шеф с тех пор не подпускает дегустатора ближе чем на орбиту.',
+           en:'One review from the critic can close a restaurant — the chef has kept him at orbital distance ever since.' } }
+];
+
+// общие (не персональные — иначе объём текста x23) фразы-реакции на карточке
+// при разворачивании; {name} — имя ДРУГОГО персонажа связи. Тон — от лица
+// реагирующего, независимо от конкретной пары.
+const RELATION_COMMENTS = {
+  friend: { ru:[
+    '{name}! Вот это удача — заглянуть сюда в один день.',
+    'О, {name} здесь? Мир становится немного лучше.',
+    'С {name} тут веселее переносить смены.',
+    '{name} — именно тот, ради кого я задержусь подольше.'
+  ], en:[
+    '{name}! What a stroke of luck, being here the same day.',
+    'Oh, {name} is here? The world just got a little better.',
+    'Shifts are easier to bear with {name} around.',
+    '{name} — exactly the reason I might stick around a while longer.'
+  ]},
+  enemy: { ru:[
+    'Опять {name}. Может, не в этот раз?',
+    '{name} здесь? Тогда я ухожу первым.',
+    'Каждая встреча с {name} стоит мне нервов.',
+    '{name}. Даже имя произносить неприятно.'
+  ], en:[
+    '{name}, again. Maybe not this time?',
+    '{name} is here? Then I’m leaving first.',
+    'Every run-in with {name} costs me nerves.',
+    '{name}. Even the name is unpleasant to say.'
+  ]},
+  buddy: { ru:[
+    '{name} тоже тут? Отличный будет вечер.',
+    'С {name} всегда найдётся, что обсудить за стойкой.',
+    '{name}! Сколько не виделись — по местным меркам.',
+    'Если тут {name} — я не откажусь задержаться.'
+  ], en:[
+    '{name} is here too? This’ll be a good evening.',
+    'There’s always something to talk about with {name} over a drink.',
+    '{name}! Been a while — by local standards.',
+    'If {name}’s around, I might just stick around too.'
+  ]},
+  dislike: { ru:[
+    '{name}. Ну ладно, переживу как-нибудь.',
+    'Не то чтобы я рад видеть {name} здесь.',
+    '{name} снова путается под ногами.',
+    'Со мной и {name} в одной лавке — тесновато.'
+  ], en:[
+    '{name}. Fine, I’ll survive somehow.',
+    'Not that I’m thrilled {name} is here.',
+    '{name}, getting underfoot again.',
+    'It gets a little crowded with {name} in the same shop.'
+  ]}
+};
+
+// фразы отказа "обиженного" НПС — вместо старта заказа (см. game.js)
+const RELATION_REFUSE_PHRASES = { ru:[
+  'Обиделся. Не сегодня.',
+  'Не в настроении — выбери кого-то другого.',
+  'После всего? Нет. Не сейчас.',
+  'Сегодня — точно не со мной.'
+], en:[
+  'Offended. Not today.',
+  'Not in the mood — pick someone else.',
+  'After everything? No. Not now.',
+  'Today — definitely not with me.'
+]};
 
 // ---------- Фаза I: лорные фразы ----------
 // Открываются ПОСЛЕДОВАТЕЛЬНО: каждая новая градация любой ачивки этого

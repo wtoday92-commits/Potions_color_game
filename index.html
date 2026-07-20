@@ -85,6 +85,11 @@
 
     <div class="phase-label" id="phaseLabel" data-i18n="PHASE_SCAN">сканируй образец...</div>
 
+    <!-- Патч (Тот-Кто-Ждёт): без таймера показа — игрок сам решает, когда воссоздавать -->
+    <div class="panel" id="waiterReadyWrap">
+      <button class="brew-btn" id="waiterReadyBtn" data-i18n="WAITER_READY_BTN">Готово, воссоздаю</button>
+    </div>
+
     <div class="control-row">
       <div class="side-col left-col" id="leftCol">
         <div class="vslider-group" id="colorGroupA">
@@ -101,12 +106,6 @@
           <div class="vslider-label" data-i18n="LABEL_SATURATION">Накал</div>
           <div id="mSat"></div>
           <div class="vslider-value" id="lblSat"></div>
-        </div>
-        <!-- Патч (Тот-Кто-Ждёт): рынок времени — +1с за деление, но что-то сломается -->
-        <div class="vslider-group hidden" id="timeGroup">
-          <div class="vslider-label" data-i18n="LABEL_TIME">Время</div>
-          <div id="mTime"></div>
-          <div class="vslider-value" id="lblTime">+0s</div>
         </div>
       </div>
 
