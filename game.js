@@ -1989,6 +1989,79 @@
     return !!(st && st.leftCycle);
   }
 
+  // ============================================================
+  // Патч "Ежедневный особый заказ" — параллельный режим с общим для всех
+  // игроков сидом на ПОСЛЕДОВАТЕЛЬНОСТЬ ПЕРСОНАЖЕЙ (не на банки — hue/size/
+  // count и т.д. остаются случайными для каждого игрока, это сознательное
+  // решение против заучивания цепочки по скриншоту).
+  // ============================================================
+  let isDailyMode = false;
+  let dailyDifficulty = null; // 'easy' | 'mid' | 'hard'
+  let dailySequence = null;   // 30 id (10 дней × 3), считается один раз на сегодня
+
+  function seedFromDate(d){
+    return ((d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate()) >>> 0);
+  }
+  function seededShuffle(arr, rng){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(rng()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+  // все 23 персонажа гарантированно встречаются хотя бы раз; добор до 30
+  // слотов берётся из ПРОДОЛЖЕНИЯ того же сид-генератора (не нового Math.random)
+  function buildDailySequence(){
+    const ids = (typeof ALL_NPCS !== 'undefined' ? ALL_NPCS : []).map(n=>n.id);
+    const rng = mulberry32(seedFromDate(new Date()));
+    const first = seededShuffle(ids, rng);
+    const extra = seededShuffle(ids, rng).slice(0, 30-first.length);
+    return [...first, ...extra];
+  }
+  // "переодевает" настоящего персонажа (имя/эмодзи/портрет/флейвор/type/
+  // special — личность и уникальная механика УР.4 остаются) в одинаковые
+  // числовые характеристики выбранной сложности дня
+  function dailyReskinCfg(realCfg, profile){
+    return { ...realCfg,
+      tier: profile.scoreTier,
+      reward: profile.reward,
+      memorizeMs: profile.memorizeMs,
+      craftMs: profile.craftMs,
+      colorSteps: profile.colorSteps,
+      sizeSteps: profile.sizeSteps,
+      countMax: profile.countMax,
+      bsizeSteps: profile.bsizeSteps,
+      dailyLevels: profile.levels,
+      dailyColor: profile.color
+    };
+  }
+  function dailyPoolForDay(dayIdx){
+    if(!dailySequence) dailySequence = buildDailySequence();
+    const profile = (typeof DAILY_DIFFICULTY_PROFILES !== 'undefined' && DAILY_DIFFICULTY_PROFILES[dailyDifficulty])
+      || { levels:[1,2,3], color:null, reward:130, memorizeMs:5000, craftMs:13800, colorSteps:14, sizeSteps:11, countMax:10, bsizeSteps:11, scoreTier:3 };
+    const npcs = (typeof ALL_NPCS !== 'undefined' ? ALL_NPCS : []);
+    const slots = dailySequence.slice(dayIdx*3, dayIdx*3+3);
+    return slots.map(id=>{
+      const real = npcs.find(n=>n.id===id) || npcs[0];
+      return dailyReskinCfg(real, profile);
+    });
+  }
+  function enterDailyMode(diffKey){
+    isDailyMode = true;
+    dailyDifficulty = diffKey;
+    dailySequence = buildDailySequence();
+    ['collectionBtn','charactersBtn','passivesBtn'].forEach(id=>{
+      const el = $(id); if(el) el.classList.add('hidden');
+    });
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0;
+    $('scoreVal').textContent = score;
+    $('streakVal').textContent = streak;
+    $('dayVal').textContent = dayNum;
+    if(typeof loadDailyYesterdayTop === 'function') loadDailyYesterdayTop();
+    showSelectScreen();
+  }
+
   function pickConfigForTier(tierNum, usedNames){
     const pool = tierNum < 5 ? tierPool(tierNum) : [...tierPool(5), ...SPECIAL_ORDERS];
     // Патч "Взаимоотношения": НПС, который "ушёл" из-за обиды, не выпадает
@@ -2012,7 +2085,9 @@
     // (подсвечивается другим цветом). НЕ на фокус-заказах: там реплика
     // несёт игровую информацию и заменять её нельзя.
     let flavor = null, isLore = false;
-    if(!focus && window.PotionProfile && typeof NPC_LORE !== 'undefined' && NPC_LORE[cfg.id]){
+    // Патч "Ежедневный заказ": лорные фразы разблокируются достижениями
+    // аркадного профиля — в дневном режиме их не подмешиваем вовсе
+    if(!isDailyMode && !focus && window.PotionProfile && typeof NPC_LORE !== 'undefined' && NPC_LORE[cfg.id]){
       const unl = (((window.PotionProfile.data.lorePhrases||{}).unlockedByNpc||{})[cfg.id]) || [];
       const chance = (typeof LORE_PHRASE_CHANCE !== 'undefined') ? LORE_PHRASE_CHANCE : 0.35;
       if(unl.length && Math.random() < chance){
@@ -2090,7 +2165,8 @@
     wrap.innerHTML = '';
     orders.forEach((ord, i)=>{
       const { cfg, focus, flavor, avatar, isLore } = ord;
-      const tierColor = TIER_COLORS[cfg.tier];
+      // Патч "Ежедневный заказ": свой цвет рамки вместо TIER_COLORS (там нет синего)
+      const tierColor = cfg.dailyColor || TIER_COLORS[cfg.tier];
       const npcNameStr = LT(cfg.name);
 
       const card = document.createElement('div');
@@ -2100,7 +2176,9 @@
       // Фаза E: 4-й уровень сложности показывается только у НПС с cfg.level4
       // (пока — только у стартового дрона)
       // Фаза J: 4-я сложность открывается и по репутации (см. level4Available)
-      const levels = level4Available(cfg) ? [1,2,3,4] : [1,2,3];
+      // Патч "Ежедневный заказ": у "переодетых" cfg свой фиксированный список
+      // уровней (см. dailyLevels) — репутация в этом режиме не участвует
+      const levels = cfg.dailyLevels ? cfg.dailyLevels : (level4Available(cfg) ? [1,2,3,4] : [1,2,3]);
       const levelCardsHTML = levels.map(lvl=>{
         const reward = Math.round(cfg.reward * (REG_DIFF_REWARD_MULT[lvl]||1) * (focus?1.25:1));
         return `
@@ -2244,6 +2322,15 @@
     $('resultOverlay').classList.remove('show');
     $('dayVal').textContent = dayNum;
 
+    // Патч "Ежедневный заказ": пул на день — фиксированная (по сиду дня)
+    // тройка персонажей, а не случайные тиры прогрессии
+    if(isDailyMode){
+      currentOrders = dailyPoolForDay(dayNum-1).map(cfg => buildOrderDescriptor(cfg));
+      renderSelectBanners();
+      renderCustomerCards(currentOrders);
+      return;
+    }
+
     const tiers = getCardTiers();
     const usedNames = new Set();
     currentOrders = tiers.map(t=> buildOrderDescriptor(pickConfigForTier(t, usedNames)));
@@ -2251,6 +2338,8 @@
     // Патч (Хранитель): пока идёт кампания печатей — в каждой тройке одно
     // задание отмечается печатью (кроме самого Хранителя). Заряд тратится
     // на тройку независимо от того, выберет ли игрок отмеченного.
+    // (кампания печатей — прогрессия, завязанная на профиль — в дневном
+    // режиме её нет, см. ранний return выше)
     if(archSeal && archSeal.remaining > 0){
       const candidates = currentOrders.filter(o => o.cfg.id !== 'archivist');
       if(candidates.length){
@@ -2303,7 +2392,10 @@
   function startOrder(ord, level){
     const { cfg, focus, flavor, avatar } = ord;
     let regLevel = [1,2,3,4].includes(level) ? level : 3;
-    if(regLevel === 4 && !level4Available(cfg)) regLevel = 3; // защита: 4 доступен только там, где разрешён (флаг или репутация)
+    // Патч "Ежедневный заказ": у "переодетых" cfg свой список уровней —
+    // репутация тут не участвует вообще (см. cfg.dailyLevels в enterDailyMode)
+    const allowLevel4 = cfg.dailyLevels ? cfg.dailyLevels.includes(4) : level4Available(cfg);
+    if(regLevel === 4 && !allowLevel4) regLevel = 3; // защита: 4 доступен только там, где разрешён
     currentOrd = ord;
     currentOrd.regLevel = regLevel;
     orderNum++;
@@ -2898,7 +2990,9 @@
         window.PotionProfile.adjustReputation(cfg.id, perfect ? 4 : 2);
       }
     }
-    if(l4Bonus.repBonus && good && window.PotionProfile) window.PotionProfile.adjustReputation(cfg.id, l4Bonus.repBonus);
+    // Патч "Ежедневный заказ": репутации тут нет вовсе — бонус к рейтингу
+    // (ratingMultAdd/waiterThresholdOverride выше) остаётся, а repBonus молча игнорируется
+    if(!isDailyMode && l4Bonus.repBonus && good && window.PotionProfile) window.PotionProfile.adjustReputation(cfg.id, l4Bonus.repBonus);
     score = Math.max(0, score + delta);
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
@@ -2921,7 +3015,8 @@
     // (экран результата + альбом коллекции показывают именно его) и добавочно
     // подъедает репутацию (см. ниже) — очки/streak/стадия и ачивки этого НПС
     // считаются по НАСТОЯЩЕМУ результату и не трогаются, спойлится только вид
-    const offendedSt = relationState(cfg.id);
+    // Патч "Ежедневный заказ": ни друзей, ни врагов, ни обид тут нет
+    const offendedSt = isDailyMode ? null : relationState(cfg.id);
     const forcedBad = !!(offendedSt && offendedSt.offended);
     const effGood = forcedBad ? false : good;
     const effPerfect = forcedBad ? false : perfect;
@@ -2938,7 +3033,9 @@
       const poopIdx = stickerArr.indexOf('💩');
       stickerIdx = poopIdx >= 0 ? poopIdx : 0;
     } else if(Array.isArray(stickerArr)){
-      const specials = (typeof STICKER_SPECIALS !== 'undefined' && STICKER_SPECIALS[stickerCat]) || [];
+      // Патч "Ежедневный заказ": особые стикеры читают серии/рейтинг из
+      // аркадного профиля — в дневном режиме их не считаем, только "базовые" 3
+      const specials = (!isDailyMode && typeof STICKER_SPECIALS !== 'undefined' && STICKER_SPECIALS[stickerCat]) || [];
       const dualNow = cfg.special === 'dual_size';
       const novaExact = dualNow && components
         .filter(c => c.key === 'size' || c.key === 'size2')
@@ -2976,7 +3073,10 @@
     // Фаза F/G/I/J: тихо копим статистику/стрики/ленту идеалов/репутацию/
     // альбом/статы по НПС в профиль игрока. recordOrderResult возвращает
     // репутацию до/после — по ней ловим повышение уровня.
-    if(window.PotionProfile){
+    // Патч "Ежедневный заказ": весь этот блок — накопительный аркадный
+    // профиль (репутация/стрики/статистика по НПС/ачивки) — в дневном
+    // режиме ничего из этого не пишем и не проверяем вовсе.
+    if(!isDailyMode && window.PotionProfile){
       const repRes = window.PotionProfile.recordOrderResult({
         npcId: cfg.id, perfect, good, delta, stickerCat, stickerIdx, progressWeight,
         regLevel: target.regLevel, focus: target.focus,
@@ -2991,15 +3091,17 @@
     // Фаза J: с первого выполненного заказа состав пассивок заморожен до нового цикла
     cycleStarted = true;
 
-    // Фаза H: общие ачивки — автопроверка после каждого заказа + "ручная"
-    // ачивка за молниеносный идеал на максимальной сложности регуляторов
-    // тира 5 (первая треть таймера, timeFrac уже посчитан выше по стеку)
-    checkGeneralAchievements();
-    if(perfect && cfg.tier >= 5 && target.regLevel >= 3 && timeFrac <= 1/3){
-      unlockManualAchievement('speedrun', 1);
+    if(!isDailyMode){
+      // Фаза H: общие ачивки — автопроверка после каждого заказа + "ручная"
+      // ачивка за молниеносный идеал на максимальной сложности регуляторов
+      // тира 5 (первая треть таймера, timeFrac уже посчитан выше по стеку)
+      checkGeneralAchievements();
+      if(perfect && cfg.tier >= 5 && target.regLevel >= 3 && timeFrac <= 1/3){
+        unlockManualAchievement('speedrun', 1);
+      }
+      // Фаза I: ачивки этого НПС (градации, лорные фразы, награда за комплект)
+      checkNpcAchievements(cfg.id);
     }
-    // Фаза I: ачивки этого НПС (градации, лорные фразы, награда за комплект)
-    checkNpcAchievements(cfg.id);
 
     // ============================================================
     // Патч "Уникальные механики тир-5": развязка заказа
@@ -3008,12 +3110,16 @@
     let replayMode = null;  // null | 'optional' (дар Ир) | 'forced' (испытание Ир)
 
     // ---------- Ир: выдача баффа/дебаффа (только его заказ, УР.3+) ----------
+    // (реплики/баф-дебаф — часть его личности, остаются и в дневном режиме;
+    // bumpNpcStat/checkNpcAchievements — накопительная бухгалтерия, только аркада)
     if(cfg.id === 'last_of_ir' && target.regLevel >= 3){
       if(perfect){
         irPending = { kind:'buff' };
         npcNoteText = LT(pickLocalized(IR_GRANT_PHRASES.buff));
-        if(window.PotionProfile) window.PotionProfile.bumpNpcStat('last_of_ir', 'irBuffs', 1);
-        checkNpcAchievements('last_of_ir');
+        if(!isDailyMode){
+          if(window.PotionProfile) window.PotionProfile.bumpNpcStat('last_of_ir', 'irBuffs', 1);
+          checkNpcAchievements('last_of_ir');
+        }
       } else if(!good){
         irPending = { kind:'debuff' };
         npcNoteText = LT(pickLocalized(IR_GRANT_PHRASES.debuff));
@@ -3026,7 +3132,7 @@
     // ---------- Ир: срабатывание эффекта на ЭТОМ заказе ----------
     const irFx = target.irEffect;
     if(irFx){
-      if(irFx.kind === 'debuff' && perfect && window.PotionProfile){
+      if(!isDailyMode && irFx.kind === 'debuff' && perfect && window.PotionProfile){
         // идеал под тенью Ир — отдельная ачивка
         window.PotionProfile.bumpNpcStat('last_of_ir', 'irDebuffPerfects', 1);
         checkNpcAchievements('last_of_ir');
@@ -3038,20 +3144,21 @@
     }
 
     // ---------- Тот-Кто-Ждёт: рейтинг только за >99% — иначе его ирония ----------
-    if(cfg.special === 'no_timer' && window.PotionProfile){
+    // (ирония/реплики — его личность, остаются; статистика — только аркада)
+    if(cfg.special === 'no_timer'){
       if(overall >= 0.99){
-        window.PotionProfile.bumpNpcStat('the_waiter', 'waiterRatedPerfects', 1);
+        if(!isDailyMode && window.PotionProfile) window.PotionProfile.bumpNpcStat('the_waiter', 'waiterRatedPerfects', 1);
       } else {
-        window.PotionProfile.bumpNpcStat('the_waiter', 'waiterNearMisses', 1);
+        if(!isDailyMode && window.PotionProfile) window.PotionProfile.bumpNpcStat('the_waiter', 'waiterNearMisses', 1);
         npcNoteText = good
           ? LT(pickLocalized(WAITER_NOTE_CLOSE))
           : LT(pickLocalized(WAITER_NOTE_FAR));
       }
-      checkNpcAchievements('the_waiter');
+      if(!isDailyMode) checkNpcAchievements('the_waiter');
     }
 
-    // ---------- Сверхновая: точные габариты / странные пропорции ----------
-    if(cfg.special === 'dual_size' && window.PotionProfile){
+    // ---------- Сверхновая: точные габариты / странные пропорции (только аркада-статистика) ----------
+    if(!isDailyMode && cfg.special === 'dual_size' && window.PotionProfile){
       const dims = components.filter(c => c.key === 'size' || c.key === 'size2');
       if(dims.length === 2 && dims.every(c => c.score >= 0.999))
         window.PotionProfile.bumpNpcStat('supernova_child', 'novaExactDims', 1);
@@ -3060,46 +3167,48 @@
       checkNpcAchievements('supernova_child');
     }
 
-    // ---------- Хранитель: заказ под печатью ----------
-    if(target.sealed && window.PotionProfile){
-      if(good) window.PotionProfile.bumpNpcStat('archivist', 'sealGoods', 1);
-      if(perfect) window.PotionProfile.bumpNpcStat('archivist', 'sealPerfects', 1);
-      checkNpcAchievements('archivist');
-    }
-    // тройка с печатью сыграна (выбрали отмеченного или нет — заряд ушёл)
-    if(archSeal && archSeal.tripleActive){
-      archSeal.resolved++;
-      archSeal.tripleActive = false;
-      if(target.sealed && perfect){
-        archSeal.perfects++;
-        archSeal.perfectNpcs.push(cfg.id);
+    // ---------- Хранитель: кампания печатей — вся прогрессия, только аркада ----------
+    if(!isDailyMode){
+      if(target.sealed && window.PotionProfile){
+        if(good) window.PotionProfile.bumpNpcStat('archivist', 'sealGoods', 1);
+        if(perfect) window.PotionProfile.bumpNpcStat('archivist', 'sealPerfects', 1);
+        checkNpcAchievements('archivist');
       }
-      if(archSeal.resolved >= archSeal.total){
-        // кампания печатей завершена
-        if(archSeal.perfects === 3 && archSeal.total === 3){
-          // ИСТОРИЧЕСКИЙ МОМЕНТ: 3 идеала на 3 печатях
-          npcNoteText = LT(pickLocalized(ARCH_HISTORIC_PHRASES));
-          if(window.PotionProfile){
-            window.PotionProfile.bumpNpcStat('archivist', 'historicMoments', 1);
-            // Хранитель раскрывает по одной случайной незакрытой ачивке
-            // каждого из троих — прямым текстом (см. renderCharacters)
-            archSeal.perfectNpcs.forEach(npcId=>{
-              const defs = NPC_ACHIEVEMENTS[npcId] || [];
-              const pAch = ((window.PotionProfile.data.achievements||{}).npc||{})[npcId] || {};
-              const locked = defs.filter(d => (pAch[d.id]||0) < 3);
-              if(locked.length) window.PotionProfile.setKeeperHint(npcId, pick(locked).id);
-            });
-            checkNpcAchievements('archivist');
-          }
+      // тройка с печатью сыграна (выбрали отмеченного или нет — заряд ушёл)
+      if(archSeal && archSeal.tripleActive){
+        archSeal.resolved++;
+        archSeal.tripleActive = false;
+        if(target.sealed && perfect){
+          archSeal.perfects++;
+          archSeal.perfectNpcs.push(cfg.id);
         }
-        archSeal = null;
+        if(archSeal.resolved >= archSeal.total){
+          // кампания печатей завершена
+          if(archSeal.perfects === 3 && archSeal.total === 3){
+            // ИСТОРИЧЕСКИЙ МОМЕНТ: 3 идеала на 3 печатях
+            npcNoteText = LT(pickLocalized(ARCH_HISTORIC_PHRASES));
+            if(window.PotionProfile){
+              window.PotionProfile.bumpNpcStat('archivist', 'historicMoments', 1);
+              // Хранитель раскрывает по одной случайной незакрытой ачивке
+              // каждого из троих — прямым текстом (см. renderCharacters)
+              archSeal.perfectNpcs.forEach(npcId=>{
+                const defs = NPC_ACHIEVEMENTS[npcId] || [];
+                const pAch = ((window.PotionProfile.data.achievements||{}).npc||{})[npcId] || {};
+                const locked = defs.filter(d => (pAch[d.id]||0) < 3);
+                if(locked.length) window.PotionProfile.setKeeperHint(npcId, pick(locked).id);
+              });
+              checkNpcAchievements('archivist');
+            }
+          }
+          archSeal = null;
+        }
       }
-    }
-    // ---------- Хранитель: идеал у него самого запускает печати ----------
-    if(cfg.id === 'archivist' && perfect){
-      const n = Math.min(3, Math.max(1, target.regLevel >= 3 ? 3 : target.regLevel));
-      archSeal = { remaining:n, total:n, resolved:0, perfects:0, perfectNpcs:[], tripleActive:false };
-      npcNoteText = LT(pickLocalized(ARCH_SEAL_PHRASES));
+      // ---------- Хранитель: идеал у него самого запускает печати ----------
+      if(cfg.id === 'archivist' && perfect){
+        const n = Math.min(3, Math.max(1, target.regLevel >= 3 ? 3 : target.regLevel));
+        archSeal = { remaining:n, total:n, resolved:0, perfects:0, perfectNpcs:[], tripleActive:false };
+        npcNoteText = LT(pickLocalized(ARCH_SEAL_PHRASES));
+      }
     }
 
     // cached so a language switch can re-translate the overlay without recomputing scores
@@ -3192,32 +3301,67 @@
   const FIREBASE_DB_URL = (typeof CONFIG !== 'undefined' && CONFIG.FIREBASE_DB_URL) || '';
   const LOCAL_LB_KEY = 'potionshop_leaderboard_v1';
 
-  async function loadLeaderboard(){
+  // boardKey — необязательный { local, remote }; без него — обычный
+  // аркадный общий рейтинг (как и раньше). Дневной режим передаёт свой ключ.
+  async function loadLeaderboard(boardKey){
+    const localKey = boardKey ? boardKey.local : LOCAL_LB_KEY;
+    const remotePath = boardKey ? boardKey.remote : 'leaderboard';
     if(FIREBASE_DB_URL){
       try{
-        const res = await fetch(FIREBASE_DB_URL + '/leaderboard.json');
+        const res = await fetch(FIREBASE_DB_URL + '/' + remotePath + '.json');
         const data = await res.json();
-        return data ? Object.values(data) : [];
+        // база может ответить 200 с телом {error:"Permission denied"} (например,
+        // если правила базы разрешают только путь /leaderboard) — это НЕ валидный
+        // список записей, нужно явно отличать от настоящих данных
+        if(res.ok && data && typeof data === 'object' && !data.error) return Object.values(data);
       }catch(e){ /* fall through to local */ }
     }
-    try{ return JSON.parse(localStorage.getItem(LOCAL_LB_KEY) || '[]'); }
+    try{ return JSON.parse(localStorage.getItem(localKey) || '[]'); }
     catch(e){ return []; }
   }
-  async function saveLeaderboardEntry(name, finalScore){
+  async function saveLeaderboardEntry(name, finalScore, boardKey){
+    const localKey = boardKey ? boardKey.local : LOCAL_LB_KEY;
+    const remotePath = boardKey ? boardKey.remote : 'leaderboard';
     const entry = { name: name || LT(UI_TEXT.ANONYMOUS), score: finalScore, date: new Date().toLocaleDateString(LANG === 'ru' ? 'ru-RU' : 'en-US') };
     if(FIREBASE_DB_URL){
       try{
         // POST appends a new child with a unique key — never overwrites existing entries
-        await fetch(FIREBASE_DB_URL + '/leaderboard.json', { method:'POST', body: JSON.stringify(entry) });
-        return await loadLeaderboard();
+        const res = await fetch(FIREBASE_DB_URL + '/' + remotePath + '.json', { method:'POST', body: JSON.stringify(entry) });
+        const data = await res.json();
+        if(res.ok && data && !data.error) return await loadLeaderboard(boardKey);
+        // если база отказала (напр. правила не разрешают этот путь) — не теряем
+        // результат молча, падаем в локальное сохранение ниже
       }catch(e){ /* fall through to local */ }
     }
     let list = [];
-    try{ list = JSON.parse(localStorage.getItem(LOCAL_LB_KEY) || '[]'); }catch(e){}
+    try{ list = JSON.parse(localStorage.getItem(localKey) || '[]'); }catch(e){}
     list.push(entry);
     list.sort((a,b)=>b.score-a.score);
-    localStorage.setItem(LOCAL_LB_KEY, JSON.stringify(list.slice(0,50)));
+    localStorage.setItem(localKey, JSON.stringify(list.slice(0,50)));
     return list;
+  }
+  // ---------- Патч "Ежедневный заказ": свой рейтинг на (сложность, дата) ----------
+  function dateStrFor(d){
+    return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function dailyBoardKey(diffKey, d){
+    const ds = dateStrFor(d);
+    return { local: `potionshop_daily_${diffKey}_${ds}`, remote: `daily/${diffKey}/${ds}` };
+  }
+  function currentDailyBoardKey(){ return dailyBoardKey(dailyDifficulty, new Date()); }
+  function yesterdayDailyBoardKey(){
+    const y = new Date(); y.setDate(y.getDate()-1);
+    return dailyBoardKey(dailyDifficulty, y);
+  }
+  async function loadDailyYesterdayTop(){
+    const host = $('dailyYesterdayTop');
+    if(!host) return;
+    const list = await loadLeaderboard(yesterdayDailyBoardKey());
+    const top3 = [...list].sort((a,b)=>b.score-a.score).slice(0,3);
+    if(!top3.length){ host.classList.add('hidden'); host.innerHTML = ''; return; }
+    host.classList.remove('hidden');
+    host.innerHTML = `<div class="dyt-title">${LT(UI_TEXT.DAILY_YESTERDAY_TITLE)}</div>` +
+      top3.map((e,i)=>`<div class="dyt-row"><span><span class="dyt-rank">${i+1}.</span>${escapeHtml(e.name)}</span><span>${e.score}</span></div>`).join('');
   }
   // cached so a language switch can re-render the currently open leaderboard(s)
   const lastLb = {};
@@ -3237,7 +3381,7 @@
 
   $('lbBtn').addEventListener('click', async ()=>{
     SFX.uiClick();
-    const list = await loadLeaderboard();
+    const list = await loadLeaderboard(isDailyMode ? currentDailyBoardKey() : undefined);
     renderLeaderboard(list, null, 'lbOverlayList');
     $('lbOverlay').classList.add('show');
   });
@@ -3955,38 +4099,48 @@
 
   async function showWeekOverlay(){
     SFX.weekEnd();
-    // Фаза F: фиксируем лучший результат цикла и счётчик пройденных циклов
-    if(window.PotionProfile) window.PotionProfile.recordCycleEnd(score);
-    checkGeneralAchievements();
+    // Патч "Ежедневный заказ": цикл-аккаунтинг (recordCycleEnd/общие ачивки)
+    // и свой рейтинг вместо общего аркадного
+    if(!isDailyMode){
+      if(window.PotionProfile) window.PotionProfile.recordCycleEnd(score);
+      checkGeneralAchievements();
+    }
     $('resultOverlay').classList.remove('show');
     $('finalScoreVal').textContent = score;
     $('nameInput').value = '';
-    const list = await loadLeaderboard();
+    const list = await loadLeaderboard(isDailyMode ? currentDailyBoardKey() : undefined);
     renderLeaderboard(list, null, 'leaderboardList');
     $('weekOverlay').classList.add('show');
   }
   $('saveScoreBtn').addEventListener('click', async ()=>{
     SFX.uiClick();
     const name = $('nameInput').value.trim().slice(0,20);
-    const list = await saveLeaderboardEntry(name, score);
+    const list = await saveLeaderboardEntry(name, score, isDailyMode ? currentDailyBoardKey() : undefined);
     renderLeaderboard(list, score, 'leaderboardList');
     $('saveScoreBtn').disabled = true;
     $('saveScoreBtn').textContent = LT(UI_TEXT.SAVE_SCORE_DONE);
-    // Фаза H: "ручные" ачивки за место в глобальном рейтинге — рейтинг уже
-    // отсортирован по убыванию в renderLeaderboard(); ищем нашу свежесохранённую
-    // запись по очкам (приближённо — при равенстве очков берём самую первую)
-    const sorted = [...list].sort((a,b)=>b.score-a.score);
-    const rank = sorted.findIndex(e=>e.score === score);
-    // Фаза H v2: одна ачивка "Слава галактики" с двумя порогами
-    if(rank >= 0 && rank < 10) unlockManualAchievement('leaderboard', rank === 0 ? 2 : 1);
+    if(!isDailyMode){
+      // Фаза H: "ручные" ачивки за место в глобальном рейтинге — рейтинг уже
+      // отсортирован по убыванию в renderLeaderboard(); ищем нашу свежесохранённую
+      // запись по очкам (приближённо — при равенстве очков берём самую первую)
+      const sorted = [...list].sort((a,b)=>b.score-a.score);
+      const rank = sorted.findIndex(e=>e.score === score);
+      // Фаза H v2: одна ачивка "Слава галактики" с двумя порогами
+      if(rank >= 0 && rank < 10) unlockManualAchievement('leaderboard', rank === 0 ? 2 : 1);
+    }
   });
   $('newWeekBtn').addEventListener('click', ()=>{
     SFX.uiClick();
-    // Фаза J: новый цикл — состав пассивок снова можно менять,
-    // счётчики "за цикл" (picksCycle) в профиле обнуляются
-    cycleStarted = false;
-    if(window.PotionProfile) window.PotionProfile.startCycle();
     dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0;
+    if(!isDailyMode){
+      // Фаза J: новый цикл — состав пассивок снова можно менять,
+      // счётчики "за цикл" (picksCycle) в профиле обнуляются
+      cycleStarted = false;
+      if(window.PotionProfile) window.PotionProfile.startCycle();
+    } else {
+      // тот же день можно переиграть — сид персонажей не меняется до полуночи
+      loadDailyYesterdayTop();
+    }
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
     $('saveScoreBtn').disabled = false;
@@ -4080,27 +4234,63 @@
     if($('charactersOverlay') && $('charactersOverlay').classList.contains('show')) renderCharacters();
     if($('passivesOverlay') && $('passivesOverlay').classList.contains('show')) renderPassivesPanel();
   }
-  const langBtn = $('langBtn');
-  if(langBtn){
-    langBtn.addEventListener('click', ()=>{
-      SFX.uiClick();
-      LANG = LANG === 'ru' ? 'en' : 'ru';
-      localStorage.setItem(LANG_KEY, LANG);
-      applyI18n();
-      refreshVisibleScreen();
-    });
+  function toggleLanguage(){
+    SFX.uiClick();
+    LANG = LANG === 'ru' ? 'en' : 'ru';
+    localStorage.setItem(LANG_KEY, LANG);
+    applyI18n();
+    refreshVisibleScreen();
   }
+  const langBtn = $('langBtn');
+  if(langBtn) langBtn.addEventListener('click', toggleLanguage);
+  // Патч "Ежедневный заказ": та же кнопка языка, но прямо на сплэше
+  const splashLangBtn = $('splashLangBtn');
+  if(splashLangBtn) splashLangBtn.addEventListener('click', toggleLanguage);
 
-  // ---------- стартовый экран: кнопка "Пришвартоваться" ----------
+  function dismissSplash(){
+    const s = $('splashScreen');
+    s.classList.add('fade-out');
+    s.addEventListener('transitionend', ()=>{ s.style.display='none'; }, {once:true});
+  }
+  // ---------- стартовый экран: кнопка "Пришвартоваться" (обычная аркада) ----------
   const dockBtn = $('dockBtn');
   if(dockBtn){
     dockBtn.addEventListener('click', ()=>{
       SFX.dock();
       ambientTryPlay();
-      const s = $('splashScreen');
-      s.classList.add('fade-out');
-      s.addEventListener('transitionend', ()=>{ s.style.display='none'; }, {once:true});
+      dismissSplash();
     }, {once:true});
+  }
+
+  // ---------- стартовый экран: "Ежедневный особый заказ" ----------
+  // Модалка сложности всплывает ПОВЕРХ сплэша (не дисмиссим его сразу) —
+  // так можно отменить выбор и остаться на сплэше без "мигания" экрана.
+  const dailyDockBtn = $('dailyDockBtn');
+  if(dailyDockBtn){
+    dailyDockBtn.addEventListener('click', ()=>{
+      SFX.uiClick();
+      $('dailyDifficultyOverlay').classList.add('show');
+    });
+  }
+  function chooseDailyDifficulty(diffKey){
+    SFX.dock();
+    ambientTryPlay();
+    $('dailyDifficultyOverlay').classList.remove('show');
+    dismissSplash();
+    enterDailyMode(diffKey);
+  }
+  const dailyDiffBtns = {
+    easy: $('dailyDiffEasyBtn'), mid: $('dailyDiffMidBtn'), hard: $('dailyDiffHardBtn')
+  };
+  Object.keys(dailyDiffBtns).forEach(key=>{
+    if(dailyDiffBtns[key]) dailyDiffBtns[key].addEventListener('click', ()=> chooseDailyDifficulty(key));
+  });
+  const dailyDiffCancelBtn = $('dailyDiffCancelBtn');
+  if(dailyDiffCancelBtn){
+    dailyDiffCancelBtn.addEventListener('click', ()=>{
+      SFX.uiClick();
+      $('dailyDifficultyOverlay').classList.remove('show');
+    });
   }
 
   if(window.PotionProfile) window.PotionProfile.load();

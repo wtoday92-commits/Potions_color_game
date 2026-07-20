@@ -51,6 +51,8 @@
     --good:#5dffb0;
     --danger:#ff5d6a;
     --t1:#38ff9c; --t2:#ffe74d; --t3:#ff9d3d; --t4:#ff4d6a; --t5:#b866ff;
+    /* Патч "Ежедневный заказ": цвета рамок по сложности дня (не тир-цвета) */
+    --daily-easy:#38ff9c; --daily-mid:#35c3ff; --daily-hard:#b866ff;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -133,6 +135,54 @@
   }
   .dock-btn:hover{filter:brightness(1.12);transform:scale(1.035);box-shadow:0 0 46px -4px rgba(53,224,255,.95);}
   .dock-btn:active{transform:scale(.95);}
+
+  /* Патч "Ежедневный заказ": вторая кнопка сплэша — свой цвет + пульсирующее свечение */
+  .splash-btn-row{display:flex;flex-direction:column;align-items:center;gap:14px;margin-top:24px;}
+  .splash-btn-row .dock-btn{margin-top:0;}
+  .daily-dock-btn{
+    background:linear-gradient(180deg,#eafff2,var(--good) 60%,#1f8a5a);
+    box-shadow:0 0 34px -4px rgba(93,255,176,.85);
+    animation:splashIn 1.1s ease .5s forwards, dailyDockGlow 2.2s ease-in-out .5s infinite;
+  }
+  .daily-dock-btn:hover{filter:brightness(1.12);transform:scale(1.035);}
+  .daily-dock-btn:active{transform:scale(.95);}
+  @keyframes dailyDockGlow{
+    0%,100%{box-shadow:0 0 34px -4px rgba(93,255,176,.85);}
+    50%{box-shadow:0 0 56px 6px rgba(93,255,176,1);}
+  }
+  .splash-lang-btn{
+    display:inline-block;margin-top:20px;padding:6px 16px;border-radius:8px;
+    background:transparent;border:1px solid rgba(255,255,255,.3);color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;cursor:pointer;
+    opacity:0;animation:splashIn 1.1s ease .75s forwards;
+    transition:color .12s ease, border-color .12s ease;
+  }
+  .splash-lang-btn:hover{color:var(--ink);border-color:rgba(255,255,255,.6);}
+
+  /* ---------- модалка выбора сложности дневного режима ---------- */
+  .daily-difficulty-card .daily-diff-sub{
+    color:var(--ink-dim);font-size:13px;margin:6px 0 18px;line-height:1.5;
+  }
+  .daily-diff-btn{margin-top:10px;}
+  .daily-diff-btn.diff-easy{border-color:var(--daily-easy);color:var(--daily-easy);}
+  .daily-diff-btn.diff-easy:hover{background:rgba(56,255,156,.12);}
+  .daily-diff-btn.diff-mid{border-color:var(--daily-mid);color:var(--daily-mid);}
+  .daily-diff-btn.diff-mid:hover{background:rgba(53,195,255,.12);}
+  .daily-diff-btn.diff-hard{border-color:var(--daily-hard);color:var(--daily-hard);}
+  .daily-diff-btn.diff-hard:hover{background:rgba(184,102,255,.12);}
+  .daily-diff-cancel{margin-top:16px;opacity:.7;font-size:11px;}
+
+  /* ---------- плашка "топ-3 вчера" ---------- */
+  .daily-yesterday-top{
+    max-width:420px;margin:0 auto 16px;padding:10px 14px;border-radius:12px;
+    background:rgba(10,13,32,.7);border:1px solid rgba(255,217,138,.4);
+    font-family:'IBM Plex Mono',monospace;font-size:12px;
+  }
+  .daily-yesterday-top .dyt-title{
+    color:#ffd98a;text-transform:uppercase;letter-spacing:.08em;font-size:10.5px;margin-bottom:6px;
+  }
+  .daily-yesterday-top .dyt-row{display:flex;justify-content:space-between;color:var(--ink);padding:2px 0;}
+  .daily-yesterday-top .dyt-row .dyt-rank{color:#ffd98a;margin-right:6px;}
 
   .volume-control{
     display:flex;align-items:center;gap:6px;

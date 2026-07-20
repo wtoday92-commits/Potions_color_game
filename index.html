@@ -15,7 +15,24 @@
   <div class="splash-inner">
     <h2 data-i18n-html="SPLASH_TITLE">Добро пожаловать в место,<br>где зелья стали вашим домом</h2>
     <div class="splash-sub" data-i18n="SPLASH_SUB">лавка пришвартована у самого края вселенной</div>
-    <button class="dock-btn" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
+    <div class="splash-btn-row">
+      <button class="dock-btn" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
+      <!-- Патч "Ежедневный заказ": отдельный сид-режим, см. game.js -->
+      <button class="dock-btn daily-dock-btn" id="dailyDockBtn" data-i18n="DAILY_DOCK_BTN">Ежедневный особый заказ</button>
+    </div>
+    <button class="splash-lang-btn" id="splashLangBtn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
+  </div>
+</div>
+
+<!-- Патч "Ежедневный заказ": выбор сложности дня (одинаковый набор персонажей у всех) -->
+<div class="week-overlay" id="dailyDifficultyOverlay">
+  <div class="week-card daily-difficulty-card">
+    <h3 data-i18n="DAILY_DIFF_TITLE">Особый заказ дня</h3>
+    <p class="daily-diff-sub" data-i18n="DAILY_DIFF_SUB">Сегодня у всех один и тот же набор персонажей. Выбери сложность:</p>
+    <button class="next-btn daily-diff-btn diff-easy" id="dailyDiffEasyBtn" data-i18n="DAILY_DIFF_EASY">Серьёзно?</button>
+    <button class="next-btn daily-diff-btn diff-mid" id="dailyDiffMidBtn" data-i18n="DAILY_DIFF_MID">Ок</button>
+    <button class="next-btn daily-diff-btn diff-hard" id="dailyDiffHardBtn" data-i18n="DAILY_DIFF_HARD">Так и было задумано</button>
+    <button class="next-btn daily-diff-cancel" id="dailyDiffCancelBtn" data-i18n="DAILY_DIFF_CANCEL">Назад</button>
   </div>
 </div>
 
@@ -64,6 +81,8 @@
 
   <div class="select-screen" id="selectScreen">
     <div class="select-title" data-i18n="SELECT_TITLE">Кто пришвартовался к лавке?</div>
+    <!-- Патч "Ежедневный заказ": топ-3 прошлого дня, видно весь текущий день -->
+    <div class="daily-yesterday-top hidden" id="dailyYesterdayTop"></div>
     <!-- Патч: баннеры активных эффектов — дар/тень Ир, печати Хранителя -->
     <div class="select-banners" id="selectBanners"></div>
     <div class="customer-cards" id="customerCards"></div>

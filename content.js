@@ -26,6 +26,15 @@ const UI_TEXT = {
   SPLASH_TITLE:      { ru:'Добро пожаловать в место,<br>где зелья стали вашим домом', en:'Welcome to a place<br>where potions became your home' },
   SPLASH_SUB:        { ru:'лавка пришвартована у самого края вселенной', en:'the shop is docked at the very edge of the universe' },
   DOCK_BTN:          { ru:'Пришвартоваться', en:'Dock' },
+  // ---------- Патч "Ежедневный особый заказ" ----------
+  DAILY_DOCK_BTN:    { ru:'Ежедневный особый заказ', en:'Daily special order' },
+  DAILY_DIFF_TITLE:  { ru:'Особый заказ дня', en:'The daily special order' },
+  DAILY_DIFF_SUB:    { ru:'Сегодня у всех один и тот же набор персонажей. Выбери сложность:', en:"Today everyone gets the same lineup of characters. Choose a difficulty:" },
+  DAILY_DIFF_EASY:   { ru:'Серьёзно?', en:'Seriously?' },
+  DAILY_DIFF_MID:    { ru:'Ок', en:'Okay' },
+  DAILY_DIFF_HARD:   { ru:'Так и было задумано', en:'This was always the plan' },
+  DAILY_DIFF_CANCEL: { ru:'Назад', en:'Back' },
+  DAILY_YESTERDAY_TITLE: { ru:'🏆 Топ-3 вчерашнего дня', en:'🏆 Top 3 from yesterday' },
   SUBTITLE:          { ru:'лавка смесей // сектор Ω // край вселенной', en:'mixture shop // sector Ω // edge of the universe' },
   DAY_LABEL:         { ru:'День', en:'Day' },
   RATING_LABEL:      { ru:'РЕЙТИНГ:', en:'RATING:' },
@@ -654,6 +663,21 @@ const NPC_STAT_EXPLAIN = {
   ];
 
   const TIER_COLORS = {1:'var(--t1)',2:'var(--t2)',3:'var(--t3)',4:'var(--t4)',5:'var(--t5)'};
+
+  // ---------- Патч "Ежедневный особый заказ" ----------
+  // 3 фиксированных профиля сложности — переодевают ЛЮБОГО из 23 персонажей
+  // в одинаковые числовые характеристики (та же идея, что у DIFFICULTIES[2..4],
+  // просто гарантированно одинаковая для всех, а не по своему тиру у каждого).
+  // scoreTier — какой порог good/perfect использовать в finalizeResult
+  // (0.8/0.95 обычный, 0.85/0.97 — тир5-стиль), levels — какие УР.1-4 доступны.
+  const DAILY_DIFFICULTY_PROFILES = {
+    easy: { levels:[1,2], color:'var(--daily-easy)', reward:130,
+      memorizeMs:5000, craftMs:13800, colorSteps:14, sizeSteps:11, countMax:10, bsizeSteps:11, scoreTier:3 },
+    mid:  { levels:[2,3], color:'var(--daily-mid)', reward:180,
+      memorizeMs:4500, craftMs:10000, colorSteps:24, sizeSteps:19, countMax:12, bsizeSteps:19, scoreTier:4 },
+    hard: { levels:[1,2,3,4], color:'var(--daily-hard)', reward:240,
+      memorizeMs:4000, craftMs:7500, colorSteps:37, sizeSteps:26, countMax:14, bsizeSteps:26, scoreTier:5 }
+  };
 
   // ---------- Фаза D: сложность регуляторов выбирается ТЕПЕРЬ на заказ ----------
   // (раньше — глобальная кнопка "УР.N" в шапке; теперь три плашки при клике
