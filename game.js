@@ -206,11 +206,48 @@
     S.count = VSlider({ mount:$('mCount'), min:1,max:5,step:1,value:3, thickness:26, thumbSize:32, onChange:oc('count') });
     S.bsize = VSlider({ mount:$('mBsize'), min:0,max:4,step:1,value:2, thickness:26, thumbSize:32, onChange:oc('bsize') });
     S.shape = VSlider({ mount:$('mShape'), min:0,max:9,step:1,value:0, thickness:26, thumbSize:32, onChange:oc('shape') });
+    // Патч "УР.4" (Сверхновая): 2 эксклюзивных ползунка — поворот и блик
+    S.rotation = VSlider({ mount:$('mRotation'), min:0,max:35,step:1,value:0, thickness:26, thumbSize:32, onChange:oc('rotation') });
+    S.glare = VSlider({ mount:$('mGlare'), min:0,max:10,step:1,value:0, thickness:26, thumbSize:32, onChange:oc('glare') });
     // Патч (Сверхновая): второй ползунок габарита — высота
     S.size2 = VSlider({ mount:$('mSize2'), min:0,max:4,step:1,value:2, thickness:26, thumbSize:32, onChange:oc('size2') });
   }
   // ---------- единая точка входа изменений игровых ползунков ----------
+  // Патч "УР.4": сюда цепляются механики, которым нужно реагировать на
+  // конкретное движение конкретного регулятора (связка/трение/вздрагивание) —
+  // остальные (перестановка ролей, "коробка передач") не трогают эту функцию
+  // вовсе, они работают на уровне подмены объектов в S{} (см. ниже).
+  let l4FrictionUntil = {};   // { [key]: timestampMs } — инспектор: временное "трение"
+  let l4FrictionCounter = {}; // { [key]: n } — каждое второе движение "гасится"
+  let l4VexFlinchKey = null;  // ключ регулятора, который сейчас "вздрагивает" у Векса
   function onSliderInput(key, v, old){
+    if(target && target.regLevel === 4){
+      const cfg = target.cfg;
+      // Двуликая жрица: лёгкая связка color↔colorB — два спектра, одно целое
+      if(cfg.id === 'twofaced_priestess' && (key === 'color' || key === 'colorB')){
+        const other = key === 'color' ? 'colorB' : 'color';
+        const os = S[other];
+        if(os){
+          const nudge = Math.round((v-old)*0.3);
+          if(nudge) os.value = Math.min(os.max, Math.max(os.min, os.value+nudge));
+        }
+      }
+      // Инспектор Гильдии: "трение" после аудита — каждое второе движение отменяется
+      if(cfg.id === 'guild_inspector' && l4FrictionUntil[key] && performance.now() < l4FrictionUntil[key]){
+        l4FrictionCounter[key] = (l4FrictionCounter[key]||0) + 1;
+        if(l4FrictionCounter[key] % 2 === 1) S[key].value = old;
+      }
+      // Векс: дёрнули именно "вздрагивающий" регулятор — вовремя схватили
+      if(cfg.id === 'vex' && key === l4VexFlinchKey) l4VexResolveFlinch(true);
+      // DJ Пульсар: движение "в такт" копит комбо, не в такт — сбрасывает
+      if(cfg.id === 'dj_pulsar'){
+        const sinceBeat = performance.now() - l4DjLastBeatAt;
+        const distToNext = L4_DJ_BEAT_MS - sinceBeat;
+        const onBeat = sinceBeat <= 160 || distToNext <= 160;
+        l4DjCombo = onBeat ? l4DjCombo+1 : 0;
+        l4DjUpdateCombo();
+      }
+    }
     updatePlayerJar();
   }
 
@@ -440,7 +477,10 @@
   function drawJar(opts){
     // Патч (Сверхновая): heightPct — независимая высота банки; если не
     // передана, высота как раньше следует за sizePct (единый "объём")
-    const { hue, hue2=null, sat=70, sizePct, heightPct=null, bubbleCount, bubbleR, seed, shapeIdx=0, overridePositions=null, badBubbles=[] } = opts;
+    // Патч "УР.4": rotationDeg/glareSize — эксклюзивные регуляторы Сверхновой;
+    // garnishPts — декоративные "гарниши" Шефа туманности (не считаются в count)
+    const { hue, hue2=null, sat=70, sizePct, heightPct=null, bubbleCount, bubbleR, seed, shapeIdx=0,
+            overridePositions=null, badBubbles=[], rotationDeg=null, glareSize=null, garnishPts=null } = opts;
     const svg = $('jarSvg');
     const w = 60 + (sizePct/100)*60;
     const h = 140 + ((heightPct ?? sizePct)/100)*70;
@@ -475,6 +515,22 @@
       const r = p.r || bubbleR;
       return `<ellipse cx="${(p.x+r*0.35).toFixed(1)}" cy="${(p.y+r*0.85).toFixed(1)}" rx="${(r*0.95).toFixed(1)}" ry="${(r*0.4).toFixed(1)}" fill="url(#inkDots)" opacity=".8"/>`;
     }).join('');
+
+    // Патч "УР.4" (Шеф туманности): декоративные "гарниши" — почти как
+    // настоящие сгустки, но чуть иначе поблёскивают (в count не входят)
+    const garnishEls = (garnishPts||[]).map((p,i)=>{
+      const r = p.r || bubbleR*0.85;
+      return `
+        <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(r*1.5).toFixed(1)}" fill="rgba(255,217,138,.18)"/>
+        <path d="${blobPath(p.x, p.y, r, seed+900+i*17)}" fill="rgba(255,217,138,.7)" stroke="#3a2607" stroke-width="2"/>
+        <circle cx="${(p.x-r*0.2).toFixed(1)}" cy="${(p.y-r*0.2).toFixed(1)}" r="${(r*0.35).toFixed(1)}" fill="rgba(255,255,255,.9)"/>`;
+    }).join('');
+
+    // Патч "УР.4" (Сверхновая): блик — эллипс на поверхности жидкости,
+    // размер регулируется отдельным ползунком
+    const glareEl = glareSize ? `<ellipse cx="${(cx-w*0.16).toFixed(1)}" cy="${(topY+h*0.32).toFixed(1)}"
+      rx="${(5+glareSize/100*28).toFixed(1)}" ry="${(3+glareSize/100*18).toFixed(1)}"
+      fill="rgba(255,255,255,${(0.15+glareSize/100*0.35).toFixed(2)})"/>` : '';
 
     // Фаза E: "плохие" пузыри — рисуются ПОСЛЕ clip-path'а (не внутри
     // <g clip-path>), чтобы клик по ним не зависел от обрезки контейнера
@@ -532,6 +588,8 @@
         <rect x="${cx-w/2-6}" y="${topY+43}" width="${w+12}" height="5" fill="rgba(255,255,255,.30)"/>
         ${blobShadows}
         ${bubbleEls}
+        ${garnishEls}
+        ${glareEl}
       </g>
       <path d="${bodyPath}" fill="url(#glassGrad)"/>
       <!-- thick manga ink outline with neon core -->
@@ -539,6 +597,9 @@
       <path d="${bodyPath}" fill="none" stroke="#35e0ff" stroke-width="1.8"/>
       ${badBubbleEls}
     `;
+    // Патч "УР.4" (Сверхновая): поворот всей банки — CSS-трансформ, а не
+    // перерисовка путей, проще и дешевле
+    svg.style.transform = rotationDeg ? `rotate(${rotationDeg}deg)` : '';
   }
 
   function renderShapePreview(idx){
@@ -662,8 +723,7 @@
     if(matrixEl){ matrixEl.remove(); matrixEl = null; }
   }
 
-  // ---------- Фаза E: логика "плохих" пузырей ----------
-  // Работают только когда target.regLevel === 4 и мы в фазе "craft".
+  // ---------- Фаза E: логика "плохих" пузырей (только у дрона, УР.4) ----------
   // Растут сами по себе; если игрок не успевает кликнуть — лопаются и
   // дёргают случайный АКТИВНЫЙ регулятор на одно деление в случайную сторону.
   function stopBadBubbles(){
@@ -762,6 +822,745 @@
     });
   }
 
+  // ============================================================
+  // Патч "Уникальные механики УР.4": единый диспетчер
+  // ============================================================
+  // Регистрируется по cfg.id. Поля обработчика (все опциональны):
+  //  setup()             — сразу после computeActiveKeys, ДО первого drawJar
+  //                        этого заказа; тут рандомизируются свои поля target.
+  //  memorizeStart()     — доп. эффект НАД обычным runTimer(memDuration,...)
+  //  replaceMemorize(onDone) — полностью берёт на себя тайминг фазы "запоминай"
+  //                        (обязан сам вызвать onDone); взаимоисключимо с
+  //                        memorizeStart — обработчик даёт только одно из двух.
+  //  craftStart()        — сразу после обычной настройки фазы "воссоздай"
+  //  stop()              — общая уборка (интервалы/DOM/слушатели); вызывается
+  //                        и в начале нового заказа, и по завершении текущего
+  //  scoreBonus(scoreData, timeFrac) — в finalizeResult, до расчёта delta;
+  //                        может вернуть { ratingMultAdd, repBonus, thresholdOverride }
+  const LEVEL4_FX = {};
+  let level4Active = null; // текущий обработчик этого заказа (или null)
+
+  function level4SetupOrder(){
+    level4Active = (target.regLevel === 4) ? LEVEL4_FX[target.cfg.id] : null;
+    if(level4Active && level4Active.setup) level4Active.setup();
+  }
+  function level4Stop(){
+    if(level4Active && level4Active.stop) level4Active.stop();
+  }
+  function level4StartMemorize(memDuration, onDone){
+    if(level4Active && level4Active.replaceMemorize){
+      level4Active.replaceMemorize(onDone);
+    } else {
+      runTimer(memDuration, onDone);
+      if(level4Active && level4Active.memorizeStart) level4Active.memorizeStart();
+    }
+  }
+  function level4StartCraft(){
+    if(level4Active && level4Active.craftStart) level4Active.craftStart();
+  }
+  function level4ScoreBonus(scoreData, timeFrac){
+    if(level4Active && level4Active.scoreBonus){
+      try { return level4Active.scoreBonus(scoreData, timeFrac) || null; } catch(e){ return null; }
+    }
+    return null;
+  }
+
+  // ============================================================
+  // Механики УР.4 — блок 1: построены на подмене S{} / onSliderInput
+  // ============================================================
+
+  // ---------- Щуплоид: роли регуляторов перемешаны на всю фазу "воссоздай" ----------
+  // Двигаешь "Размер" — а меняется, скажем, "Сгустки". Реализовано подменой
+  // ССЫЛОК в S{} (сами VSlider-объекты и их DOM не трогаем) — computeScoreComponents
+  // и updatePlayerJar ничего не подозревают, просто читают S[key].value как обычно.
+  let l4TentacloidPairs = null;
+  LEVEL4_FX.tentacloid = {
+    craftStart(){
+      const keys = [...target.activeKeys].filter(k => S[k]);
+      for(let i=keys.length-1;i>0;i--){ const j=randInt(0,i); [keys[i],keys[j]]=[keys[j],keys[i]]; }
+      l4TentacloidPairs = [];
+      for(let i=0;i+1<keys.length;i+=2){
+        const a=keys[i], b=keys[i+1];
+        l4TentacloidPairs.push([a,b]);
+        const tmp=S[a]; S[a]=S[b]; S[b]=tmp;
+      }
+      updatePlayerJar();
+    },
+    stop(){
+      if(l4TentacloidPairs){
+        l4TentacloidPairs.forEach(([a,b])=>{ const tmp=S[a]; S[a]=S[b]; S[b]=tmp; });
+        l4TentacloidPairs = null;
+      }
+    }
+  };
+
+  // ---------- Дальнобойщик Хром: тряска/туннели + "коробка передач" ----------
+  // Позиция ползунка (куда тянешь палец) больше не совпадает монотонно со
+  // значением — деления перемешаны, приходится "нащупывать" передачи и
+  // возвращаться назад из тупиков. Реализовано отдельным прокси-объектом,
+  // подставленным в S{} вместо настоящего слайдера.
+  function makeGearProxy(real){
+    const steps = real.max - real.min + 1;
+    const perm = Array.from({length:steps}, (_,i)=>i);
+    for(let i=perm.length-1;i>0;i--){ const j=randInt(0,i); [perm[i],perm[j]]=[perm[j],perm[i]]; }
+    const inv = new Array(steps);
+    perm.forEach((v,i)=>{ inv[v]=i; });
+    return {
+      get value(){ return perm[real.value-real.min] + real.min; },
+      set value(v){ real.value = inv[Math.max(0,Math.min(steps-1, v-real.min))] + real.min; },
+      get min(){ return real.min; }, get max(){ return real.max; }, get step(){ return real.step; },
+      configure(o){ real.configure(o); },
+      setDisabled(d){ real.setDisabled(d); },
+      setDiffLocked(d){ real.setDiffLocked(d); },
+      setFlag(cls,on){ real.setFlag(cls,on); },
+      setTrackBackground(css){ real.setTrackBackground(css); }
+    };
+  }
+  let l4TruckerReal = null, l4TruckerTimers = [];
+  function truckerBlackoutFlash(){
+    const wf = $('windowFrame');
+    if(!wf) return;
+    wf.classList.add('l4-blackout');
+    setTimeout(()=>wf.classList.remove('l4-blackout'), 260);
+  }
+  LEVEL4_FX.trucker_chrome = {
+    memorizeStart(){
+      $('windowFrame').classList.add('l4-shake');
+      l4TruckerTimers.push(setTimeout(truckerBlackoutFlash, 1400));
+      l4TruckerTimers.push(setTimeout(truckerBlackoutFlash, 3200));
+    },
+    craftStart(){
+      l4TruckerReal = {};
+      [...target.activeKeys].filter(k => S[k]).forEach(k=>{
+        l4TruckerReal[k] = S[k];
+        S[k] = makeGearProxy(S[k]);
+      });
+      target.craftDuration += 6000;
+      target.craftBaseDuration += 6000;
+      updatePlayerJar();
+    },
+    stop(){
+      $('windowFrame').classList.remove('l4-shake', 'l4-blackout');
+      l4TruckerTimers.forEach(clearTimeout); l4TruckerTimers = [];
+      if(l4TruckerReal){
+        Object.keys(l4TruckerReal).forEach(k=>{ S[k] = l4TruckerReal[k]; });
+        l4TruckerReal = null;
+      }
+    }
+  };
+
+  // ---------- Инспектор Гильдии: периодические "проверки" + трение ----------
+  let l4InspectorTimer = null;
+  function inspectorAudit(){
+    const wf = $('windowFrame');
+    if(wf){ wf.classList.add('l4-audit'); setTimeout(()=>wf.classList.remove('l4-audit'), 700); }
+    Object.values(S).forEach(s=>s.setDisabled && s.setDisabled(true));
+    setTimeout(()=>{
+      if(!target || target.cfg.id !== 'guild_inspector' || craftLocked) return;
+      Object.values(S).forEach(s=>s.setDisabled && s.setDisabled(false));
+      [...target.activeKeys].filter(k=>S[k]).forEach(k=>{
+        const sl = S[k];
+        const mid = (sl.min+sl.max)/2, span = (sl.max-sl.min)||1;
+        if(Math.abs(sl.value-mid)/span > 0.3){
+          l4FrictionUntil[k] = performance.now() + 4000;
+          l4FrictionCounter[k] = 0;
+          sl.setFlag && sl.setFlag('l4-friction', true);
+          setTimeout(()=>{ sl.setFlag && sl.setFlag('l4-friction', false); }, 4000);
+        }
+      });
+    }, 700);
+  }
+  LEVEL4_FX.guild_inspector = {
+    craftStart(){
+      l4FrictionUntil = {}; l4FrictionCounter = {};
+      l4InspectorTimer = setInterval(inspectorAudit, 5500);
+    },
+    stop(){
+      if(l4InspectorTimer){ clearInterval(l4InspectorTimer); l4InspectorTimer = null; }
+      l4FrictionUntil = {}; l4FrictionCounter = {};
+      $('windowFrame').classList.remove('l4-audit');
+    }
+  };
+
+  // ---------- Векс: банка "дышит" + вздрагивающий регулятор ----------
+  let l4VexTimer = null, l4VexTimeout = null;
+  function l4VexResolveFlinch(caught){
+    if(!l4VexFlinchKey) return;
+    const key = l4VexFlinchKey, sl = S[key];
+    if(sl && sl.setFlag) sl.setFlag('l4-flinch', false);
+    l4VexFlinchKey = null;
+    if(l4VexTimeout){ clearTimeout(l4VexTimeout); l4VexTimeout = null; }
+    if(!caught && sl){
+      const toMax = Math.random() < 0.5;
+      sl.value = toMax ? sl.max : sl.min;
+      updatePlayerJar();
+      SFX.badPop();
+    } else {
+      SFX.badClear();
+    }
+  }
+  function l4VexScheduleFlinch(){
+    if(!target || target.cfg.id !== 'vex') return;
+    const keys = [...target.activeKeys].filter(k => S[k] && k !== l4VexFlinchKey);
+    if(!keys.length) return;
+    l4VexFlinchKey = pick(keys);
+    S[l4VexFlinchKey].setFlag && S[l4VexFlinchKey].setFlag('l4-flinch', true);
+    l4VexTimeout = setTimeout(()=> l4VexResolveFlinch(false), 1000);
+  }
+  LEVEL4_FX.vex = {
+    craftStart(){
+      $('jarSvg').classList.add('l4-breathing');
+      l4VexTimer = setInterval(l4VexScheduleFlinch, rand(5000,8000));
+    },
+    stop(){
+      if(l4VexTimer){ clearInterval(l4VexTimer); l4VexTimer = null; }
+      if(l4VexTimeout){ clearTimeout(l4VexTimeout); l4VexTimeout = null; }
+      if(l4VexFlinchKey && S[l4VexFlinchKey] && S[l4VexFlinchKey].setFlag) S[l4VexFlinchKey].setFlag('l4-flinch', false);
+      l4VexFlinchKey = null;
+      $('jarSvg').classList.remove('l4-breathing');
+    }
+  };
+
+  // ---------- Хранитель Архива: печать на одном регуляторе по очереди ----------
+  let l4ArchivistTimer = null, l4ArchivistKey = null;
+  function archivistReseal(){
+    if(!target || target.cfg.id !== 'archivist') return;
+    if(l4ArchivistKey && S[l4ArchivistKey]){
+      S[l4ArchivistKey].setDisabled(false);
+      S[l4ArchivistKey].setFlag && S[l4ArchivistKey].setFlag('l4-sealed', false);
+    }
+    const keys = [...target.activeKeys].filter(k => S[k]);
+    if(!keys.length) return;
+    l4ArchivistKey = pick(keys);
+    S[l4ArchivistKey].setDisabled(true);
+    S[l4ArchivistKey].setFlag && S[l4ArchivistKey].setFlag('l4-sealed', true);
+  }
+  LEVEL4_FX.archivist = {
+    craftStart(){
+      l4ArchivistKey = null;
+      archivistReseal();
+      l4ArchivistTimer = setInterval(archivistReseal, 5000);
+    },
+    stop(){
+      if(l4ArchivistTimer){ clearInterval(l4ArchivistTimer); l4ArchivistTimer = null; }
+      if(l4ArchivistKey && S[l4ArchivistKey]){
+        S[l4ArchivistKey].setDisabled(false);
+        S[l4ArchivistKey].setFlag && S[l4ArchivistKey].setFlag('l4-sealed', false);
+      }
+      l4ArchivistKey = null;
+    }
+  };
+
+  // ============================================================
+  // Механики УР.4 — блок 2: визуальные/таймерные оверлеи
+  // ============================================================
+
+  // ---------- Коллекционер Ж-З: туман от краёв к центру + отвлекающий хаос ----------
+  let l4CollectorFogEl = null, l4CollectorFogTimer = null, l4CollectorClutterEl = null;
+  const L4_CLUTTER_ICONS = ['📎','🧸','🔑','🪙','🎲','🧵','🕰','📻','🗝','🔮'];
+  LEVEL4_FX.collector_gz = {
+    memorizeStart(){
+      const wf = $('windowFrame');
+      if(!wf) return;
+      const el = document.createElement('div');
+      el.className = 'l4-fog-overlay';
+      wf.appendChild(el);
+      l4CollectorFogEl = el;
+      const start = performance.now();
+      const dur = target.memDuration || target.cfg.memorizeMs;
+      l4CollectorFogTimer = setInterval(()=>{
+        const frac = Math.min(1, (performance.now()-start)/dur);
+        const inner = Math.round((1-frac)*68+8);
+        el.style.background = `radial-gradient(circle at center, transparent 0%, transparent ${inner}%, rgba(8,10,22,.96) ${inner+22}%)`;
+      }, 120);
+    },
+    craftStart(){
+      const wf = $('windowFrame');
+      if(!wf) return;
+      const el = document.createElement('div');
+      el.className = 'l4-clutter';
+      for(let i=0;i<10;i++){
+        const s = document.createElement('span');
+        s.className = 'l4-clutter-item';
+        s.textContent = pick(L4_CLUTTER_ICONS);
+        const angle = Math.random()*Math.PI*2, r = 38+Math.random()*10;
+        s.style.left = (50+Math.cos(angle)*r).toFixed(1)+'%';
+        s.style.top = (50+Math.sin(angle)*r).toFixed(1)+'%';
+        s.style.animationDuration = (2+Math.random()*2).toFixed(2)+'s';
+        s.style.animationDelay = (-Math.random()*3).toFixed(2)+'s';
+        el.appendChild(s);
+      }
+      wf.appendChild(el);
+      l4CollectorClutterEl = el;
+    },
+    stop(){
+      if(l4CollectorFogTimer){ clearInterval(l4CollectorFogTimer); l4CollectorFogTimer = null; }
+      if(l4CollectorFogEl){ l4CollectorFogEl.remove(); l4CollectorFogEl = null; }
+      if(l4CollectorClutterEl){ l4CollectorClutterEl.remove(); l4CollectorClutterEl = null; }
+    },
+    scoreBonus(scoreData, timeFrac){
+      return timeFrac <= 1/3 ? { ratingMultAdd: 0.15 } : null;
+    }
+  };
+
+  // ---------- Последний из Ир: банка мигает родной планетой ----------
+  let l4IrTimers = [];
+  LEVEL4_FX.last_of_ir = {
+    memorizeStart(){
+      const dur = target.memDuration || target.cfg.memorizeMs;
+      [0.32, 0.68].forEach(f=>{
+        l4IrTimers.push(setTimeout(l4IrPlanetFlash, Math.round(dur*f)));
+      });
+    },
+    stop(){
+      l4IrTimers.forEach(clearTimeout); l4IrTimers = [];
+      const el = document.getElementById('l4IrPlanetFlash');
+      if(el) el.remove();
+    }
+  };
+  function l4IrPlanetFlash(){
+    const wf = $('windowFrame');
+    if(!wf) return;
+    const el = document.createElement('div');
+    el.className = 'l4-planet-flash';
+    el.id = 'l4IrPlanetFlash';
+    el.textContent = '🪐'; // заглушка — автор заменит своей картинкой
+    wf.appendChild(el);
+    setTimeout(()=>{ el.remove(); }, 240);
+  }
+
+  // ---------- Гонщица Кай: гоночный отсчёт + чекпоинты точности ----------
+  let l4KaiTimers = [], l4KaiTimer = null, l4KaiCheckpoints = [], l4KaiCheckpointIdx = 0,
+      l4KaiCheckpointsDone = 0, l4KaiCraftStartAt = 0;
+  LEVEL4_FX.racer_kai = {
+    memorizeStart(){
+      const dur = target.memDuration || target.cfg.memorizeMs;
+      [3,2,1].forEach((n,i)=>{
+        l4KaiTimers.push(setTimeout(()=> l4KaiShowCountdown(n), Math.max(0,dur-3000)+i*1000));
+      });
+    },
+    craftStart(){
+      const dur = target.craftDuration || target.cfg.craftMs;
+      l4KaiCheckpoints = [0.33,0.66,0.9].map(f=> Math.round(dur*f));
+      l4KaiCheckpointIdx = 0; l4KaiCheckpointsDone = 0;
+      l4KaiCraftStartAt = performance.now();
+      l4KaiTimer = setInterval(l4KaiCheckCheckpoint, 250);
+    },
+    stop(){
+      l4KaiTimers.forEach(clearTimeout); l4KaiTimers = [];
+      if(l4KaiTimer){ clearInterval(l4KaiTimer); l4KaiTimer = null; }
+      const el = document.getElementById('l4KaiCountdown');
+      if(el) el.remove();
+    },
+    scoreBonus(){
+      return l4KaiCheckpointsDone > 0 ? { ratingMultAdd: 0.05*l4KaiCheckpointsDone } : null;
+    }
+  };
+  function l4KaiShowCountdown(n){
+    const wf = $('windowFrame');
+    if(!wf) return;
+    let el = document.getElementById('l4KaiCountdown');
+    if(!el){ el = document.createElement('div'); el.id = 'l4KaiCountdown'; el.className = 'l4-race-countdown'; wf.appendChild(el); }
+    el.textContent = n;
+    el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+    SFX.countdown();
+  }
+  function l4KaiCheckCheckpoint(){
+    if(!target || target.cfg.id !== 'racer_kai' || currentPhase !== 'craft' || craftLocked) return;
+    const elapsed = performance.now() - l4KaiCraftStartAt;
+    if(l4KaiCheckpointIdx < l4KaiCheckpoints.length && elapsed >= l4KaiCheckpoints[l4KaiCheckpointIdx]){
+      const sd = computeScoreComponents();
+      if(sd.overall >= 0.55){ l4KaiCheckpointsDone++; SFX.tick(); }
+      l4KaiCheckpointIdx++;
+    }
+  }
+
+  // ---------- DJ Пульсар: бит + комбо в такт ----------
+  const L4_DJ_BEAT_MS = 560;
+  let l4DjTimer = null, l4DjCombo = 0, l4DjLastBeatAt = 0;
+  LEVEL4_FX.dj_pulsar = {
+    craftStart(){
+      l4DjCombo = 0;
+      l4DjLastBeatAt = performance.now();
+      l4DjUpdateCombo();
+      l4DjTimer = setInterval(()=>{
+        l4DjLastBeatAt = performance.now();
+        l4DjPulse();
+      }, L4_DJ_BEAT_MS);
+    },
+    stop(){
+      if(l4DjTimer){ clearInterval(l4DjTimer); l4DjTimer = null; }
+      const ind = document.getElementById('l4DjIndicator'); if(ind) ind.remove();
+      const combo = document.getElementById('l4DjCombo'); if(combo) combo.remove();
+    },
+    scoreBonus(){
+      return l4DjCombo > 0 ? { ratingMultAdd: Math.min(0.2, l4DjCombo*0.02) } : null;
+    }
+  };
+  function l4DjPulse(){
+    const wf = $('windowFrame'); if(!wf) return;
+    let el = document.getElementById('l4DjIndicator');
+    if(!el){ el = document.createElement('div'); el.id = 'l4DjIndicator'; el.className = 'l4-dj-indicator'; wf.appendChild(el); }
+    el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+  }
+  function l4DjUpdateCombo(){
+    const wf = $('windowFrame'); if(!wf) return;
+    let el = document.getElementById('l4DjCombo');
+    if(!el){ el = document.createElement('div'); el.id = 'l4DjCombo'; el.className = 'l4-dj-combo'; wf.appendChild(el); }
+    el.textContent = '🎵×' + l4DjCombo;
+  }
+
+  // ---------- Стажёр Бип: подсказка-пузырь — не тапнул вовремя, регулятор дёрнется сам ----------
+  let l4BeepTimer = null, l4BeepPending = null;
+  LEVEL4_FX.intern_beep = {
+    craftStart(){
+      l4BeepTimer = setInterval(l4BeepTryNudge, rand(3500,5500));
+    },
+    stop(){
+      if(l4BeepTimer){ clearInterval(l4BeepTimer); l4BeepTimer = null; }
+      l4BeepClearBubble();
+    }
+  };
+  function l4BeepClearBubble(){
+    if(l4BeepPending && l4BeepPending.timeout) clearTimeout(l4BeepPending.timeout);
+    l4BeepPending = null;
+    const el = document.getElementById('l4BeepBubble');
+    if(el) el.remove();
+  }
+  function l4BeepTryNudge(){
+    if(!target || target.cfg.id !== 'intern_beep' || currentPhase !== 'craft' || craftLocked || l4BeepPending) return;
+    const keys = [...target.activeKeys].filter(k => S[k]);
+    if(!keys.length) return;
+    const key = pick(keys);
+    const wf = $('windowFrame');
+    if(!wf) return;
+    const el = document.createElement('div');
+    el.className = 'l4-beep-bubble'; el.id = 'l4BeepBubble';
+    el.textContent = '💡';
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      SFX.uiClick();
+      SFX.badClear();
+      l4BeepClearBubble();
+    });
+    wf.appendChild(el);
+    const timeout = setTimeout(()=>{
+      const sl = S[key];
+      if(sl){
+        const dir = Math.random() < 0.5 ? -1 : 1;
+        sl.value = Math.min(sl.max, Math.max(sl.min, sl.value + dir*(sl.step||1)));
+        updatePlayerJar();
+        SFX.badPop();
+      }
+      l4BeepClearBubble();
+    }, 1300);
+    l4BeepPending = { key, timeout };
+  }
+
+  // ============================================================
+  // Механики УР.4 — блок 3: новые виджеты ввода
+  // ============================================================
+
+  // ---------- Логика-9: слайдеры заменены на степпер (+ / − по одному делению) ----------
+  const L4_MOUNT_ID = { color:'mColor', colorB:'mColorB', sat:'mSat', size:'mSize', count:'mCount', bsize:'mBsize', shape:'mShape', size2:'mSize2' };
+  let l4Logic9Boxes = {};
+  LEVEL4_FX.logic9 = {
+    craftStart(){
+      [...target.activeKeys].filter(k => S[k] && L4_MOUNT_ID[k]).forEach(k=>{
+        const mount = $(L4_MOUNT_ID[k]);
+        if(!mount) return;
+        mount.style.position = 'relative';
+        const group = mount.closest('.vslider-group');
+        if(group) group.classList.add('l4-stepper-group');
+        const box = document.createElement('div');
+        box.className = 'l4-stepper';
+        box.innerHTML = `<button type="button" class="l4-stepper-btn l4-stepper-up">+</button>
+          <div class="l4-stepper-val"></div>
+          <button type="button" class="l4-stepper-btn l4-stepper-down">−</button>`;
+        mount.appendChild(box);
+        const valEl = box.querySelector('.l4-stepper-val');
+        const refresh = ()=>{ valEl.textContent = S[k].value; };
+        box.querySelector('.l4-stepper-up').addEventListener('click', (e)=>{
+          e.stopPropagation();
+          const sl = S[k], old = sl.value;
+          sl.value = Math.min(sl.max, sl.value + (sl.step||1));
+          onSliderInput(k, sl.value, old);
+          refresh(); SFX.tick();
+        });
+        box.querySelector('.l4-stepper-down').addEventListener('click', (e)=>{
+          e.stopPropagation();
+          const sl = S[k], old = sl.value;
+          sl.value = Math.max(sl.min, sl.value - (sl.step||1));
+          onSliderInput(k, sl.value, old);
+          refresh(); SFX.tick();
+        });
+        refresh();
+        l4Logic9Boxes[k] = box;
+      });
+    },
+    stop(){
+      Object.keys(l4Logic9Boxes).forEach(k=>{
+        l4Logic9Boxes[k].remove();
+        const mount = $(L4_MOUNT_ID[k]);
+        const group = mount && mount.closest('.vslider-group');
+        if(group) group.classList.remove('l4-stepper-group');
+      });
+      l4Logic9Boxes = {};
+    }
+  };
+
+  // ---------- Парфюмер: цвет×накал одним 2D-пэдом вместо двух слайдеров ----------
+  let l4PerfumerEl = null;
+  LEVEL4_FX.perfumer = {
+    craftStart(){
+      $('colorGroupA') && $('colorGroupA').classList.add('l4-pad-hidden');
+      $('satGroup') && $('satGroup').classList.add('l4-pad-hidden');
+      const leftCol = $('leftCol');
+      if(!leftCol) return;
+      const wrap = document.createElement('div');
+      wrap.className = 'vslider-group l4-perfumer-pad-group';
+      wrap.innerHTML = `<div class="vslider-label">${LT(UI_TEXT.LABEL_SPECTRUM)} × ${LT(UI_TEXT.LABEL_SATURATION)}</div>
+        <div class="l4-pad" id="l4PerfumerPad"><div class="l4-pad-cursor" id="l4PerfumerCursor"></div></div>`;
+      leftCol.appendChild(wrap);
+      l4PerfumerEl = wrap;
+      const pad = wrap.querySelector('#l4PerfumerPad');
+      const cursor = wrap.querySelector('#l4PerfumerCursor');
+      pad.style.background = `linear-gradient(to right, rgba(30,32,50,.9), rgba(30,32,50,0)), ${RAINBOW_BG}`;
+      function setFromXY(clientX, clientY){
+        const rect = pad.getBoundingClientRect();
+        const px = Math.min(1, Math.max(0, (clientX-rect.left)/rect.width));
+        const py = Math.min(1, Math.max(0, (clientY-rect.top)/rect.height));
+        const hueOld = S.color.value, satOld = S.sat.value;
+        const hueVal = Math.round((1-py) * S.color.max);
+        const satVal = Math.round(px * S.sat.max);
+        S.color.value = hueVal; S.sat.value = satVal;
+        cursor.style.left = (px*100)+'%'; cursor.style.top = (py*100)+'%';
+        onSliderInput('color', hueVal, hueOld);
+        onSliderInput('sat', satVal, satOld);
+        SFX.tick();
+      }
+      let dragging = false;
+      pad.addEventListener('pointerdown', e=>{
+        dragging = true;
+        try{ pad.setPointerCapture(e.pointerId); }catch(err){}
+        setFromXY(e.clientX, e.clientY);
+        e.preventDefault();
+      });
+      pad.addEventListener('pointermove', e=>{ if(dragging) setFromXY(e.clientX, e.clientY); });
+      window.addEventListener('pointerup', ()=>{ dragging = false; });
+      const px0 = S.sat.value/S.sat.max, py0 = 1-(S.color.value/S.color.max);
+      cursor.style.left = (px0*100)+'%'; cursor.style.top = (py0*100)+'%';
+    },
+    stop(){
+      $('colorGroupA') && $('colorGroupA').classList.remove('l4-pad-hidden');
+      $('satGroup') && $('satGroup').classList.remove('l4-pad-hidden');
+      if(l4PerfumerEl){ l4PerfumerEl.remove(); l4PerfumerEl = null; }
+    }
+  };
+
+  // ---------- Дитя Сверхновой: 2 доп. эксклюзивных регулятора (поворот + блик) ----------
+  LEVEL4_FX.supernova_child = {
+    setup(){
+      target.rotation = randInt(0,35)*10;
+      target.glare = randInt(0,10)*10;
+    },
+    craftStart(){
+      $('rotationGroup') && $('rotationGroup').classList.remove('hidden');
+      $('glareGroup') && $('glareGroup').classList.remove('hidden');
+      S.rotation.configure({ min:0, max:35, step:1, value:0 });
+      S.glare.configure({ min:0, max:10, step:1, value:0 });
+      updatePlayerJar();
+    },
+    stop(){
+      $('rotationGroup') && $('rotationGroup').classList.add('hidden');
+      $('glareGroup') && $('glareGroup').classList.add('hidden');
+    }
+  };
+
+  // ============================================================
+  // Механики УР.4 — блок 4: составные (несколько фаз/эффектов сразу)
+  // ============================================================
+
+  // продлевает ИДУЩИЙ таймер фазы "воссоздай" прямо по ходу (не только
+  // будущий craftDuration) — тот же приём, что раньше был у Того-Кто-Ждёт
+  function l4ExtendCraftTimer(ms){
+    timerDurationMs = Math.max(500, timerDurationMs + ms);
+    target.craftDuration = timerDurationMs;
+  }
+
+  // ---------- Аптекарь Мо: полоска "состояния пациента" + доп. рейтинг ----------
+  let l4ApothTimer = null, l4ApothFrac = 1;
+  LEVEL4_FX.apothecary_mo = {
+    craftStart(){
+      l4ApothFrac = 1;
+      const wf = $('windowFrame');
+      if(wf){
+        const bar = document.createElement('div');
+        bar.className = 'l4-vitals-bar'; bar.id = 'l4VitalsBar';
+        bar.innerHTML = '<div class="l4-vitals-fill" id="l4VitalsFill"></div>';
+        wf.appendChild(bar);
+      }
+      const start = performance.now();
+      const dur = target.craftDuration || target.cfg.craftMs;
+      l4ApothTimer = setInterval(()=>{
+        const frac = Math.max(0, 1 - (performance.now()-start)/dur);
+        l4ApothFrac = frac;
+        const fill = document.getElementById('l4VitalsFill');
+        if(fill) fill.style.height = (frac*100)+'%';
+        const jarSvg = $('jarSvg');
+        if(jarSvg) jarSvg.style.filter = `saturate(${(0.25+frac*0.75).toFixed(2)}) blur(${((1-frac)*2.2).toFixed(2)}px)`;
+      }, 150);
+    },
+    stop(){
+      if(l4ApothTimer){ clearInterval(l4ApothTimer); l4ApothTimer = null; }
+      const bar = document.getElementById('l4VitalsBar'); if(bar) bar.remove();
+      const jarSvg = $('jarSvg'); if(jarSvg) jarSvg.style.filter = '';
+    },
+    scoreBonus(){
+      if(l4ApothFrac <= 0) return null;
+      return { ratingMultAdd: 0.5*l4ApothFrac, repBonus: Math.round(4*l4ApothFrac) };
+    }
+  };
+
+  // ---------- Тот-Кто-Ждёт: метроном + 2 числа — поймал ритм — щедрее ----------
+  let l4WaiterMemWindow = 0, l4WaiterCraftWindow = 0, l4WaiterMetronome = null,
+      l4WaiterMemStartAt = 0, l4WaiterMemHit = false;
+  LEVEL4_FX.the_waiter = {
+    setup(){
+      l4WaiterMemWindow = rand(4000, 8000);
+      l4WaiterCraftWindow = rand(4000, 8000);
+      l4WaiterMemHit = false;
+    },
+    memorizeStart(){
+      l4WaiterMemStartAt = performance.now();
+      const wrap = $('waiterReadyWrap');
+      if(wrap){
+        const el = document.createElement('div');
+        el.id = 'l4WaiterNumbers'; el.className = 'l4-waiter-numbers';
+        el.textContent = Math.round(l4WaiterMemWindow/1000) + ' / ' + Math.round(l4WaiterCraftWindow/1000);
+        wrap.appendChild(el);
+      }
+      l4WaiterMetronome = setInterval(()=> SFX.tick(), 500);
+    },
+    craftStart(){
+      if(l4WaiterMetronome){ clearInterval(l4WaiterMetronome); l4WaiterMetronome = null; }
+      const el = document.getElementById('l4WaiterNumbers'); if(el) el.remove();
+    },
+    stop(){
+      if(l4WaiterMetronome){ clearInterval(l4WaiterMetronome); l4WaiterMetronome = null; }
+      const el = document.getElementById('l4WaiterNumbers'); if(el) el.remove();
+    },
+    scoreBonus(scoreData, timeFrac){
+      if(!l4WaiterMemHit) return null;
+      const craftDur = target.craftBaseDuration || target.craftDuration || target.cfg.craftMs;
+      const craftElapsed = timeFrac * craftDur;
+      if(Math.abs(craftElapsed - l4WaiterCraftWindow) > 1200) return null;
+      return { ratingMultAdd: 0.5, waiterThresholdOverride: 0.95 };
+    }
+  };
+  // вызывается из клика по "Готово, воссоздаю" (см. startOrder) — засекает,
+  // попал ли игрок в окно ожидания метронома на запоминании
+  function l4WaiterCheckMemorizeHit(){
+    if(level4Active !== LEVEL4_FX.the_waiter) return;
+    const elapsed = performance.now() - l4WaiterMemStartAt;
+    l4WaiterMemHit = Math.abs(elapsed - l4WaiterMemWindow) <= 1200;
+  }
+
+  // ---------- Модница: 4 цвета подряд, реплика с "…" или "!" ----------
+  let l4FashionTimers = [];
+  LEVEL4_FX.fashionista = {
+    setup(){
+      const cfg = target.cfg;
+      const decoys = [];
+      for(let i=0;i<3;i++) decoys.push(idxToVal(randInt(0,cfg.colorSteps-1), cfg.colorSteps, 360));
+      const confidentIdx = Math.random() < 0.5 ? 0 : 3;
+      const sequence = new Array(4);
+      let di = 0;
+      for(let i=0;i<4;i++) sequence[i] = (i === confidentIdx) ? target.hue : decoys[di++];
+      target.l4FashionSeq = sequence;
+      target.l4FashionConfidentIdx = confidentIdx;
+    },
+    replaceMemorize(onDone){
+      const seq = target.l4FashionSeq;
+      const stepMs = Math.max(1100, Math.round((target.memDuration||6000)/4));
+      seq.forEach((hue, i)=>{
+        l4FashionTimers.push(setTimeout(()=>{
+          drawJar({ hue, hue2:null, sat:target.sat, sizePct:target.size, heightPct:target.size2 ?? null,
+            bubbleCount:0, bubbleR:3, seed:target.seed, shapeIdx:target.shapeIdx ?? 0 });
+          l4FashionShowPhrase(i === target.l4FashionConfidentIdx);
+        }, i*stepMs));
+      });
+      l4FashionTimers.push(setTimeout(onDone, seq.length*stepMs));
+    },
+    stop(){
+      l4FashionTimers.forEach(clearTimeout); l4FashionTimers = [];
+      const el = document.getElementById('l4FashionPhrase'); if(el) el.remove();
+    }
+  };
+  function l4FashionShowPhrase(confident){
+    const wf = $('windowFrame');
+    if(!wf) return;
+    let el = document.getElementById('l4FashionPhrase');
+    if(!el){ el = document.createElement('div'); el.id = 'l4FashionPhrase'; el.className = 'l4-fashion-phrase'; wf.appendChild(el); }
+    const pool = confident
+      ? (typeof FASHIONISTA_SURE_PHRASES !== 'undefined' ? FASHIONISTA_SURE_PHRASES : null)
+      : (typeof FASHIONISTA_UNSURE_PHRASES !== 'undefined' ? FASHIONISTA_UNSURE_PHRASES : null);
+    el.textContent = pool ? LT(pickLocalized(pool)) : '';
+    el.classList.toggle('confident', confident);
+    SFX.uiClick();
+  }
+
+  // ---------- Шеф туманности: гарниши-обманки среди настоящих сгустков ----------
+  LEVEL4_FX.nebula_chef = {
+    setup(){
+      const n = randInt(2,3), pts = [];
+      for(let i=0;i<n;i++) pts.push({ x:100+rand(-24,24), y:170+rand(-38,38), r:3+Math.random()*3.5 });
+      target.garnishPts = pts;
+    }
+  };
+
+  // ---------- Бармен плазма-бара: "потряси коктейль?" ----------
+  let l4BarTimer = null, l4BarShaken = false;
+  LEVEL4_FX.plasma_bartender = {
+    craftStart(){
+      l4BarShaken = false;
+      l4BarTimer = setInterval(l4BarPrompt, rand(6000,9000));
+    },
+    stop(){
+      if(l4BarTimer){ clearInterval(l4BarTimer); l4BarTimer = null; }
+      const el = document.getElementById('l4BarPrompt'); if(el) el.remove();
+    },
+    scoreBonus(){
+      return l4BarShaken ? { ratingMultAdd: 0.08 } : null;
+    }
+  };
+  function l4BarPrompt(){
+    if(!target || target.cfg.id !== 'plasma_bartender' || currentPhase !== 'craft' || craftLocked) return;
+    if(document.getElementById('l4BarPrompt')) return;
+    const wf = $('windowFrame');
+    if(!wf) return;
+    const el = document.createElement('div');
+    el.className = 'l4-bar-prompt'; el.id = 'l4BarPrompt';
+    el.innerHTML = `<span>${LT(UI_TEXT.L4_BAR_SHAKE_PROMPT)}</span><button type="button" class="l4-bar-shake-btn">🍸</button>`;
+    wf.appendChild(el);
+    const timeout = setTimeout(()=>{ el.remove(); }, 5000);
+    el.querySelector('button').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      clearTimeout(timeout);
+      el.remove();
+      l4BarShaken = true;
+      l4ExtendCraftTimer(3000);
+      const jarSvg = $('jarSvg');
+      if(jarSvg){ jarSvg.classList.add('l4-bar-shaking'); setTimeout(()=>jarSvg.classList.remove('l4-bar-shaking'), 600); }
+      SFX.badPop();
+      if(Math.random() < 0.3){
+        const delta = Math.random() < 0.5 ? -1 : 1;
+        target.count = Math.max(1, Math.min(target.cfg.countMax, target.count+delta));
+      }
+      updatePlayerJar();
+    });
+  }
+
   // ---------- сложность регуляторов (Фаза C) ----------
   // Возвращает Set ключей регуляторов, доступных игроку на данном уровне
   // сложности (1/2/3) для конкретного заказа (target уже собран в startOrder:
@@ -787,6 +1586,8 @@
     if(flags.hasSat) allKeys.push('sat');
     if(flags.hasGradient) allKeys.push('colorB');
     if(flags.hasShape) allKeys.push('shape');
+    // Патч "УР.4" (Сверхновая): 2 эксклюзивных регулятора — поворот и блик
+    if(cfg.id === 'supernova_child' && level === 4) allKeys.push('rotation','glare');
     const allSet = new Set(allKeys);
 
     if(level >= 3) return allSet;
@@ -1192,6 +1993,7 @@
     stopMovingAnim();
     stopBadBubbles(); // сбрасываем "плохие" пузыри прошлого заказа, если были
     stopMatrixRain();      // Патч: дождь символов прошлого заказа
+    level4Stop();           // Патч: механика УР.4 прошлого заказа, если была
     $('windowFrame').classList.remove('ir-mono');
     $('selectScreen').classList.remove('show');
     $('roundScreen').classList.add('show');
@@ -1207,6 +2009,9 @@
     SFX.orderShow();
 
     const flags = computeFlags(cfg);
+    // Патч "УР.4" (Парфюмер): на УР.4 у него появляется "накал" — обычно
+    // недоступен тир-3 НПС (флаг требует tier>=4) — это его личное исключение
+    if(cfg.id === 'perfumer' && regLevel === 4) flags.hasSat = true;
     const hueIdx = randInt(0, cfg.colorSteps-1);
     const sizeIdx = randInt(0, cfg.sizeSteps-1);
     const bsizeIdx = randInt(0, cfg.bsizeSteps-1);
@@ -1280,12 +2085,17 @@
     // "воссоздай") — чтобы фаза показа тоже не рисовала сгустки, которых
     // на этой сложности всё равно не будет в задании
     target.activeKeys = computeActiveKeys(regLevel, target);
+    level4SetupOrder(); // Патч "УР.4": рандомизация своих полей target для этого НПС
     const noBubblesPreview = !target.activeKeys.has('count') && !target.activeKeys.has('bsize');
 
     const targetR = 3 + (target.bsize/100)*9;
+    // Патч "УР.4" (Модница): её replaceMemorize сама рисует первый кадр
+    // цветового цикла — обычный кадр с настоящим цветом тут пропускаем,
+    // иначе игрок увидит верный ответ на долю секунды раньше цикла
+    const skipInitialDraw = cfg.id === 'fashionista' && regLevel === 4;
     if(cfg.type === 'moving'){
       startMovingAnim();
-    } else {
+    } else if(!skipInitialDraw){
       drawJar({ hue:target.hue, hue2: target.hue2 ?? null, sat:target.sat, sizePct:target.size,
         heightPct: target.size2 ?? null,
         bubbleCount: noBubblesPreview ? 0 : target.count,
@@ -1307,18 +2117,23 @@
     // Фаза J: эффекты активных пассивок фиксируются на весь заказ
     target.passiveFx = computePassiveFx(cfg.id);
     const memDuration = Math.round(cfg.memorizeMs * (1 + (target.passiveFx.memTime || 0)));
+    target.memDuration = memDuration; // Патч "УР.4": механики фазы показа читают отсюда
     // Тот-Кто-Ждёт: у него нет таймера ни на запоминание, ни на варку —
     // игрок сам решает, когда готов, кнопкой "Готово, воссоздаю"
     $('waiterReadyWrap').classList.remove('show');
     if(cfg.special === 'no_timer'){
       $('waiterReadyBtn').onclick = () => {
+        l4WaiterCheckMemorizeHit(); // Патч "УР.4": засекаем, попал ли игрок в окно метронома
         $('waiterReadyWrap').classList.remove('show');
         stopMovingAnim();
         startGuessPhase();
       };
       $('waiterReadyWrap').classList.add('show');
+      // Патч "УР.4": у Того-Кто-Ждёт своя механика запоминания (метроном+числа)
+      // даже без обычного таймера — цепляем через тот же хук memorizeStart
+      if(level4Active && level4Active.memorizeStart) level4Active.memorizeStart();
     } else {
-      runTimer(memDuration, ()=>{ stopMovingAnim(); startGuessPhase(); });
+      level4StartMemorize(memDuration, ()=>{ stopMovingAnim(); startGuessPhase(); });
     }
   }
 
@@ -1422,6 +2237,9 @@
     target.craftDuration = craftDuration;
     target.craftBaseDuration = craftDuration; // для честного timeFrac, даже когда таймер не тикает
 
+    level4StartCraft(); // Патч "УР.4": может добавить время в target.craftDuration
+    craftDuration = target.craftDuration; // подхватываем правку выше, если была
+
     $('brewBtn').onclick = () => { SFX.brew(); finishCraft(); };
 
     setRingFraction(0);
@@ -1440,8 +2258,9 @@
       runTimer(craftDuration, ()=>{ if(!craftLocked) finishCraft(true); }); // Патч: true = таймер истёк сам
     }
 
-    // запускаем "плохие" пузыри только на 4-ом уровне сложности
-    if(target.regLevel === 4){
+    // запускаем "плохие" пузыри только у дрона на 4-ом уровне — у остальных
+    // НПС на УР.4 теперь свои уникальные механики (см. LEVEL4_FX ниже)
+    if(target.regLevel === 4 && cfg.id === 'drone'){
       badBubbleElapsed = 0;
       badBubbles = [];
       currentBadBubbles = [];
@@ -1533,6 +2352,14 @@
       const lbl2 = $('lblSize2');
       if(lbl2) lbl2.textContent = Math.round(heightPct) + '%';
     }
+    // Патч "УР.4" (Сверхновая): поворот + блик — свои эксклюзивные ползунки
+    let rotationDeg = null, glareSize = null;
+    if(cfg.id === 'supernova_child' && target.regLevel === 4 && S.rotation && S.glare){
+      rotationDeg = S.rotation.value*10;
+      glareSize = S.glare.value*10;
+      const lblR = $('lblRotation'); if(lblR) lblR.textContent = rotationDeg + '°';
+      const lblG = $('lblGlare'); if(lblG) lblG.textContent = glareSize + '%';
+    }
     $('lblColor').textContent = Math.round(hue) + '°';
     $('lblSize').textContent = Math.round(size) + '%';
     $('lblCount').textContent = count;
@@ -1543,6 +2370,7 @@
     const noBubbles = target.activeKeys && !target.activeKeys.has('count') && !target.activeKeys.has('bsize');
     const effCount = noBubbles ? 0 : count;
     drawJar({ hue, hue2, sat, sizePct:size, heightPct, bubbleCount:effCount, bubbleR:r, shapeIdx,
+      rotationDeg, glareSize, garnishPts: target.garnishPts || null,
       seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles });
   }
 
@@ -1620,6 +2448,15 @@
         );
       }
     }
+    // Патч "УР.4" (Сверхновая): 2 доп. эксклюзивных компонента — поворот и блик
+    if(cfg.id === 'supernova_child' && target.regLevel === 4 && S.rotation && S.glare){
+      const rotScore = curveScore(1 - hueDist(S.rotation.value*10, target.rotation ?? 0)/180);
+      const glareScore = curveScore(1 - Math.abs(S.glare.value*10 - (target.glare ?? 0))/100);
+      components.push(
+        {key:'rotation', label:UI_TEXT.LABEL_ROTATION, score:rotScore, weight:0.15},
+        {key:'glare', label:UI_TEXT.LABEL_GLARE, score:glareScore, weight:0.15}
+      );
+    }
 
     // сложность регуляторов (Фаза C): недоступные игроку регуляторы не
     // участвуют в подсчёте очков — веса оставшихся нормализуются к 1
@@ -1651,6 +2488,7 @@
     stopMovingAnim();
     stopBadBubbles();
     stopMatrixRain(); // Патч (Хранитель): дождь символов гаснет с таймером
+    level4Stop();      // Патч "УР.4": интервалы/DOM конкретной механики
     clearInterval(ingTimerHandle);
     $('windowFrame').classList.remove('urgent');
     $('windowFrame').classList.remove('ir-mono'); // Патч (Ир): мир снова цветной
@@ -1719,10 +2557,15 @@
       delta = -Math.round(effReward*(1-overall));
       streak = 0;
     }
-    // Патч (Тот-Кто-Ждёт): у него рейтинг дают только за точность выше 99% —
-    // во всех остальных случаях очки за заказ не начисляются и не отнимаются
-    // (стикер и стадия прогресса при этом идут своим обычным чередом)
-    if(cfg.special === 'no_timer' && overall < 0.99) delta = 0;
+    // Патч "УР.4": некоторые механики дают доп. рейтинг/репутацию/меняют
+    // порог засчитывания (аптекарь, Тот-Кто-Ждёт, коллекционер, бармен...)
+    const l4Bonus = level4ScoreBonus(scoreData, timeFrac) || {};
+    if(l4Bonus.ratingMultAdd && good) delta = Math.round(delta * (1 + l4Bonus.ratingMultAdd));
+    // Патч (Тот-Кто-Ждёт): у него рейтинг дают только за точность выше 99%
+    // (или 95%, если поймал ритм метронома на УР.4) — во всех остальных
+    // случаях очки за заказ не начисляются и не отнимаются (стикер и стадия
+    // прогресса при этом идут своим обычным чередом)
+    if(cfg.special === 'no_timer' && overall < (l4Bonus.waiterThresholdOverride ?? 0.99)) delta = 0;
     // Патч (Хранитель): печать переписывает арифметику — брак не отнимает
     // очки (просто ноль), годнота и идеал приносят больше рейтинга и
     // дополнительную репутацию этого НПС
@@ -1734,6 +2577,7 @@
         window.PotionProfile.adjustReputation(cfg.id, perfect ? 4 : 2);
       }
     }
+    if(l4Bonus.repBonus && good && window.PotionProfile) window.PotionProfile.adjustReputation(cfg.id, l4Bonus.repBonus);
     score = Math.max(0, score + delta);
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;

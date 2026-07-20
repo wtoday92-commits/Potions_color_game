@@ -143,6 +143,9 @@ const UI_TEXT = {
   // Сверхновая: два измерения банки
   LABEL_WIDTH:   { ru:'Ширина', en:'Width' },
   LABEL_HEIGHT:  { ru:'Высота', en:'Height' },
+  // УР.4 (Сверхновая): 2 эксклюзивных регулятора
+  LABEL_ROTATION: { ru:'Поворот', en:'Rotation' },
+  LABEL_GLARE:    { ru:'Блик', en:'Glare' },
   // Тот-Кто-Ждёт: без таймера — игрок сам жмёт кнопку, когда готов
   WAITER_READY_BTN: { ru:'Готово, воссоздаю', en:'Ready, recreating' },
   // Ир: меню доверия
@@ -167,6 +170,8 @@ const UI_TEXT = {
   REL_OFFENDED_TOAST: { ru:'Обиделся — не рассчитывай на честные стикеры', en:'Got offended — don’t expect honest stickers' },
   REL_LEFT_TOAST:    { ru:'Обиделся и не появится до конца цикла', en:'Got offended — won’t show up for the rest of the cycle' },
   REL_DISCOVERED_TOAST: { ru:'Новая связь между персонажами', en:'New connection between characters' },
+  // УР.4 (Бармен плазма-бара): предложение тряхнуть коктейль
+  L4_BAR_SHAKE_PROMPT: { ru:'Тряхнуть коктейль?', en:'Shake the cocktail?' },
 };
 
 // ---------- СТИКЕРЫ РЕЗУЛЬТАТА ----------
@@ -373,6 +378,31 @@ const WAITER_NOTE_FAR = { ru:[
   "I'll wait a little longer. Unlike you, I have the time.",
   'Funny. You just proved why I wait for the mixture, not for you.',
   'The list of outcomes where this worked does not include this one.'
+]};
+
+// ---------- Модница: УР.4 — цикл из 4 цветов, реплика на каждый ----------
+// "…" — сомневается (это decoy); "!" — уверена (это и есть цель)
+const FASHIONISTA_UNSURE_PHRASES = { ru:[
+  'Хм... кажется, этот оттенок?..',
+  'Может быть, вот этот... не уверена...',
+  'Что-то в нём не то... или то?..',
+  'Пожалуй... хотя нет, не знаю...'
+], en:[
+  'Hmm... maybe this shade?..',
+  'Perhaps this one... not sure...',
+  'Something about it feels off... or does it?..',
+  "Maybe... though, no, I don't know..."
+]};
+const FASHIONISTA_SURE_PHRASES = { ru:[
+  'Да! Точно этот!',
+  'Вот он! Именно этот оттенок!',
+  'Наконец! Мой цвет!',
+  'Это он, без сомнений!'
+], en:[
+  'Yes! This one, exactly!',
+  'There it is! That exact shade!',
+  'Finally! My color!',
+  'This is it, no doubt!'
 ]};
 
 // ---------- Хранитель Архива: печати ----------
@@ -1222,10 +1252,9 @@ const ALL_NPCS = (()=>{
 //  прокачка была слишком долгой)
 const REP_LEVELS = [27, 67, 120, 185, 265];
 
-// с какого уровня репутации у НПС открывается 4-я сложность его заданий
-// (механика пока общая — "плохие" пузыри, как у стартового дрона;
-// уникальные механики на каждого НПС — отдельным будущим патчем)
-const REP_L4_UNLOCK_LEVEL = 4;
+// с какого уровня репутации у НПС открывается 4-я сложность его заданий —
+// у каждого НПС теперь своя уникальная механика УР.4 (см. LEVEL4_FX в game.js)
+const REP_L4_UNLOCK_LEVEL = 1;
 
 // вероятность, что при выборе заказов вместо обычной фразы НПС скажет
 // уже открытую лорную фразу (другим цветом). Не применяется к
