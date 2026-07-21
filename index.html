@@ -149,21 +149,29 @@
           <div id="mSize2"></div>
           <div class="vslider-value" id="lblSize2"></div>
         </div>
-        <!-- Патч "УР.4" (Сверхновая): эксклюзивные поворот банки и блик -->
+        <!-- Патч "УР.4" (Сверхновая): эксклюзивный поворот банки -->
         <div class="vslider-group hidden" id="rotationGroup">
           <div class="vslider-label" data-i18n="LABEL_ROTATION">Поворот</div>
           <div id="mRotation"></div>
           <div class="vslider-value" id="lblRotation"></div>
         </div>
-        <div class="vslider-group hidden" id="glareGroup">
-          <div class="vslider-label" data-i18n="LABEL_GLARE">Блик</div>
-          <div id="mGlare"></div>
-          <div class="vslider-value" id="lblGlare"></div>
+        <!-- Патч "УР.4" (Бармен): эксклюзивная скорость тряски -->
+        <div class="vslider-group hidden" id="speedGroup">
+          <div class="vslider-label" data-i18n="LABEL_SPEED">Скорость</div>
+          <div id="mSpeed"></div>
+          <div class="vslider-value" id="lblSpeed"></div>
         </div>
         <div class="vslider-group">
-          <div class="vslider-label" data-i18n="LABEL_COUNT">Сгустки</div>
+          <div class="vslider-label" id="countLabel" data-i18n="LABEL_COUNT">Сгустки</div>
           <div id="mCount"></div>
           <div class="vslider-value" id="lblCount"></div>
+        </div>
+        <!-- Патч "УР.4" (Двуликая жрица): банка разделена на 2 половины —
+             у каждой свой независимый счётчик сгустков (макс. 7) -->
+        <div class="vslider-group hidden" id="countBGroup">
+          <div class="vslider-label" data-i18n="LABEL_COUNT_B">Сгустки Б</div>
+          <div id="mCountB"></div>
+          <div class="vslider-value" id="lblCountB"></div>
         </div>
         <div class="vslider-group">
           <div class="vslider-label" data-i18n="LABEL_BSIZE">Разм. сгуст.</div>
@@ -172,7 +180,6 @@
         </div>
         <div class="vslider-group hidden" id="shapeGroup">
           <div class="vslider-label" data-i18n="LABEL_SHAPE">Форма</div>
-          <div class="shape-preview-box"><svg id="shapePreviewSvg" width="34" height="46" viewBox="0 0 60 70"></svg></div>
           <div id="mShape"></div>
           <div class="vslider-value" id="lblShape"></div>
         </div>
@@ -183,7 +190,17 @@
       <div class="ingredient-counter" id="ingCounter"></div>
       <button class="brew-btn" id="brewBtn" data-i18n="BREW_BTN">Готово!</button>
     </div>
+
+    <!-- Патч "УР.4" (Коллекционер): 16 баночек вместо регуляторов и циферблата -->
+    <div class="collector-grid-wrap hidden" id="collectorGridWrap">
+      <div class="collector-grid" id="collectorGrid"></div>
+      <div class="collector-timer-track"><div class="collector-timer-fill" id="collectorTimerFill"></div></div>
+    </div>
   </div>
+
+  <!-- Патч (флоу ежедневного заказа): выход из текущего режима (аркада
+       или ежедневный) обратно на стартовый экран — снизу, всегда доступна -->
+  <button class="back-to-start-btn" id="backToStartBtn" data-i18n="BACK_TO_START_BTN">← На стартовый экран</button>
 </div>
 
 <div class="result-overlay" id="resultOverlay">
@@ -212,6 +229,15 @@
       <button class="next-btn ir-keep-btn" id="irTrustKeepBtn">Всё же играть</button>
       <button class="next-btn ir-accept-btn" id="irTrustAcceptBtn">Довериться — УР.3</button>
     </div>
+  </div>
+</div>
+
+<!-- Патч "УР.4" (Инспектор Гильдии): полноэкранный канцелярский текст "Допусков" -->
+<div class="week-overlay inspector-tol-overlay" id="inspectorTolOverlay">
+  <div class="week-card inspector-tol-card">
+    <h3 data-i18n="INSPECTOR_TOL_BTN">Допуски</h3>
+    <div class="inspector-tol-text" id="inspectorTolText"></div>
+    <button class="next-btn" id="inspectorTolCloseBtn" data-i18n="INSPECTOR_TOL_CLOSE">Ознакомлен</button>
   </div>
 </div>
 

@@ -124,10 +124,11 @@
   /* Кнопка теперь стоит В ПОТОКЕ, внутри .splash-inner, под надписью
      (см. index.html) — крупная и заметная, а не мелкая внизу экрана */
   .dock-btn{
-    display:inline-block;margin-top:24px;
-    padding:20px 54px;border:none;border-radius:14px;
+    display:flex;align-items:center;justify-content:center;margin-top:24px;
+    height:calc(28px + 2.4em);line-height:1.2;
+    padding:0 clamp(10px,4vw,54px);border:none;border-radius:14px;
     background:linear-gradient(180deg,var(--neon-light),var(--neon) 60%, #17a8c6);
-    color:#04121a;font-family:'Russo One',sans-serif;font-weight:400;font-size:21px;
+    color:#04121a;font-family:'Russo One',sans-serif;font-weight:400;font-size:clamp(14px,4.4vw,21px);
     letter-spacing:.12em;text-transform:uppercase;cursor:pointer;
     box-shadow:0 0 34px -4px rgba(53,224,255,.85);
     opacity:0;animation:splashIn 1.1s ease .3s forwards;
@@ -435,10 +436,6 @@
   }
   .vslide-wrap:active .vslide-thumb{box-shadow:0 0 18px rgba(53,224,255,1);}
 
-  .shape-preview-box{
-    width:44px;height:52px;border:1px solid rgba(53,224,255,.4);
-    border-radius:6px;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;
-  }
 
   .window-wrap{display:flex;justify-content:center;position:relative;}
   .window-frame{
@@ -513,11 +510,30 @@
   button.brew-btn:active{transform:scale(.95);}
   button.brew-btn:disabled{opacity:.4;cursor:not-allowed;}
 
+  /* Патч (флоу ежедневного заказа): постоянная кнопка выхода на стартовый
+     экран — низкий z-index, чтобы уходить под попапы (результат/цикл/etc),
+     когда те открыты, и не мешать кликам во время самой игры */
+  .back-to-start-btn{
+    position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:40;
+    padding:8px 18px;border-radius:20px;border:1px solid rgba(255,255,255,.25);
+    background:rgba(4,5,13,.55);color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.05em;
+    cursor:pointer;backdrop-filter:blur(2px);
+    transition:color .12s ease, border-color .12s ease;
+  }
+  .back-to-start-btn:hover{color:var(--ink);border-color:rgba(255,255,255,.6);}
+  .back-to-start-btn:active{transform:translateX(-50%) scale(.95);}
+
   .result-overlay, .week-overlay{
     position:fixed;inset:0;background:rgba(2,3,10,.88);display:none;
     align-items:center;justify-content:center;z-index:60;backdrop-filter:blur(3px);padding:20px;
   }
   .result-overlay.show, .week-overlay.show{display:flex;}
+  /* Патч (флоу ежедневного заказа): модалка выбора сложности всплывает
+     ПРЯМО НА СПЛЭШЕ (см. game.js dailyDockBtn) — сплэш ещё не скрыт,
+     значит модалке нужен z-index выше сплэшевого (200), иначе она
+     рендерится под ним — невидимая и некликабельная. */
+  #dailyDifficultyOverlay{ z-index:210; }
   .result-card{
     background:linear-gradient(180deg,#101530,#0a0d20);
     border:1px solid rgba(53,224,255,.45);border-radius:16px;
@@ -542,6 +558,9 @@
   .score-breakdown .row{display:flex;justify-content:space-between;}
   .score-breakdown .row span.val{color:var(--ink);}
   .score-breakdown .row.focused span{color:var(--magenta);}
+  /* Патч (Тентаклоид): единственный параметр, который у него на самом деле
+     что-то решал — подсвечен, остальные строки breakdown были "в холостую" */
+  .score-breakdown .row.decisive span{color:var(--good);font-weight:600;}
   .overall-score{font-family:'IBM Plex Mono',monospace;font-size:26px;color:var(--neon-light);margin-bottom:2px;text-shadow:0 0 14px rgba(53,224,255,.6);}
   .next-btn{
     width:100%;padding:12px;border-radius:10px;background:transparent;
@@ -855,13 +874,22 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
   padding: 8vh 6vw 0 0;
 }
 #splashScreen .splash-inner{
-  max-width: 520px;
+  width: min(520px, 90vw);
+  max-width: none;
   text-align: right;
   background: rgba(4,5,13,.38);
   border-radius: 16px;
   padding: 22px 26px;
   backdrop-filter: blur(2px);
 }
+/* Патч (жёсткая раскладка сплэша): панель/кнопки/текст не должны
+   менять размер или позицию при переключении языка — фиксируем
+   размеры под самый длинный (русский) вариант вместо auto-по-контенту. */
+#splashScreen h2{ height: calc(1.5em * 4); overflow: hidden; }
+#splashScreen .splash-sub{ height: calc(1.7em * 3); line-height: 1.7; overflow: hidden; }
+.splash-btn-row{ width: 100%; box-sizing: border-box; }
+.dock-btn{ width: 100%; box-sizing: border-box; text-align: center; }
+.splash-lang-btn{ min-width: 52px; box-sizing: border-box; }
 
 /* ============================================================
    ФАЗЫ I/J + UI-ПАТЧ
@@ -1409,34 +1437,47 @@ body::after{
 }
 .vslide-wrap.ir-gift .vslide-track{box-shadow:0 0 10px rgba(255,217,138,.35);}
 /* дебафф "Выцветший мир": банка обесцвечена */
-.window-frame.ir-mono #jarSvg{filter:grayscale(1) contrast(1.05);}
+/* Патч (усиленный дебафф Ир): не только чёрно-белое, но и сильно
+   размытые края банки — сложнее оценить габариты */
+.window-frame.ir-mono #jarSvg{filter:grayscale(1) contrast(1.05) blur(3.5px);}
 .window-frame.ir-mono{box-shadow:inset 0 0 60px rgba(0,0,0,.35);}
 
-/* ---------- Патч "УР.4": Дальнобойщик — тряска кабины + гаснущие туннели ---------- */
-.window-frame.l4-shake{animation:l4ShakeCabin .22s ease-in-out infinite;}
+/* ---------- Патч "УР.4": Дальнобойщик — тряска кабины (уменьшена) ----------
+   Мигание чёрным (l4-blackout) убрано целиком — выглядело дёшево */
+.window-frame.l4-shake{animation:l4ShakeCabin .28s ease-in-out infinite;}
 @keyframes l4ShakeCabin{
   0%,100%{transform:translate(0,0);}
-  25%{transform:translate(-1.5px,1px);}
-  50%{transform:translate(1.5px,-1px);}
-  75%{transform:translate(-1px,-1.5px);}
+  25%{transform:translate(-.6px,.4px);}
+  50%{transform:translate(.6px,-.4px);}
+  75%{transform:translate(-.4px,-.6px);}
 }
-.window-frame.l4-blackout{background:#000;}
-.window-frame.l4-blackout #jarSvg, .window-frame.l4-blackout .ring-svg{opacity:0;}
-/* ---------- Инспектор Гильдии: вспышка проверки + трение регулятора ---------- */
-.window-frame.l4-audit{box-shadow:inset 0 0 0 3px rgba(255,217,138,.6), inset 0 0 40px rgba(255,217,138,.2);}
-.vslide-wrap.l4-friction .vslide-track{background:repeating-linear-gradient(0deg, rgba(255,217,138,.35) 0 3px, transparent 3px 6px) !important;}
-/* ---------- Векс: банка дышит, регулятор вздрагивает ---------- */
-#jarSvg.l4-breathing{animation:l4Breathe 3.4s ease-in-out infinite;transform-origin:100px 200px;}
-@keyframes l4Breathe{
-  0%,100%{transform:scale(1);}
-  50%{transform:scale(1.035);}
+/* ---------- Дальнобойщик: ползунки-"передачи" — ветвистая SVG-дорожка ---------- */
+.l4-trucker-col{ flex-direction:column !important; align-items:center; gap:12px; }
+.l4-gearpath-holder{ width:84px; height:84px; margin:0 auto; }
+.l4-gearpath-svg{ width:100%; height:100%; overflow:visible; touch-action:none; cursor:pointer; }
+.l4-gearpath-track{
+  fill:none; stroke:rgba(53,224,255,.45); stroke-width:5;
+  stroke-linecap:round; stroke-linejoin:round;
+  filter:drop-shadow(0 0 4px rgba(53,224,255,.35));
 }
-.vslide-wrap.l4-flinch .vslide-thumb{
-  box-shadow:0 0 12px 3px rgba(255,93,106,.85) !important;border-color:var(--danger) !important;
-  animation:l4FlinchShake .35s steps(2) infinite;
+.l4-gearpath-thumb{
+  fill:var(--neon); stroke:#041018; stroke-width:2;
+  filter:drop-shadow(0 0 6px rgba(53,224,255,.9));
 }
-@keyframes l4FlinchShake{
-  0%,100%{transform:translateX(-2px);} 50%{transform:translateX(2px);}
+/* ---------- Векс: перетаскиваемые сгустки ---------- */
+.l4-vex-blob{
+  position:absolute;width:26px;height:26px;border-radius:50%;
+  transform:translate(-50%,-50%);cursor:grab;z-index:6;touch-action:none;user-select:none;
+  background:radial-gradient(circle at 35% 30%, #d9ffd0, rgba(125,255,106,.85) 55%, rgba(30,70,25,.9));
+  border:2px solid #0a0d18;box-shadow:0 0 8px rgba(125,255,106,.6);
+  transition:left .5s ease, top .5s ease;
+}
+.l4-vex-blob.dragging{cursor:grabbing;transition:none;z-index:9;box-shadow:0 0 14px rgba(125,255,106,.95);}
+.l4-vex-line{
+  position:absolute;bottom:5%;left:50%;transform:translateX(-50%);
+  max-width:88%;padding:6px 12px;text-align:center;z-index:7;
+  font-family:'Russo One',sans-serif;font-size:13px;letter-spacing:.02em;line-height:1.35;
+  color:var(--neon-light);text-shadow:0 0 8px rgba(53,224,255,.6);
 }
 /* ---------- Хранитель Архива: печать на одном регуляторе ---------- */
 .vslide-wrap.l4-sealed{pointer-events:none;}
@@ -1456,11 +1497,6 @@ body::after{
 @keyframes l4ClutterJitter{
   0%,100%{transform:translate(-50%,-50%) rotate(-8deg);}
   50%{transform:translate(calc(-50% + 4px),calc(-50% - 3px)) rotate(8deg);}
-}
-/* ---------- Последний из Ир: вспышка родной планеты ---------- */
-.l4-planet-flash{
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:64px;background:rgba(4,5,13,.92);z-index:5;pointer-events:none;
 }
 /* ---------- Гонщица Кай: гоночный отсчёт ---------- */
 .l4-race-countdown{
@@ -1490,38 +1526,25 @@ body::after{
 @keyframes l4KaiShake3{
   0%,100%{transform:translate(0,0) rotate(0);} 50%{transform:translate(3px,-3px) rotate(1deg);}
 }
-/* ---------- DJ Пульсар: бит-индикатор + комбо ---------- */
-.l4-dj-indicator{
-  position:absolute;top:8px;left:50%;transform:translateX(-50%);
-  width:14px;height:14px;border-radius:50%;background:var(--magenta);
-  box-shadow:0 0 10px var(--magenta);z-index:6;pointer-events:none;opacity:.5;
-}
-.l4-dj-indicator.pulse{animation:l4DjPulse .3s ease-out;}
-@keyframes l4DjPulse{
-  0%{transform:translateX(-50%) scale(1.8);opacity:1;box-shadow:0 0 22px var(--magenta);}
-  100%{transform:translateX(-50%) scale(1);opacity:.5;}
-}
-.l4-dj-combo{
-  position:absolute;top:26px;left:50%;transform:translateX(-50%);
-  font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--neon-light);
-  z-index:6;pointer-events:none;text-shadow:0 0 6px rgba(53,224,255,.6);
-}
-/* ---------- Стажёр Бип: подсказка-пузырь ---------- */
-.l4-beep-bubble{
-  position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;
-  background:rgba(255,217,138,.18);border:2px solid #ffd98a;z-index:6;
-  animation:l4BeepBounce .5s ease-in-out infinite;
-}
-@keyframes l4BeepBounce{
-  0%,100%{transform:translateY(0);} 50%{transform:translateY(-4px);}
+/* ---------- DJ Пульсар: вся панель пульсирует в такт синтезированному биту ---------- */
+.l4-dj-beat{ animation:l4DjBeatPulse .42s cubic-bezier(.34,1.56,.64,1); }
+@keyframes l4DjBeatPulse{
+  0%{ transform:scale(1.05); filter:brightness(1.35) saturate(1.2); }
+  100%{ transform:scale(1); filter:brightness(1) saturate(1); }
 }
 
-/* ---------- Логика-9: степпер вместо слайдера ---------- */
-.l4-stepper-group .vslide-wrap{visibility:hidden;}
+/* ---------- Логика-9: степпер поверх шкалы (не вместо неё) ----------
+   Раньше сам ползунок (шкала + горящий индикатор) прятался целиком —
+   от степпера оставались только кнопки +/- и голое число, без шкалы.
+   Теперь шкала и индикатор остаются видны, степпер лишь запрещает
+   перетаскивание (двигать можно только кнопками) */
+.vslide-wrap.l4-nodrag{ pointer-events:none; }
+.l4-stepper-group .l4-stepper-btn,
+.l4-stepper-group .l4-stepper-val{ pointer-events:auto; }
 .l4-stepper{
   position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:space-between;padding:2px 0;
+  pointer-events:none;
 }
 .l4-stepper-btn{
   width:28px;height:28px;border-radius:6px;border:1px solid var(--neon);
@@ -1545,27 +1568,87 @@ body::after{
 }
 
 /* ---------- Аптекарь Мо: полоска состояния пациента ---------- */
+/* Патч: висит на .window-wrap (СНАРУЖИ круглого циферблата, который
+   клипует overflow по border-radius:50%), поэтому больше не обрезается —
+   и сделана толще, во всю высоту циферблата */
 .l4-vitals-bar{
-  position:absolute;left:10px;top:10%;bottom:10%;width:10px;border-radius:6px;
+  position:absolute;left:-18px;top:2%;bottom:2%;width:16px;border-radius:8px;
   background:rgba(0,0,0,.4);border:1px solid rgba(255,93,106,.5);overflow:hidden;z-index:6;
 }
 .l4-vitals-fill{
   position:absolute;bottom:0;left:0;width:100%;height:100%;
   background:linear-gradient(to top, var(--danger), var(--good));transition:height .15s linear;
 }
-/* ---------- Тот-Кто-Ждёт: числа метронома ---------- */
-.l4-waiter-numbers{
-  margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:15px;
-  color:var(--neon-light);letter-spacing:.08em;text-align:center;
-}
-/* ---------- Модница: реплика на цветовом цикле ---------- */
+/* ---------- Модница: реплика + кнопка "дальше" (один ползунок за раз) ---------- */
 .l4-fashion-phrase{
-  position:absolute;bottom:6%;left:50%;transform:translateX(-50%);
-  max-width:80%;padding:6px 12px;border-radius:10px;text-align:center;
+  position:absolute;bottom:14%;left:50%;transform:translateX(-50%);
+  max-width:82%;padding:6px 12px;border-radius:10px;text-align:center;
   background:rgba(10,13,32,.85);border:1px solid rgba(255,77,210,.4);
-  color:var(--ink);font-size:12px;z-index:6;white-space:nowrap;
+  color:var(--ink);font-size:12px;z-index:6;white-space:normal;line-height:1.4;
 }
 .l4-fashion-phrase.confident{border-color:var(--good);color:var(--good);}
+.l4-fashion-confirm{
+  position:absolute;bottom:4%;left:50%;transform:translateX(-50%);
+  padding:6px 16px;border-radius:20px;border:1px solid rgba(255,77,210,.6);
+  background:rgba(255,77,210,.15);color:var(--ink);font-family:'Russo One',sans-serif;
+  font-size:11px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;z-index:7;
+}
+.l4-fashion-confirm:hover{background:rgba(255,77,210,.28);}
+.l4-fashion-confirm:active{transform:translateX(-50%) scale(.95);}
+
+/* ---------- Дегустатор: реплика "переделай" при первой "какашке" ---------- */
+.l4-taste-note{
+  position:absolute;bottom:14%;left:50%;transform:translateX(-50%);
+  max-width:82%;padding:6px 12px;border-radius:10px;text-align:center;
+  background:rgba(10,13,32,.85);border:1px solid rgba(125,255,106,.4);
+  color:var(--ink);font-size:12px;z-index:6;white-space:normal;line-height:1.4;
+}
+
+/* ---------- Инспектор Гильдии: баннер запоминания + кнопка/полноэкранный текст "Допусков" ---------- */
+.l4-inspector-banner{
+  position:absolute;bottom:5%;left:50%;transform:translateX(-50%);
+  max-width:88%;padding:8px 14px;text-align:center;z-index:7;
+  font-family:'Russo One',sans-serif;font-size:15px;letter-spacing:.03em;line-height:1.3;
+  color:var(--danger);text-shadow:0 0 10px rgba(255,93,106,.8), 0 0 22px rgba(255,93,106,.4);
+}
+.l4-inspector-tol-btn{
+  position:absolute;bottom:5%;left:50%;transform:translateX(-50%);
+  padding:8px 20px;border-radius:20px;border:1px solid rgba(255,217,138,.6);
+  background:rgba(255,217,138,.14);color:var(--ink);font-family:'Russo One',sans-serif;
+  font-size:12px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;z-index:7;
+}
+.l4-inspector-tol-btn:hover{background:rgba(255,217,138,.26);}
+.l4-inspector-tol-btn:active{transform:translateX(-50%) scale(.95);}
+.inspector-tol-card{ width:520px; text-align:left; }
+
+/* ---------- Коллекционер: сетка из 16 баночек вместо регуляторов ---------- */
+.collector-grid-wrap{ width:100%; max-width:420px; margin:0 auto; }
+.collector-grid{
+  display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;
+  margin-bottom:14px;
+}
+.collector-jar-cell{
+  background:rgba(53,224,255,.06); border:1px solid rgba(53,224,255,.3); border-radius:10px;
+  padding:6px; cursor:pointer; transition:transform .1s ease, border-color .12s ease, background .12s ease;
+  display:flex; align-items:center; justify-content:center;
+}
+.collector-jar-cell:hover{ border-color:rgba(53,224,255,.7); background:rgba(53,224,255,.14); transform:scale(1.05); }
+.collector-jar-cell:active{ transform:scale(.95); }
+.collector-jar-svg{ width:100%; height:auto; max-height:78px; }
+.collector-timer-track{
+  width:100%; height:8px; border-radius:4px; background:rgba(0,0,0,.4);
+  border:1px solid rgba(53,224,255,.3); overflow:hidden;
+}
+.collector-timer-fill{
+  height:100%; width:100%; background:linear-gradient(90deg, var(--neon), var(--neon-light));
+  transition:width .1s linear;
+}
+.inspector-tol-text{
+  font-family:'IBM Plex Mono',monospace; font-size:13px; line-height:1.6;
+  color:var(--ink); white-space:pre-wrap; text-align:left;
+  background:rgba(0,0,0,.25); border:1px solid rgba(255,217,138,.3); border-radius:10px;
+  padding:16px; margin:10px 0 16px; max-height:52vh; overflow-y:auto;
+}
 /* ---------- Бармен плазма-бара: схвати банку и тряхни ---------- */
 .l4-bar-hint{
   position:absolute;top:8%;left:50%;transform:translateX(-50%);
@@ -1589,14 +1672,24 @@ body::after{
   filter:drop-shadow(0 0 3px rgba(0,0,0,.6));
   transition:left .35s ease, top .35s ease;
 }
-.l4-fly.flying-in{transition:left .6s ease, top .6s ease;}
+.l4-fly.flying-out{transition:left .6s ease, top .6s ease;}
 .l4-fly.dragging{cursor:grabbing;transition:none;z-index:9;}
 .l4-fly.inside{filter:drop-shadow(0 0 5px rgba(125,255,106,.85));}
 .l4-fly-hidden{visibility:hidden;}
+/* Патч: крупная реплика Хозяина Роя внизу циферблата на фазе запоминания */
+.l4-swarm-hint{
+  position:absolute;left:50%;bottom:6%;transform:translateX(-50%);
+  font-family:'Russo One',sans-serif;font-size:20px;letter-spacing:.08em;
+  color:var(--danger);text-shadow:0 0 10px rgba(255,93,106,.75), 0 0 22px rgba(255,93,106,.4);
+  white-space:nowrap;z-index:7;pointer-events:none;
+  opacity:0;transition:opacity .4s ease;
+}
+.l4-swarm-hint.show{opacity:1;}
 /* ---------- Уборщик Пятого Дока: грязная банка + курсор-тряпка ---------- */
 .l4-grime-canvas{position:absolute;inset:0;z-index:7;pointer-events:none;}
 .l4-janitor-cursor{
-  position:absolute;font-size:22px;pointer-events:none;z-index:8;
+  /* Патч: курсор-тряпка увеличен в 2.5 раза (было 22px) — легче целиться */
+  position:absolute;font-size:55px;pointer-events:none;z-index:8;
   transform:translate(-50%,-40%);filter:drop-shadow(0 0 4px rgba(0,0,0,.7));
 }
 .window-frame.l4-janitor-active{cursor:none;}

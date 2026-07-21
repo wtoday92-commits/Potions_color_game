@@ -34,6 +34,7 @@ const UI_TEXT = {
   DAILY_DIFF_MID:    { ru:'Ок', en:'Okay' },
   DAILY_DIFF_HARD:   { ru:'Так и было задумано', en:'This was always the plan' },
   DAILY_DIFF_CANCEL: { ru:'Назад', en:'Back' },
+  BACK_TO_START_BTN: { ru:'← На стартовый экран', en:'← Back to start screen' },
   DAILY_YESTERDAY_TITLE: { ru:'🏆 Топ-3 вчерашнего дня', en:'🏆 Top 3 from yesterday' },
   SUBTITLE:          { ru:'лавка смесей // сектор Ω // край вселенной', en:'mixture shop // sector Ω // edge of the universe' },
   DAY_LABEL:         { ru:'День', en:'Day' },
@@ -154,9 +155,21 @@ const UI_TEXT = {
   LABEL_HEIGHT:  { ru:'Высота', en:'Height' },
   // УР.4 (Сверхновая): 2 эксклюзивных регулятора
   LABEL_ROTATION: { ru:'Поворот', en:'Rotation' },
-  LABEL_GLARE:    { ru:'Блик', en:'Glare' },
   // Тот-Кто-Ждёт: без таймера — игрок сам жмёт кнопку, когда готов
   WAITER_READY_BTN: { ru:'Готово, воссоздаю', en:'Ready, recreating' },
+  SWARM_RETURN_TEXT: { ru:'ВЕРНИ ИХ.', en:'RETURN THEM.' },
+  LABEL_SPEED: { ru:'Скорость', en:'Speed' },
+  LABEL_COUNT_A: { ru:'Сгустки А', en:'Blobs A' },
+  LABEL_COUNT_B: { ru:'Сгустки Б', en:'Blobs B' },
+  FASHION_CONFIRM_BTN: { ru:'Дальше', en:'Next' },
+  TASTE_BTN: { ru:'Дегустировать', en:'Taste' },
+  TASTE_HALF_TAG: { ru:'½ рейтинга — гурман не впечатлён', en:'½ rating — the gourmet is unimpressed' },
+  TASTE_RETRY_NOTE: { ru:'Это никуда не годится. Доделывай — я подожду.', en:"This won't do at all. Fix it - I'll wait." },
+  INSPECTOR_BANNER: { ru:'Такое ни в коем случае недопустимо!', en:'This is unacceptable under any circumstances!' },
+  INSPECTOR_TOL_BTN: { ru:'Допуски', en:'Tolerances' },
+  INSPECTOR_TOL_CLOSE: { ru:'Ознакомлен', en:'Acknowledged' },
+  VEX_MEMORIZE_LINE: { ru:'Запомни, где именно они лежат. Я хочу увидеть их ТОЧНО на этих местах.', en:'Remember exactly where they lie. I want to see them in EXACTLY those spots.' },
+  LABEL_VEX_POSITION: { ru:'Положение сгустков', en:'Blob positions' },
   // Ир: меню доверия
   IR_TRUST_TITLE:   { ru:'Последний из Ир смотрит на тебя', en:'The Last of the Ir looks at you' },
   IR_TRUST_KEEP:    { ru:'Всё же играть УР.{n}', en:'Play LV.{n} anyway' },
@@ -346,20 +359,28 @@ const IR_GRANT_PHRASES = {
 const IR_EFFECTS = {
   buff: [
     { id:'gift',      icon:'🌅', name:{ ru:'Рука Ир', en:'Hand of the Ir' },
-      desc:{ ru:'Ир сам выставил один регулятор точно в цель', en:'The Ir set one regulator exactly on target' } },
+      desc:{ ru:'Ир сам выставил ДВА регулятора точно в цель', en:'The Ir set TWO regulators exactly on target' } },
     { id:'time_plus', icon:'⏱',  name:{ ru:'Подаренные секунды', en:'Gifted seconds' },
-      desc:{ ru:'+2 секунды к таймеру', en:'+2 seconds on the timer' } },
+      desc:{ ru:'+4 секунды к таймеру', en:'+4 seconds on the timer' } },
     { id:'replay',    icon:'🔄', name:{ ru:'Второй рассвет', en:'A second dawn' },
-      desc:{ ru:'Можно переиграть задание, если не вышел идеал', en:'You may replay the order if it is not perfect' } }
+      desc:{ ru:'Переигрывай сколько угодно раз, пока не выйдет идеал или пока сам не согласишься на результат', en:'Replay as many times as you like until it is perfect, or until you accept the result yourself' } }
   ],
   debuff: [
     { id:'mono',        icon:'🌫', name:{ ru:'Выцветший мир', en:'A faded world' },
-      desc:{ ru:'Палитра и смесь стали чёрно-белыми', en:'The palette and mixture turned black-and-white' } },
-    { id:'time_minus',  icon:'⏳', name:{ ru:'Украденная секунда', en:'A stolen second' },
-      desc:{ ru:'−1 секунда таймера', en:'−1 second on the timer' } },
+      desc:{ ru:'Смесь стала чёрно-белой, а края банки сильно размыты', en:'The mixture turned black-and-white, and the jar\'s edges are badly blurred' } },
+    { id:'time_minus',  icon:'⏳', name:{ ru:'Украденные секунды', en:'Stolen seconds' },
+      desc:{ ru:'−2 секунды таймера', en:'−2 seconds on the timer' } },
     { id:'force_replay',icon:'♻️', name:{ ru:'Дважды безупречно', en:'Twice flawless' },
-      desc:{ ru:'Идеал придётся доказать ещё раз', en:'A perfect result must be proven again' } }
+      desc:{ ru:'Идеал придётся доказать ещё раз — и эта попытка обязательно получит ещё один дебафф', en:'A perfect result must be proven again - and that attempt will also carry another debuff' } }
   ]
+};
+
+// ---------- Тот-Кто-Ждёт: дар за строгие 100% — таймер следующего заказа
+// (у любого НПС) идёт в 2 раза медленнее ----------
+const WAITER_SLOW_BUFF = {
+  icon:'⏳',
+  name:{ ru:'Дар Ожидания', en:'Gift of Waiting' },
+  desc:{ ru:'Следующий заказ (у любого НПС): таймер идёт вдвое медленнее', en:'Next order (any NPC): the timer runs twice as slow' }
 };
 
 // ---------- Тот-Кто-Ждёт: без таймера, рейтинг только за точность >99% ----------
@@ -404,6 +425,26 @@ const FASHIONISTA_UNSURE_PHRASES = { ru:[
   'Something about it feels off... or does it?..',
   "Maybe... though, no, I don't know..."
 ]};
+// ---------- Модница: УР.4 — один ползунок за раз, остальные заблокированы ----------
+const FASHIONISTA_BOSSY_PHRASES = { ru:[
+  'Давай сейчас лучше этим займёмся.',
+  'Это мне нравится — хочу, чтобы ты слушал меня!',
+  'Остальное подождёт. Сейчас — только это.',
+  'Ты и правда думал, что можно всё сразу? Мило.',
+  'Вот этим займись. Остальное я подержу при себе.',
+  'Слушай меня внимательно — я знаю, чего хочу.',
+  'Именно это сейчас важно. Остальное — потом.',
+  'Не отвлекайся. Только этот. Только сейчас.'
+], en:[
+  "Let's focus on this one right now.",
+  "I like this — I want you to listen to me!",
+  "The rest can wait. Just this, for now.",
+  "Did you really think you could do it all at once? Cute.",
+  "Work on this one. I'll hold onto the rest myself.",
+  "Listen closely — I know exactly what I want.",
+  "This is what matters right now. The rest, later.",
+  "Stay focused. Just this one. Just now."
+]};
 const FASHIONISTA_SURE_PHRASES = { ru:[
   'Да! Точно этот!',
   'Вот он! Именно этот оттенок!',
@@ -414,6 +455,146 @@ const FASHIONISTA_SURE_PHRASES = { ru:[
   'There it is! That exact shade!',
   'Finally! My color!',
   'This is it, no doubt!'
+]};
+
+// ---------- Шеф туманности: реплика на "годноту" (для него это провал вкуса) ----------
+const NEBULA_CHEF_MEH_PHRASES = { ru:[
+  'Съедобно. Не более. Я не подаю "не более".',
+  'Технически — смесь. Душа блюда отсутствует.',
+  'Ни один гарниш не спасёт эту невыразительность.',
+  'Я подам это. Молча. И это — приговор.'
+], en:[
+  'Edible. Nothing more. I do not serve "nothing more."',
+  "Technically, a mixture. The dish's soul is absent.",
+  'No garnish could save this blandness.',
+  "I'll serve it. Silently. That silence is the verdict."
+]};
+
+// ---------- Инспектор Гильдии: варианты канцелярского текста "Допусков" (УР.4) ----------
+// {TOL} — число допуска, {LINES} — список "Параметр: значение" (по одному
+// на строку), формируется в game.js из активных регуляторов этого заказа.
+const INSPECTOR_TOLERANCE_TEMPLATES = [
+  { ru:
+`ДОПУСК: ±{TOL} деления по каждому показателю.
+
+АКТ ПРИЁМКИ ОБРАЗЦА
+Настоящим устанавливаются следующие требуемые показатели смеси.
+Отклонение от указанного значения в пределах допуска — приемлемо.
+Отклонение свыше допуска по любому пункту — снижает оценку приёмки.
+
+{LINES}
+
+Примечание: образец, предъявленный на сверку в фазе показа, приёмке
+не подлежит ни при каких условиях.`,
+    en:
+`TOLERANCE: ±{TOL} notches per indicator.
+
+SAMPLE ACCEPTANCE CERTIFICATE
+The following required mixture indicators are hereby established.
+Deviation from the stated value within tolerance is acceptable.
+Deviation beyond tolerance on any point reduces the acceptance score.
+
+{LINES}
+
+Note: the sample presented for comparison during the display phase is
+not acceptable under any circumstances.` },
+
+  { ru:
+`Комиссия по приёмке смесей рассмотрела образец и постановила считать
+приемлемыми показатели, отличающиеся от нижеуказанных не более чем на
+{TOL} деления в любую сторону:
+
+{LINES}
+
+Особое указание: совпадение предъявленного образца с тем, что было
+продемонстрировано на сверке, приёмке не подлежит и приравнивается
+к прямому нарушению порядка.`,
+    en:
+`The mixture acceptance commission has reviewed the sample and ruled
+that indicators deviating no more than {TOL} notches in either
+direction from the following are acceptable:
+
+{LINES}
+
+Special instruction: a sample matching what was shown during the
+comparison phase is not acceptable and is treated as a direct
+violation of procedure.` },
+
+  { ru:
+`§ ТРЕБОВАНИЯ К ОБРАЗЦУ §
+
+{LINES}
+
+ДОПУСК ПО ВСЕМ ПУНКТАМ ВЫШЕ: ±{TOL} деления.
+
+Инспектор напоминает: показанное на сверке — не образец для повторения,
+а образец для НЕдопущения. Совпадение = провал приёмки.`,
+    en:
+`§ SAMPLE REQUIREMENTS §
+
+{LINES}
+
+TOLERANCE ON ALL POINTS ABOVE: ±{TOL} notches.
+
+The Inspector reminds you: what was shown during comparison is not a
+sample to replicate, but a sample to AVOID. A match = failed acceptance.` },
+
+  { ru:
+`Форма 7-Б. Заявка на приёмку.
+
+Податель обязан обеспечить показатели смеси в границах:
+{LINES}
+
+Границы приёмки: значение ± {TOL} (единое для всех строк выше).
+Совпадение с образцом фазы показа аннулирует заявку целиком, вне
+зависимости от прочих показателей.`,
+    en:
+`Form 7-B. Acceptance request.
+
+The submitter must ensure the mixture's indicators fall within:
+{LINES}
+
+Acceptance bounds: value ± {TOL} (uniform across all lines above).
+Matching the display-phase sample voids the request entirely,
+regardless of any other indicator.` }
+];
+
+// ---------- Дегустатор (Гурман с Веги): реакции на "дегустацию" УР.4 ----------
+const GOURMET_PRAISE_PHRASES = { ru:[ // идеал с первой пробы — хвалит
+  'Безупречно! Вот теперь это кухня.',
+  'Я редко это говорю: браво.',
+  'Вот вкус, ради которого стоило ждать.'
+], en:[
+  'Impeccable! Now THAT is cuisine.',
+  "I rarely say this: bravo.",
+  'A flavor worth the wait, at last.'
+]};
+const GOURMET_INDIGNANT_PHRASES = { ru:[ // какашка второй раз — негодует
+  'Ты сделал только хуже. Немыслимо.',
+  'Второй шанс — и снова провал? Я оскорблён.',
+  'Это уже не ошибка. Это неуважение к кухне.'
+], en:[
+  'You made it worse. Unthinkable.',
+  'A second chance - and another failure? I am offended.',
+  'This is no longer a mistake. It is disrespect for the kitchen.'
+]};
+const GOURMET_UNIMPRESSED_PHRASES = { ru:[ // годнота второй раз — не впечатлён
+  'Съедобно. Это всё, на что хватило второй попытки?',
+  'Не провал. Но и не то, чего я ждал.',
+  'Поправил — но не впечатлил.'
+], en:[
+  'Edible. Is that all the second try had in it?',
+  'Not a failure. But not what I was hoping for, either.',
+  'You fixed it — but you did not impress me.'
+]};
+const GOURMET_SATISFIED_PHRASES = { ru:[ // идеал второй раз — удовлетворён
+  'Вот теперь так. Со второй попытки, но так.',
+  'Ты всё-таки нашёл вкус. Я удовлетворён.',
+  'Доказал, что умеешь. Этого достаточно.'
+], en:[
+  'Now THAT is right. Took a second try, but right.',
+  'You found the flavor after all. I am satisfied.',
+  "You've proven you can do it. That's enough."
 ]};
 
 // ---------- Хранитель Архива: печати ----------
@@ -1182,6 +1363,10 @@ const EXTRA_NPCS = [
     } },
   // Патч: special:'dual_size' — вместо одного ползунка объёма два: ширина и высота
   { tier:5, id:'supernova_child', emoji:'🌟', img: 'assets/npc/supernova.png', special:'dual_size',
+    // Патч: делений под ширину/высоту в 2 раза меньше, чем у остальных
+    // тир-5 (26 → 13) — с двумя независимыми габаритами точный подбор
+    // на полной сетке был избыточно мелочным
+    sizeSteps:13,
     name:{ ru:'Дитя Сверхновой', en:'Child of the Supernova' },
     flavors:{ ru:[
       'я. родилось. вчера. из взрыва. хочу. попробовать. всё.',
