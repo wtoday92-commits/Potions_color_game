@@ -622,13 +622,20 @@
     // непрозрачной поверх жидкости.
     let bottleCapEl = '', bottleBodyEl = '', bottleBaseEl = '', bottleGlowEl = '';
     if(customBottle){
-      const artScale = w / customBottle.artW;
+      // масштаб — от ширины СТЕКЛА на холсте (contentW), не всего PNG
+      // (artW): вокруг стекла есть прозрачные поля под неоновое свечение,
+      // и если тянуть по ним, видимая банка получается уже, чем w — тогда
+      // жидкость (всегда ровно w) вылезает за нарисованные края
+      const artScale = w / customBottle.contentW;
       const capOnH = customBottle.capH * artScale;
       const baseOnH = customBottle.baseH * artScale;
       const bodyOnH = Math.max(4, h - capOnH - baseOnH);
-      const artX = (cx - w/2).toFixed(1);
+      // левый край ХОЛСТА, а не стекла — сдвинут влево на contentX0*scale,
+      // чтобы именно стекло (а не край картинки) встало вровень с w
+      const artX = ((cx - w/2) - customBottle.contentX0*artScale).toFixed(1);
+      const artOnW = (customBottle.artW * artScale).toFixed(1);
       const capY = topY, bodyY = topY + capOnH, baseYArt = baseY - baseOnH;
-      const img = (href, y, hh) => `<image href="${href}" x="${artX}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" preserveAspectRatio="none"/>`;
+      const img = (href, y, hh) => `<image href="${href}" x="${artX}" y="${y.toFixed(1)}" width="${artOnW}" height="${hh.toFixed(1)}" preserveAspectRatio="none"/>`;
       bottleCapEl = img(customBottle.cap, capY, capOnH);
       bottleBodyEl = img(customBottle.body, bodyY, bodyOnH);
       bottleBaseEl = img(customBottle.base, baseYArt, baseOnH);
