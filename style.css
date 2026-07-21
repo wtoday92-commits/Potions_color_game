@@ -1610,28 +1610,28 @@ body::after{
 }
 
 /* ---------- Тентаклоид: постоянная надпись внизу экрана на фазе игры ---------- */
+/* Патч: убрана белая обводка текста (выглядела неряшливо на нескольких
+   строках) — текст сам стал белым; шрифт чуть плотнее (жирнее + меньше
+   межстрочный интервал), плашка менее прозрачна */
 .l4-tenta-banner{
   position:absolute;bottom:4%;left:50%;transform:translateX(-50%);
   max-width:90%;padding:8px 14px;text-align:center;z-index:7;
   border:1.5px solid var(--danger);border-radius:10px;
-  background:rgba(10,13,32,.88);
-  font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.4;
-  color:var(--danger);
-  text-shadow:-1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+  background:rgba(8,10,26,.96);
+  font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;line-height:1.15;
+  color:#fff;
 }
 
-/* ---------- Стажёр Бип: кнопка-надпись + окно угадывания % трёх визитов ---------- */
-.l4-beep-guess-btn{
+/* ---------- Стажёр Бип: надпись-реплика (не кнопка — кликабельность
+   переехала на главную "Готово!"/"Что там у других?") ---------- */
+.l4-beep-banner{
   position:absolute;bottom:4%;left:50%;transform:translateX(-50%);
-  max-width:90%;padding:8px 14px;text-align:center;z-index:7;cursor:pointer;
+  max-width:90%;padding:8px 14px;text-align:center;z-index:7;
   border:1.5px solid var(--danger);border-radius:10px;
-  background:rgba(10,13,32,.88);
-  font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.4;
-  color:var(--danger);
-  text-shadow:-1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+  background:rgba(8,10,26,.96);
+  font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;line-height:1.15;
+  color:#fff;
 }
-.l4-beep-guess-btn:hover{background:rgba(255,93,106,.14);}
-.l4-beep-guess-btn:active{transform:translateX(-50%) scale(.96);}
 .beep-guess-card{ width:360px; text-align:left; }
 .beep-guess-rows{ display:flex; flex-direction:column; gap:16px; margin:14px 0; }
 .beep-guess-row{ display:flex; align-items:center; gap:10px; }

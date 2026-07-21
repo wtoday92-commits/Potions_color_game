@@ -170,9 +170,12 @@ const UI_TEXT = {
   TASTE_RETRY_NOTE: { ru:'Это никуда не годится. Доделывай — я подожду.', en:"This won't do at all. Fix it - I'll wait." },
   INSPECTOR_TOL_BTN: { ru:'Допуски', en:'Tolerances' },
   INSPECTOR_TOL_CLOSE: { ru:'Ознакомлен', en:'Acknowledged' },
-  // УР.4 (Стажёр Бип): кнопка-надпись + окно угадывания % трёх предыдущих визитов
+  // УР.4 (Стажёр Бип): надпись-реплика (не кнопка) + кнопка "Готово" (её
+  // роль берёт на себя главная brew-btn, см. TASTE_BTN — тот же приём) +
+  // окно угадывания % трёх предыдущих визитов
   BEEP_GUESS_BTN: { ru:'Мне всё равно. А что там у предыдущих трёх было? Хотя бы ОДНИМ глазком бы глянуть',
     en:"I don't care. What did the previous three get, though? Just a peek with ONE eye" },
+  BEEP_MAIN_BTN: { ru:'Что там у других?', en:'What did the others get?' },
   BEEP_GUESS_TITLE: { ru:'Кто заходил до тебя?', en:'Who came before you?' },
   BEEP_GUESS_CLOSE: { ru:'Готово', en:'Done' },
   VEX_MEMORIZE_LINE: { ru:'Запомни, где именно они лежат. Я хочу увидеть их ТОЧНО на этих местах.', en:'Remember exactly where they lie. I want to see them in EXACTLY those spots.' },
@@ -1325,6 +1328,9 @@ const EXTRA_NPCS = [
     // тир-5 (26 → 13) — с двумя независимыми габаритами точный подбор
     // на полной сетке был избыточно мелочным
     sizeSteps:13,
+    // Патч: и на показ, и на воссоздание +50% сверх обычного тир-5 (иначе
+    // унаследовала бы таймеры тира без изменений — см. tierPool в game.js)
+    memorizeMs:6900, craftMs:14963,
     name:{ ru:'Дитя Сверхновой', en:'Child of the Supernova' },
     flavors:{ ru:[
       'я. родилось. вчера. из взрыва. хочу. попробовать. всё.',

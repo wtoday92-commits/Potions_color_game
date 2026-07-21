@@ -1715,11 +1715,14 @@
 
   // ---------- Стажёр Бип: механика полностью заменена ----------
   // Патч: раньше — подсказка-пузырь и авто-сбитый регулятор, затем — тихое
-  // автосреднее трёх предыдущих визитов. Теперь у Бипа на УР.4 по-прежнему
-  // нет фазы запоминания, но появляется кнопка-надпись ("мне всё равно, а
-  // что там было") — открывает окно с 3 предыдущими визитёрами и ползунками,
-  // где нужно ВСПОМНИТЬ их %; точность вспоминания и определяет рейтинг
-  // (см. finalizeResult — там читается target.beepGuesses).
+  // автосреднее трёх предыдущих визитов, затем — отдельная кнопка-надпись
+  // поверх банки. Теперь: надпись ("мне всё равно, а что там было") — просто
+  // текст, не кликается. Роль запуска мини-игры взяла на себя главная кнопка
+  // "Готово!" (текст меняется на "Что там у других?" — тот же приём, что у
+  // Дегустатора с "Дегустировать", см. LEVEL4_FX.gourmet_vega). Первое
+  // нажатие открывает окно с 3 предыдущими визитёрами и ползунками (нужно
+  // ВСПОМНИТЬ их %), раунд по-настоящему завершается только по кнопке
+  // "Готово" уже ВНУТРИ этого окна (см. finishCraft/beepGuessCloseBtn).
   function l4BeepBuildRows(){
     const wrap = $('beepGuessRows');
     if(!wrap) return;
@@ -1741,31 +1744,33 @@
       });
     });
   }
-  function l4BeepShowGuessBtn(){
+  function l4BeepShowBanner(){
     const wf = $('windowFrame');
-    if(!wf || document.getElementById('l4BeepGuessBtn')) return;
-    const btn = document.createElement('button');
-    btn.type = 'button'; btn.id = 'l4BeepGuessBtn'; btn.className = 'l4-beep-guess-btn';
-    btn.textContent = LT(UI_TEXT.BEEP_GUESS_BTN);
-    btn.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      l4BeepBuildRows();
-      $('beepGuessOverlay').classList.add('show');
-    });
-    wf.appendChild(btn);
+    if(!wf || document.getElementById('l4BeepBanner')) return;
+    const el = document.createElement('div');
+    el.id = 'l4BeepBanner'; el.className = 'l4-beep-banner';
+    el.textContent = LT(UI_TEXT.BEEP_GUESS_BTN);
+    wf.appendChild(el);
   }
-  function l4BeepHideGuessBtn(){
-    const el = document.getElementById('l4BeepGuessBtn'); if(el) el.remove();
+  function l4BeepHideBanner(){
+    const el = document.getElementById('l4BeepBanner'); if(el) el.remove();
   }
   LEVEL4_FX.intern_beep = {
     setup(){
       target.beepGuesses = [50,50,50];
+      target.beepGuessOpened = false;
     },
     craftStart(){
-      if(orderAccuracyHistory.slice(-3).length >= 3) l4BeepShowGuessBtn();
+      if(orderAccuracyHistory.slice(-3).length >= 3){
+        l4BeepShowBanner();
+        const btn = $('brewBtn');
+        if(btn) btn.textContent = LT(UI_TEXT.BEEP_MAIN_BTN);
+      }
     },
     stop(){
-      l4BeepHideGuessBtn();
+      l4BeepHideBanner();
+      const btn = $('brewBtn');
+      if(btn) btn.textContent = LT(UI_TEXT.BREW_BTN);
       const ov = $('beepGuessOverlay'); if(ov) ov.classList.remove('show');
     }
   };
@@ -2513,9 +2518,30 @@
   // граф связей — NPC_RELATIONS (content.js): {a, b, kind:'friend'|'enemy'|'buddy'|'dislike', lore}
   const REL_REP_FRIEND = 3, REL_REP_BUDDY = 1, REL_REP_ENEMY_BASE = 3, REL_REP_DISLIKE_BASE = 1;
   function relationKey(a, b){ return [a, b].sort().join('|'); }
+  // Патч "Разгрузка": связи — механика не для новичка с первой минуты.
+  // Порог репутации, с которого связи персонажа вообще начинают работать,
+  // зависит от его тира: 1 (зелёный) — репутация 1+; 2-3 (жёлтый/оранжевый)
+  // — репутация 2+; 4-5 (красный/фиолетовый) — репутация 3+.
+  function relationRepNeed(tier){
+    if(tier <= 1) return 1;
+    if(tier <= 3) return 2;
+    return 3;
+  }
+  function relationUnlockedFor(npcId){
+    const npc = npcById(npcId);
+    if(!npc) return false;
+    return npcRepLevel(npcId) >= relationRepNeed(npc.tier);
+  }
   function findRelation(idA, idB){
     if(typeof NPC_RELATIONS === 'undefined') return null;
-    return NPC_RELATIONS.find(r => (r.a===idA && r.b===idB) || (r.a===idB && r.b===idA)) || null;
+    // Патч "Ежедневный заказ": связей нет вовсе — ни у кого, никогда
+    if(isDailyMode) return null;
+    const rel = NPC_RELATIONS.find(r => (r.a===idA && r.b===idB) || (r.a===idB && r.b===idA));
+    if(!rel) return null;
+    // связь становится видна/активна только когда ОБА участника набрали
+    // репутацию, достаточную для их собственного тира
+    if(!relationUnlockedFor(idA) || !relationUnlockedFor(idB)) return null;
+    return rel;
   }
   function relationState(npcId){
     if(!window.PotionProfile) return null;
@@ -2536,8 +2562,11 @@
   let dailyDifficulty = null; // 'easy' | 'mid' | 'hard'
   let dailySequence = null;   // 30 id (10 дней × 3), считается один раз на сегодня
 
+  // Патч: UTC, а не локальные getFullYear/getMonth/getDate — иначе "новый
+  // день" наступал бы у каждого игрока в свою полночь по часовому поясу
+  // устройства, и ежедневный заказ не был бы общим для всех одновременно
   function seedFromDate(d){
-    return ((d.getFullYear()*10000 + (d.getMonth()+1)*100 + d.getDate()) >>> 0);
+    return ((d.getUTCFullYear()*10000 + (d.getUTCMonth()+1)*100 + d.getUTCDate()) >>> 0);
   }
   function seededShuffle(arr, rng){
     const a = arr.slice();
@@ -2561,6 +2590,12 @@
   // числовые характеристики выбранной сложности дня
   function dailyReskinCfg(realCfg, profile){
     return { ...realCfg,
+      // Патч: у большинства EXTRA_NPCS type в их собственной записи не задан
+      // вовсе (в аркаде его молча подставляет tierPool() как 'normal') — тут
+      // тот же дефолт нужен явно, иначе они никогда не были focus-eligible
+      // в дневном режиме (см. buildOrderDescriptor) и модификаторы почти не
+      // выпадали
+      type: realCfg.type || 'normal',
       tier: profile.scoreTier,
       reward: profile.reward,
       memorizeMs: profile.memorizeMs,
@@ -2612,12 +2647,15 @@
     return cfg;
   }
 
-  // build a full order descriptor: cfg + focus + matching flavor line
-  function buildOrderDescriptor(cfg){
+  // build a full order descriptor: cfg + focus + matching flavor line.
+  // forceFocus — Патч "Ежедневный заказ": гарантированный модификатор
+  // (вместо обычных случайных 40%) — см. вызов ниже в showSelectScreen
+  function buildOrderDescriptor(cfg, forceFocus){
     let focus = null;
     // Патч (Тентаклоид): у него никогда не бывает обычных модификаторов —
     // его собственная механика (один скрытый решающий параметр) их заменяет
-    if(cfg.type === 'normal' && cfg.tier >= 2 && cfg.id !== 'tentacloid' && Math.random() < 0.4){
+    const focusEligible = cfg.type === 'normal' && cfg.tier >= 2 && cfg.id !== 'tentacloid';
+    if(focusEligible && (forceFocus || Math.random() < 0.4)){
       focus = pick(['bubbles','color','size']);
     }
     // Фаза I: иногда вместо обычной реплики — уже открытая лорная фраза
@@ -2795,7 +2833,8 @@
           e.stopPropagation();
           const lvl = parseInt(btn.dataset.level,10);
           // Патч "Взаимоотношения": обиженный на игрока НПС может отказать
-          const st = relationState(cfg.id);
+          // (нет в ежедневном режиме и пока связи этого НПС не разблокированы репутацией)
+          const st = (!isDailyMode && relationUnlockedFor(cfg.id)) ? relationState(cfg.id) : null;
           if(st && st.offended && Math.random() < 0.5){
             SFX.badPop();
             card.classList.add('relation-hit-bad');
@@ -2879,7 +2918,17 @@
     // Патч "Ежедневный заказ": пул на день — фиксированная (по сиду дня)
     // тройка персонажей, а не случайные тиры прогрессии
     if(isDailyMode){
-      currentOrders = dailyPoolForDay(dayNum-1).map(cfg => buildOrderDescriptor(cfg));
+      const dailyPool = dailyPoolForDay(dayNum-1);
+      // Патч: модификаторы — с ПЕРВОГО дня (не с 4-5), и минимум у ДВУХ из
+      // трёх персонажей дня (обычные случайные 40% на каждого слишком часто
+      // давали дни вообще без модификаторов) — форсируем нужное число, среди
+      // тех, кому модификатор в принципе доступен (см. focusEligible выше)
+      const eligibleIdx = dailyPool
+        .map((cfg,i)=>({cfg,i}))
+        .filter(o => o.cfg.type === 'normal' && o.cfg.tier >= 2 && o.cfg.id !== 'tentacloid')
+        .map(o=>o.i);
+      const forceIdx = new Set(shuffleArr(eligibleIdx).slice(0, Math.min(2, eligibleIdx.length)));
+      currentOrders = dailyPool.map((cfg,i) => buildOrderDescriptor(cfg, forceIdx.has(i)));
       renderSelectBanners();
       renderCustomerCards(currentOrders);
       return;
@@ -3589,6 +3638,18 @@
         return;
       }
     }
+    // Патч "УР.4" (Стажёр Бип): первое нажатие "Готово!" не завершает раунд —
+    // открывает мини-игру "Что там у других?"; раунд по-настоящему
+    // заканчивается только по кнопке "Готово" уже внутри неё (см. ниже,
+    // обработчик beepGuessCloseBtn — второй вызов finishCraft() пройдёт мимо
+    // этой ветки, т.к. target.beepGuessOpened уже true).
+    if(target.cfg.id === 'intern_beep' && target.regLevel === 4
+       && orderAccuracyHistory.slice(-3).length >= 3 && !target.beepGuessOpened){
+      target.beepGuessOpened = true;
+      l4BeepBuildRows();
+      $('beepGuessOverlay').classList.add('show');
+      return;
+    }
     craftLocked = true;
     cancelAnimationFrame(rafId);
     // Патч (визуальный сброс ползунков #2): прячем колонки регуляторов ДО
@@ -3794,8 +3855,9 @@
     // (экран результата + альбом коллекции показывают именно его) и добавочно
     // подъедает репутацию (см. ниже) — очки/streak/стадия и ачивки этого НПС
     // считаются по НАСТОЯЩЕМУ результату и не трогаются, спойлится только вид
-    // Патч "Ежедневный заказ": ни друзей, ни врагов, ни обид тут нет
-    const offendedSt = isDailyMode ? null : relationState(cfg.id);
+    // Патч "Ежедневный заказ": ни друзей, ни врагов, ни обид тут нет.
+    // Патч "Разгрузка": и в аркаде — пока связи этого НПС не разблокированы репутацией
+    const offendedSt = (!isDailyMode && relationUnlockedFor(cfg.id)) ? relationState(cfg.id) : null;
     const forcedBad = !!(offendedSt && offendedSt.offended);
     const effGood = forcedBad ? false : good;
     const effPerfect = forcedBad ? false : perfect;
@@ -4159,8 +4221,10 @@
     return list;
   }
   // ---------- Патч "Ежедневный заказ": свой рейтинг на (сложность, дата) ----------
+  // Патч: UTC — та же доска у всех игроков одновременно, независимо от
+  // часового пояса (см. seedFromDate выше — та же причина)
   function dateStrFor(d){
-    return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+    return `${d.getUTCFullYear()}${String(d.getUTCMonth()+1).padStart(2,'0')}${String(d.getUTCDate()).padStart(2,'0')}`;
   }
   function dailyBoardKey(diffKey, d){
     const ds = dateStrFor(d);
@@ -4168,7 +4232,9 @@
   }
   function currentDailyBoardKey(){ return dailyBoardKey(dailyDifficulty, new Date()); }
   function yesterdayDailyBoardKey(){
-    const y = new Date(); y.setDate(y.getDate()-1);
+    // вычитаем ровно сутки из UTC-таймстампа — setDate() сдвигал бы по
+    // ЛОКАЛЬНОМУ календарю, что рядом с полуночью могло дать не тот UTC-день
+    const y = new Date(Date.now() - 86400000);
     return dailyBoardKey(dailyDifficulty, y);
   }
   async function loadDailyYesterdayTop(){
@@ -4209,10 +4275,15 @@
   if(inspectorTolCloseBtnEl) inspectorTolCloseBtnEl.addEventListener('click', ()=>{
     SFX.uiClick(); $('inspectorTolOverlay').classList.remove('show');
   });
-  // Патч "УР.4" (Стажёр Бип): закрыть окно угадывания % трёх предыдущих
+  // Патч "УР.4" (Стажёр Бип): "Готово" внутри мини-игры — это и есть
+  // настоящее завершение раунда (см. finishCraft — туда мы попали как раз
+  // потому, что нажали главную "Готово!"/"Что там у других?" один раз)
   const beepGuessCloseBtnEl = $('beepGuessCloseBtn');
   if(beepGuessCloseBtnEl) beepGuessCloseBtnEl.addEventListener('click', ()=>{
-    SFX.uiClick(); $('beepGuessOverlay').classList.remove('show');
+    SFX.uiClick();
+    $('beepGuessOverlay').classList.remove('show');
+    SFX.brew();
+    finishCraft();
   });
 
   // ============================================================
