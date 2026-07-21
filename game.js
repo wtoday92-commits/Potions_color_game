@@ -524,28 +524,33 @@
     const cx = 100, baseY = 240, topY = baseY - h;
 
     // Патч (кастомные бутыли): геометрия рисованного сосуда считается ДО
-    // bodyPath — crown/донышко "съедают" часть высоты банки не по фиксным
-    // 18px (как обычная процедурная шейка), а по своей реальной высоте
-    // (capOnH/baseOnH), так что clip-path/раскладка пузырей должны сузить
-    // свой вертикальный диапазон именно до отрезка ТЕЛА бутылки, иначе
-    // жидкость видна поверх/ниже нарисованных крышки и донышка.
+    // bodyPath. Крышка — сплошная, жидкость под ней быть не должна, поэтому
+    // верхняя граница clip/пузырей сдвинута вниз на реальную высоту крышки
+    // (capOnH), а не на фиксные 18px обычной процедурной шейки. Донышко,
+    // наоборот, полупрозрачное и рисуется ПОВЕРХ жидкости — значит, низ
+    // clip-region НЕ сужаем, жидкость должна доходить до истинного дна
+    // (baseY), донышко просто накладывается на неё сверху отдельным слоем.
     let bottleGeom = null;
     if(customBottle){
-      const artScale = w / customBottle.contentW;
+      // масштаб — от ширины ВНУТРЕННЕЙ дыры в стекле (holeW), а не всей
+      // картинки: у стекла есть толщина стенки (контур+свечение снаружи),
+      // и если тянуть по общей ширине рисунка, жидкость встанет вровень с
+      // ВНЕШНИМ краем стекла и будет вылезать через стенку наружу
+      const artScale = w / customBottle.holeW;
       const capOnH = customBottle.capH * artScale;
       const baseOnH = customBottle.baseH * artScale;
       const bodyOnH = Math.max(4, h - capOnH - baseOnH);
-      const artX = (cx - w/2) - customBottle.contentX0*artScale;
+      const artX = (cx - w/2) - customBottle.holeX0*artScale;
       const artOnW = customBottle.artW * artScale;
       bottleGeom = { capOnH, baseOnH, bodyOnH, artX, artOnW,
         capY: topY, bodyY: topY + capOnH, baseYArt: baseY - baseOnH };
     }
     // форма для clip-path/пузырей: у кастомной бутыли — плоский прямоугольник
-    // (тело почти без сужений) в границах ТЕЛА бутылки, иначе — обычный
-    // выбранный процедурный профиль во весь topY..baseY
+    // (тело почти без сужений), сверху подрезанный под крышку, снизу — до
+    // самого дна; иначе — обычный выбранный процедурный профиль topY..baseY
     const sp = customBottle ? { points:[[0,1],[1,1]], smooth:false } : (SHAPE_PROFILES[shapeIdx] || SHAPE_PROFILES[0]);
     const shapeTopY = customBottle ? (bottleGeom.bodyY - 18) : topY;
-    const shapeBaseY = customBottle ? bottleGeom.baseYArt : baseY;
+    const shapeBaseY = baseY;
     const bodyPath = jarOutlinePath(cx, shapeTopY, shapeBaseY, w, sp.points, sp.smooth);
 
     // Патч "УР.4" (Векс): сетка — рабочий магнит для сгустков, не просто
