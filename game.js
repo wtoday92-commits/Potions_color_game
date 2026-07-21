@@ -522,8 +522,31 @@
     const w = 60 + (sizePct/100)*60;
     const h = 140 + ((heightPct ?? sizePct)/100)*70;
     const cx = 100, baseY = 240, topY = baseY - h;
-    const sp = SHAPE_PROFILES[shapeIdx] || SHAPE_PROFILES[0];
-    const bodyPath = jarOutlinePath(cx, topY, baseY, w, sp.points, sp.smooth);
+
+    // Патч (кастомные бутыли): геометрия рисованного сосуда считается ДО
+    // bodyPath — crown/донышко "съедают" часть высоты банки не по фиксным
+    // 18px (как обычная процедурная шейка), а по своей реальной высоте
+    // (capOnH/baseOnH), так что clip-path/раскладка пузырей должны сузить
+    // свой вертикальный диапазон именно до отрезка ТЕЛА бутылки, иначе
+    // жидкость видна поверх/ниже нарисованных крышки и донышка.
+    let bottleGeom = null;
+    if(customBottle){
+      const artScale = w / customBottle.contentW;
+      const capOnH = customBottle.capH * artScale;
+      const baseOnH = customBottle.baseH * artScale;
+      const bodyOnH = Math.max(4, h - capOnH - baseOnH);
+      const artX = (cx - w/2) - customBottle.contentX0*artScale;
+      const artOnW = customBottle.artW * artScale;
+      bottleGeom = { capOnH, baseOnH, bodyOnH, artX, artOnW,
+        capY: topY, bodyY: topY + capOnH, baseYArt: baseY - baseOnH };
+    }
+    // форма для clip-path/пузырей: у кастомной бутыли — плоский прямоугольник
+    // (тело почти без сужений) в границах ТЕЛА бутылки, иначе — обычный
+    // выбранный процедурный профиль во весь topY..baseY
+    const sp = customBottle ? { points:[[0,1],[1,1]], smooth:false } : (SHAPE_PROFILES[shapeIdx] || SHAPE_PROFILES[0]);
+    const shapeTopY = customBottle ? (bottleGeom.bodyY - 18) : topY;
+    const shapeBaseY = customBottle ? bottleGeom.baseYArt : baseY;
+    const bodyPath = jarOutlinePath(cx, shapeTopY, shapeBaseY, w, sp.points, sp.smooth);
 
     // Патч "УР.4" (Векс): сетка — рабочий магнит для сгустков, не просто
     // ориентир, поэтому считается по ЗАФИКСИРОВАННОМУ на весь раунд
@@ -571,15 +594,15 @@
       // Патч (Двуликая жрица): "Сгустки Б" держат левую половину (как и
       // раньше), "Сгустки А" — только правую (раньше задевали обе)
       pts = [
-        ...packBubbles(bubbleCountB, bubbleR, w, topY, baseY, sp.points, seed+7331, 'left'),
-        ...packBubbles(bubbleCount, bubbleR, w, topY, baseY, sp.points, seed, 'right')
+        ...packBubbles(bubbleCountB, bubbleR, w, shapeTopY, shapeBaseY, sp.points, seed+7331, 'left'),
+        ...packBubbles(bubbleCount, bubbleR, w, shapeTopY, shapeBaseY, sp.points, seed, 'right')
       ];
     } else {
-      pts = packBubbles(bubbleCount, bubbleR, w, topY, baseY, sp.points, seed);
+      pts = packBubbles(bubbleCount, bubbleR, w, shapeTopY, shapeBaseY, sp.points, seed);
     }
     // перегородка посередине банки — видимая граница двух половин
     const splitDividerEl = splitHalves
-      ? `<line x1="${cx}" y1="${(topY+18).toFixed(1)}" x2="${cx}" y2="${baseY.toFixed(1)}" stroke="rgba(255,255,255,.55)" stroke-width="1.5" stroke-dasharray="3,3"/>`
+      ? `<line x1="${cx}" y1="${(shapeTopY+18).toFixed(1)}" x2="${cx}" y2="${shapeBaseY.toFixed(1)}" stroke="rgba(255,255,255,.55)" stroke-width="1.5" stroke-dasharray="3,3"/>`
       : '';
     // ectoplasm blobs: soft halo + irregular blob + bright core
     const bubbleEls = pts.map((p,i)=>{
@@ -622,20 +645,8 @@
     // непрозрачной поверх жидкости.
     let bottleCapEl = '', bottleBodyEl = '', bottleBaseEl = '', bottleGlowEl = '';
     if(customBottle){
-      // масштаб — от ширины СТЕКЛА на холсте (contentW), не всего PNG
-      // (artW): вокруг стекла есть прозрачные поля под неоновое свечение,
-      // и если тянуть по ним, видимая банка получается уже, чем w — тогда
-      // жидкость (всегда ровно w) вылезает за нарисованные края
-      const artScale = w / customBottle.contentW;
-      const capOnH = customBottle.capH * artScale;
-      const baseOnH = customBottle.baseH * artScale;
-      const bodyOnH = Math.max(4, h - capOnH - baseOnH);
-      // левый край ХОЛСТА, а не стекла — сдвинут влево на contentX0*scale,
-      // чтобы именно стекло (а не край картинки) встало вровень с w
-      const artX = ((cx - w/2) - customBottle.contentX0*artScale).toFixed(1);
-      const artOnW = (customBottle.artW * artScale).toFixed(1);
-      const capY = topY, bodyY = topY + capOnH, baseYArt = baseY - baseOnH;
-      const img = (href, y, hh) => `<image href="${href}" x="${artX}" y="${y.toFixed(1)}" width="${artOnW}" height="${hh.toFixed(1)}" preserveAspectRatio="none"/>`;
+      const { capOnH, baseOnH, bodyOnH, artX, artOnW, capY, bodyY, baseYArt } = bottleGeom;
+      const img = (href, y, hh) => `<image href="${href}" x="${artX.toFixed(1)}" y="${y.toFixed(1)}" width="${artOnW.toFixed(1)}" height="${hh.toFixed(1)}" preserveAspectRatio="none"/>`;
       bottleCapEl = img(customBottle.cap, capY, capOnH);
       bottleBodyEl = img(customBottle.body, bodyY, bodyOnH);
       bottleBaseEl = img(customBottle.base, baseYArt, baseOnH);
