@@ -508,9 +508,12 @@
     // Патч "УР.4" (Двуликая жрица): splitHalves — банка на 2 половины, у
     // каждой свой независимый счётчик сгустков (bubbleCountB — левая,
     // bubbleCount — правая, см. ветку splitHalves ниже)
+    // Патч (кастомные бутыли): customBottle — рисованный сосуд вместо
+    // процедурного контура (см. CUSTOM_BOTTLES в content.js); заменяет только
+    // крышку/тело/донышко снаружи — clip-path/пузыри/жидкость внутри те же
     const { hue, hue2=null, sat=70, sizePct, heightPct=null, bubbleCount, bubbleR, seed, shapeIdx=0,
             overridePositions=null, badBubbles=[], rotationDeg=null,
-            splitHalves=false, bubbleCountB=0, showGrid=false } = opts;
+            splitHalves=false, bubbleCountB=0, showGrid=false, customBottle=null } = opts;
     // несколько банок на экране одновременно (сетка Коллекционера) не должны
     // делить между собой id defs/clipPath — иначе все клипались бы по контуру первой
     const cJarClip = `${idPrefix}jarClip`, cInkDots = `${idPrefix}inkDots`,
@@ -609,6 +612,33 @@
         </g>`;
     }).join('');
 
+    // Патч (кастомные бутыли): 9-slice сборка — крышка и донышко берут свой
+    // масштаб от ширины банки w (одинаковый по X и Y, без искажений),
+    // тело получает всё, что осталось по высоте, и тянется только вертикально
+    // (сам рисунок тела — почти прямоугольная безликая полоса, так что
+    // растяжение незаметно). Донышко рисуется ПОСЛЕ жидкости/пузырей: его
+    // "дальняя" часть уже сведена художником к ~30% альфы в самом PNG, чтобы
+    // сквозь неё было видно содержимое банки, а "ближняя" стенка остаётся
+    // непрозрачной поверх жидкости.
+    let bottleCapEl = '', bottleBodyEl = '', bottleBaseEl = '', bottleGlowEl = '';
+    if(customBottle){
+      const artScale = w / customBottle.artW;
+      const capOnH = customBottle.capH * artScale;
+      const baseOnH = customBottle.baseH * artScale;
+      const bodyOnH = Math.max(4, h - capOnH - baseOnH);
+      const artX = (cx - w/2).toFixed(1);
+      const capY = topY, bodyY = topY + capOnH, baseYArt = baseY - baseOnH;
+      const img = (href, y, hh) => `<image href="${href}" x="${artX}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" preserveAspectRatio="none"/>`;
+      bottleCapEl = img(customBottle.cap, capY, capOnH);
+      bottleBodyEl = img(customBottle.body, bodyY, bodyOnH);
+      bottleBaseEl = img(customBottle.base, baseYArt, baseOnH);
+      bottleGlowEl = [
+        customBottle.glowCap ? img(customBottle.glowCap, capY, capOnH) : '',
+        customBottle.glowBody ? img(customBottle.glowBody, bodyY, bodyOnH) : '',
+        customBottle.glowBase ? img(customBottle.glowBase, baseYArt, baseOnH) : ''
+      ].join('');
+    }
+
     return `
       <defs>
         <clipPath id="${cJarClip}"><path d="${bodyPath}"/></clipPath>
@@ -628,6 +658,7 @@
           <stop offset="100%" stop-color="rgba(159,242,255,.06)"/>
         </linearGradient>
       </defs>
+      ${customBottle ? bottleCapEl : `
       <!-- tech cap: node + antenna, inked -->
       <line x1="${cx}" y1="${topY-22}" x2="${cx}" y2="${topY-6}" stroke="#0a0d18" stroke-width="5"/>
       <line x1="${cx}" y1="${topY-22}" x2="${cx}" y2="${topY-6}" stroke="#35e0ff" stroke-width="2"/>
@@ -639,6 +670,7 @@
       <path d="${bodyPath}" fill="none" stroke="rgba(53,224,255,.28)" stroke-width="8"/>
       <!-- container body -->
       <path d="${bodyPath}" fill="rgba(53,224,255,.05)"/>
+      `}
       <g clip-path="url(#${cJarClip})">
         <rect x="${cx-w/2-6}" y="${topY+40}" width="${w+12}" height="${h}" fill="${fillRef}"/>
         <!-- liquid volume: dark side band + halftone shading on the right -->
@@ -654,10 +686,12 @@
         ${bubbleEls}
         ${splitDividerEl}
       </g>
+      ${customBottle ? `${bottleBodyEl}${bottleBaseEl}${bottleGlowEl}` : `
       <path d="${bodyPath}" fill="url(#${cGlassGrad})"/>
       <!-- thick manga ink outline with neon core -->
       <path d="${bodyPath}" fill="none" stroke="#0a0d18" stroke-width="5"/>
       <path d="${bodyPath}" fill="none" stroke="#35e0ff" stroke-width="1.8"/>
+      `}
       ${badBubbleEls}
     `;
   }
@@ -731,7 +765,8 @@
       const dt = Math.min(0.05, (t-movingLastT)/1000); movingLastT = t;
       stepPhysics(movingBubbles, movingGeom, movingProfile, movingR, dt);
       drawJar({ hue:target.hue, hue2:null, sat:target.sat, sizePct:target.size, bubbleCount:0, bubbleR:movingR,
-        shapeIdx: target.shapeIdx||0, seed: target.seed, overridePositions: movingBubbles });
+        shapeIdx: target.shapeIdx||0, seed: target.seed, overridePositions: movingBubbles,
+        customBottle: target.customBottle });
       movingRafId = requestAnimationFrame(frame);
     }
     movingRafId = requestAnimationFrame(frame);
@@ -2125,7 +2160,8 @@
       stepPhysics(l4BarMoveBubbles, geom, profile, r, dt);
       const hue = idxToVal(S.color.value, cfg.colorSteps, 360);
       drawJar({ hue, hue2:null, sat:70, sizePct:size, bubbleCount:0, bubbleR:r,
-        shapeIdx: target.shapeIdx||0, seed: target.seed, overridePositions: l4BarMoveBubbles });
+        shapeIdx: target.shapeIdx||0, seed: target.seed, overridePositions: l4BarMoveBubbles,
+        customBottle: target.customBottle });
       l4BarMoveRafId = requestAnimationFrame(frame);
     }
     l4BarMoveRafId = requestAnimationFrame(frame);
@@ -3115,6 +3151,18 @@
     // Патч (Хранитель): дождь символов в фазах запоминания и игры
     if(cfg.special === 'matrix' || target.sealed) startMatrixRain();
     if(flags.hasShape){ target.shapeIdx = randInt(0, SHAPE_PROFILES.length-1); }
+    // Патч (кастомные бутыли): рисованный сосуд у всех, кроме тех, у кого
+    // силуэт банки — часть их собственной механики (Шеф угадывает форму;
+    // Коллекционер УР.4 и Тот-Кто-Ждёт УР.4 полагаются на свой конкретный
+    // силуэт). shapeIdx=1 ("Блок") — самый близкий к прямоугольной прорези
+    // кастомного арта профиль, нужен для clip-path/раскладки пузырей.
+    const customBottleExcluded = flags.hasShape
+      || (cfg.id === 'collector_gz' && regLevel === 4)
+      || (cfg.id === 'the_waiter' && regLevel === 4);
+    if(!customBottleExcluded && typeof CUSTOM_BOTTLES !== 'undefined' && CUSTOM_BOTTLES.length){
+      target.customBottle = pick(CUSTOM_BOTTLES);
+      target.shapeIdx = 1;
+    }
     if(flags.hasSat){
       const satIdx = randInt(0,9);
       target.sat = satFromIdx(satIdx);
@@ -3150,7 +3198,7 @@
         bubbleCount: (isFlySwarm || isVexDrag) ? 0 : (noBubblesPreview ? 0 : target.count),
         bubbleR:targetR, seed:target.seed, shapeIdx: target.shapeIdx ?? 0,
         splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? (target.countB||0) : 0,
-        showGrid: isVexDrag,
+        showGrid: isVexDrag, customBottle: target.customBottle,
         // Патч "УР.4" (Сверхновая): банку на фазе показа тоже нужно повернуть —
         // раньше поворот применялся только к банке игрока на фазе игры
         rotationDeg: (cfg.id === 'supernova_child' && regLevel === 4) ? target.rotation : null });
@@ -3467,7 +3515,7 @@
       rotationDeg,
       splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? S.countB.value : 0,
       seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles,
-      showGrid: isVexDrag });
+      showGrid: isVexDrag, customBottle: target.customBottle });
   }
 
   function hueDist(a,b){ const d = Math.abs(a-b)%360; return d>180 ? 360-d : d; }

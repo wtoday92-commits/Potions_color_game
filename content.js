@@ -927,6 +927,27 @@ const NPC_STAT_EXPLAIN = {
     { points:[[0,1.0],[0.25,0.95],[0.5,0.68],[0.75,0.42],[1,0.32]], smooth:true }
   ];
 
+  // Патч (кастомные рисованные бутыли): каждая запись — один и тот же сосуд,
+  // порезанный на 3 куска (крышка/тело/донышко) для 9-slice сборки в
+  // buildJarMarkup — крышка и донышко не тянутся (масштаб только от ширины
+  // банки w), тело растягивается по высоте под нужный "объём". body должен
+  // быть визуально почти прямоугольным (без деталей), иначе растяжение будет
+  // заметно искажать рисунок. glow* — необязательный слой блика/свечения,
+  // режется теми же границами, что и основной арт, кладётся поверх всего.
+  // capH/bodyH/baseH — натуральная высота каждого PNG-куска в пикселях
+  // (ширина у всех кусков одна и та же — artW).
+  const CUSTOM_BOTTLES = [
+    {
+      id: 'b1', artW: 768,
+      cap:  'assets/Potions/1_cap.png',  capH: 374,
+      body: 'assets/Potions/1_body.png', bodyH: 796,
+      base: 'assets/Potions/1_base.png', baseH: 174,
+      glowCap:  'assets/Potions/2_cap.png',
+      glowBody: 'assets/Potions/2_body.png',
+      glowBase: 'assets/Potions/2_base.png'
+    }
+  ];
+
   const STAGE_TABLE = [ [1,1,1],[2,2,3],[3,4,4],[4,4,4] ];
   const MAX_STAGE = STAGE_TABLE.length - 1;
 
