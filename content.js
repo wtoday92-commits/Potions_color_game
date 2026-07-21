@@ -165,7 +165,6 @@ const UI_TEXT = {
   TASTE_BTN: { ru:'Дегустировать', en:'Taste' },
   TASTE_HALF_TAG: { ru:'½ рейтинга — гурман не впечатлён', en:'½ rating — the gourmet is unimpressed' },
   TASTE_RETRY_NOTE: { ru:'Это никуда не годится. Доделывай — я подожду.', en:"This won't do at all. Fix it - I'll wait." },
-  INSPECTOR_BANNER: { ru:'Такое ни в коем случае недопустимо!', en:'This is unacceptable under any circumstances!' },
   INSPECTOR_TOL_BTN: { ru:'Допуски', en:'Tolerances' },
   INSPECTOR_TOL_CLOSE: { ru:'Ознакомлен', en:'Acknowledged' },
   VEX_MEMORIZE_LINE: { ru:'Запомни, где именно они лежат. Я хочу увидеть их ТОЧНО на этих местах.', en:'Remember exactly where they lie. I want to see them in EXACTLY those spots.' },
@@ -192,8 +191,6 @@ const UI_TEXT = {
   REL_OFFENDED_TOAST: { ru:'Обиделся — не рассчитывай на честные стикеры', en:'Got offended — don’t expect honest stickers' },
   REL_LEFT_TOAST:    { ru:'Обиделся и не появится до конца цикла', en:'Got offended — won’t show up for the rest of the cycle' },
   REL_DISCOVERED_TOAST: { ru:'Новая связь между персонажами', en:'New connection between characters' },
-  // УР.4 (Бармен плазма-бара): предложение тряхнуть коктейль
-  L4_BAR_SHAKE_HINT: { ru:'Схвати банку и тряхни: {n}/3', en:'Grab the jar and shake it: {n}/3' },
   // УР.4 (Гонщица Кай): надпись на последней засечке кольца-таймера
   L4_KAI_GO: { ru:'GO!', en:'GO!' },
 };
@@ -471,92 +468,32 @@ const NEBULA_CHEF_MEH_PHRASES = { ru:[
 ]};
 
 // ---------- Инспектор Гильдии: варианты канцелярского текста "Допусков" (УР.4) ----------
-// {TOL} — число допуска, {LINES} — список "Параметр: значение" (по одному
-// на строку), формируется в game.js из активных регуляторов этого заказа.
+// Патч: фазы показа "запрещённого образца" больше нет — текст переписан со
+// списка "Параметр: значение" на сплошной канцелярский абзац. {SENTENCES} —
+// сплошной кусок текста с показателями (числа вшиты прямо в предложения,
+// порядок каждый раз перемешан — собирается в game.js). {TOL} — число
+// допуска, тоже подано внутри предложения, а не отдельной строкой, чтобы
+// нужные цифры нельзя было выхватить взглядом, не читая.
 const INSPECTOR_TOLERANCE_TEMPLATES = [
   { ru:
-`ДОПУСК: ±{TOL} деления по каждому показателю.
-
-АКТ ПРИЁМКИ ОБРАЗЦА
-Настоящим устанавливаются следующие требуемые показатели смеси.
-Отклонение от указанного значения в пределах допуска — приемлемо.
-Отклонение свыше допуска по любому пункту — снижает оценку приёмки.
-
-{LINES}
-
-Примечание: образец, предъявленный на сверку в фазе показа, приёмке
-не подлежит ни при каких условиях.`,
+`Комиссия по приёмке рассмотрела образец и приобщила его к делу. {SENTENCES} Решением комиссии: любое отклонение от перечисленного, не превышающее {TOL} деления в ту или иную сторону по каждому пункту в отдельности, признаётся допустимым и не влияет на итоговую оценку приёмки.`,
     en:
-`TOLERANCE: ±{TOL} notches per indicator.
-
-SAMPLE ACCEPTANCE CERTIFICATE
-The following required mixture indicators are hereby established.
-Deviation from the stated value within tolerance is acceptable.
-Deviation beyond tolerance on any point reduces the acceptance score.
-
-{LINES}
-
-Note: the sample presented for comparison during the display phase is
-not acceptable under any circumstances.` },
+`The acceptance commission has reviewed the sample and attached it to the case file. {SENTENCES} By the commission's ruling, any deviation from the above not exceeding {TOL} notches in either direction on each point taken separately is deemed acceptable and does not affect the final acceptance score.` },
 
   { ru:
-`Комиссия по приёмке смесей рассмотрела образец и постановила считать
-приемлемыми показатели, отличающиеся от нижеуказанных не более чем на
-{TOL} деления в любую сторону:
-
-{LINES}
-
-Особое указание: совпадение предъявленного образца с тем, что было
-продемонстрировано на сверке, приёмке не подлежит и приравнивается
-к прямому нарушению порядка.`,
+`Форма 7-Б заполнена и заверена печатью Гильдии. {SENTENCES} Границы приёмки едины для всех перечисленных пунктов и составляют {TOL} деления в любую сторону от указанного — превышение по отдельному пункту фиксируется как нарушение, но не отменяет заявку целиком.`,
     en:
-`The mixture acceptance commission has reviewed the sample and ruled
-that indicators deviating no more than {TOL} notches in either
-direction from the following are acceptable:
-
-{LINES}
-
-Special instruction: a sample matching what was shown during the
-comparison phase is not acceptable and is treated as a direct
-violation of procedure.` },
+`Form 7-B has been filled out and sealed by the Guild. {SENTENCES} The acceptance margin is uniform across all points listed and equals {TOL} notches in either direction from the stated value — exceeding it on a single point is logged as a violation but does not void the request outright.` },
 
   { ru:
-`§ ТРЕБОВАНИЯ К ОБРАЗЦУ §
-
-{LINES}
-
-ДОПУСК ПО ВСЕМ ПУНКТАМ ВЫШЕ: ±{TOL} деления.
-
-Инспектор напоминает: показанное на сверке — не образец для повторения,
-а образец для НЕдопущения. Совпадение = провал приёмки.`,
+`Плановая проверка, протокол №{TOL}7-К. {SENTENCES} Допуск по каждому из перечисленных показателей составляет {TOL} деления; всё, что уложилось в эти границы, комиссия принимает без возражений.`,
     en:
-`§ SAMPLE REQUIREMENTS §
-
-{LINES}
-
-TOLERANCE ON ALL POINTS ABOVE: ±{TOL} notches.
-
-The Inspector reminds you: what was shown during comparison is not a
-sample to replicate, but a sample to AVOID. A match = failed acceptance.` },
+`A scheduled inspection, protocol No. {TOL}7-K. {SENTENCES} The tolerance on each of the listed indicators is {TOL} notches; anything that falls within these bounds is accepted by the commission without objection.` },
 
   { ru:
-`Форма 7-Б. Заявка на приёмку.
-
-Податель обязан обеспечить показатели смеси в границах:
-{LINES}
-
-Границы приёмки: значение ± {TOL} (единое для всех строк выше).
-Совпадение с образцом фазы показа аннулирует заявку целиком, вне
-зависимости от прочих показателей.`,
+`Заявка на приёмку смеси принята к рассмотрению. {SENTENCES} Податель обязан удержать каждый из перечисленных показателей в границах ± {TOL} деления от указанного — прочие детали заявки на решение комиссии не влияют.`,
     en:
-`Form 7-B. Acceptance request.
-
-The submitter must ensure the mixture's indicators fall within:
-{LINES}
-
-Acceptance bounds: value ± {TOL} (uniform across all lines above).
-Matching the display-phase sample voids the request entirely,
-regardless of any other indicator.` }
+`The mixture acceptance request has been accepted for review. {SENTENCES} The submitter must keep every listed indicator within ± {TOL} notches of the stated value — no other detail of the request affects the commission's decision.` }
 ];
 
 // ---------- Дегустатор (Гурман с Веги): реакции на "дегустацию" УР.4 ----------

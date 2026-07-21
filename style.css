@@ -1453,7 +1453,10 @@ body::after{
 }
 /* ---------- Дальнобойщик: ползунки-"передачи" — ветвистая SVG-дорожка ---------- */
 .l4-trucker-col{ flex-direction:column !important; align-items:center; gap:12px; }
-.l4-gearpath-holder{ width:84px; height:84px; margin:0 auto; }
+/* Патч: цвет/накал больше сюда не переезжают (остаются обычными ползунками
+   слева) — "коробка передач" теперь только у правых регуляторов, поэтому её
+   можно сделать немного крупнее без риска переполнить колонку */
+.l4-gearpath-holder{ width:104px; height:104px; margin:0 auto; }
 .l4-gearpath-svg{ width:100%; height:100%; overflow:visible; touch-action:none; cursor:pointer; }
 .l4-gearpath-track{
   fill:none; stroke:rgba(53,224,255,.45); stroke-width:5;
@@ -1604,13 +1607,7 @@ body::after{
   color:var(--ink);font-size:12px;z-index:6;white-space:normal;line-height:1.4;
 }
 
-/* ---------- Инспектор Гильдии: баннер запоминания + кнопка/полноэкранный текст "Допусков" ---------- */
-.l4-inspector-banner{
-  position:absolute;bottom:5%;left:50%;transform:translateX(-50%);
-  max-width:88%;padding:8px 14px;text-align:center;z-index:7;
-  font-family:'Russo One',sans-serif;font-size:15px;letter-spacing:.03em;line-height:1.3;
-  color:var(--danger);text-shadow:0 0 10px rgba(255,93,106,.8), 0 0 22px rgba(255,93,106,.4);
-}
+/* ---------- Инспектор Гильдии: кнопка/полноэкранный текст "Допусков" ---------- */
 .l4-inspector-tol-btn{
   position:absolute;bottom:5%;left:50%;transform:translateX(-50%);
   padding:8px 20px;border-radius:20px;border:1px solid rgba(255,217,138,.6);
@@ -1622,19 +1619,21 @@ body::after{
 .inspector-tol-card{ width:520px; text-align:left; }
 
 /* ---------- Коллекционер: сетка из 16 баночек вместо регуляторов ---------- */
-.collector-grid-wrap{ width:100%; max-width:420px; margin:0 auto; }
+/* Патч: ячейки увеличены — теперь в них рендерится полноценное зелье
+   (та же разметка, что и в обычной игре), а не мелкая схема */
+.collector-grid-wrap{ width:100%; max-width:560px; margin:0 auto; }
 .collector-grid{
-  display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;
+  display:grid; grid-template-columns:repeat(4, 1fr); gap:14px;
   margin-bottom:14px;
 }
 .collector-jar-cell{
-  background:rgba(53,224,255,.06); border:1px solid rgba(53,224,255,.3); border-radius:10px;
-  padding:6px; cursor:pointer; transition:transform .1s ease, border-color .12s ease, background .12s ease;
+  background:rgba(53,224,255,.06); border:1px solid rgba(53,224,255,.3); border-radius:12px;
+  padding:8px; cursor:pointer; transition:transform .1s ease, border-color .12s ease, background .12s ease;
   display:flex; align-items:center; justify-content:center;
 }
 .collector-jar-cell:hover{ border-color:rgba(53,224,255,.7); background:rgba(53,224,255,.14); transform:scale(1.05); }
 .collector-jar-cell:active{ transform:scale(.95); }
-.collector-jar-svg{ width:100%; height:auto; max-height:78px; }
+.collector-jar-svg{ width:100%; height:auto; max-height:170px; }
 .collector-timer-track{
   width:100%; height:8px; border-radius:4px; background:rgba(0,0,0,.4);
   border:1px solid rgba(53,224,255,.3); overflow:hidden;
@@ -1649,38 +1648,28 @@ body::after{
   background:rgba(0,0,0,.25); border:1px solid rgba(255,217,138,.3); border-radius:10px;
   padding:16px; margin:10px 0 16px; max-height:52vh; overflow-y:auto;
 }
-/* ---------- Бармен плазма-бара: схвати банку и тряхни ---------- */
-.l4-bar-hint{
-  position:absolute;top:8%;left:50%;transform:translateX(-50%);
-  padding:6px 12px;border-radius:10px;white-space:nowrap;
-  background:rgba(10,13,32,.9);border:1px solid rgba(53,224,255,.5);
-  font-size:12px;color:var(--ink);z-index:6;
-}
-.l4-bar-hint.ready{border-color:var(--good);color:var(--good);}
-#jarSvg.l4-bar-grabbable{cursor:grab;touch-action:none;}
-#jarSvg.l4-bar-grabbing{cursor:grabbing;}
-#jarSvg.l4-bar-shaking{animation:l4BarShake .12s linear 5;}
-@keyframes l4BarShake{
-  0%,100%{transform:translate(0,0);} 25%{transform:translate(-3px,2px);}
-  50%{transform:translate(3px,-2px);} 75%{transform:translate(-2px,-3px);}
-}
 
 /* ---------- Хозяин Роя: мухи вместо пузырьков ---------- */
 .l4-fly{
   position:absolute;font-size:20px;transform:translate(-50%,-50%);
   cursor:grab;z-index:6;user-select:none;touch-action:none;
-  filter:drop-shadow(0 0 3px rgba(0,0,0,.6));
+  /* Патч: деталь плохо видна на фоне циферблата — плотная белая обводка
+     из нескольких drop-shadow вместо одной мягкой тени */
+  filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 0 3px rgba(0,0,0,.7));
   transition:left .35s ease, top .35s ease;
 }
 .l4-fly.flying-out{transition:left .6s ease, top .6s ease;}
 .l4-fly.dragging{cursor:grabbing;transition:none;z-index:9;}
-.l4-fly.inside{filter:drop-shadow(0 0 5px rgba(125,255,106,.85));}
+.l4-fly.inside{filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px rgba(125,255,106,.85));}
 .l4-fly-hidden{visibility:hidden;}
-/* Патч: крупная реплика Хозяина Роя внизу циферблата на фазе запоминания */
+/* Патч: крупная реплика Хозяина Роя внизу циферблата на фазе запоминания —
+   плюс белая обводка, иначе красный текст теряется на фоне циферблата */
 .l4-swarm-hint{
   position:absolute;left:50%;bottom:6%;transform:translateX(-50%);
   font-family:'Russo One',sans-serif;font-size:20px;letter-spacing:.08em;
-  color:var(--danger);text-shadow:0 0 10px rgba(255,93,106,.75), 0 0 22px rgba(255,93,106,.4);
+  color:var(--danger);
+  text-shadow:-1.5px -1.5px 0 #fff, 1.5px -1.5px 0 #fff, -1.5px 1.5px 0 #fff, 1.5px 1.5px 0 #fff,
+    0 0 10px rgba(255,93,106,.75), 0 0 22px rgba(255,93,106,.4);
   white-space:nowrap;z-index:7;pointer-events:none;
   opacity:0;transition:opacity .4s ease;
 }

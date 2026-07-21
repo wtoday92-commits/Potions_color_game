@@ -474,6 +474,19 @@
   }
 
   function drawJar(opts){
+    const svg = $('jarSvg');
+    svg.innerHTML = buildJarMarkup(opts);
+    // Патч "УР.4" (Сверхновая): поворот всей банки — CSS-трансформ, а не
+    // перерисовка путей, проще и дешевле
+    svg.style.transform = opts.rotationDeg ? `rotate(${opts.rotationDeg}deg)` : '';
+  }
+
+  // Патч (Коллекционер): построение разметки банки вынесено из drawJar в
+  // отдельную функцию — так карточки в сетке 4x4 рендерят ПОЛНОЦЕННОЕ зелье
+  // (тот же путь, что и обычная игра), а не упрощённую схему. idPrefix нужен,
+  // чтобы у нескольких банок на экране одновременно (сетка) id defs/clipPath
+  // не пересекались (иначе все клипались бы по контуру первой банки).
+  function buildJarMarkup(opts, idPrefix=''){
     // Патч (Сверхновая): heightPct — независимая высота банки; если не
     // передана, высота как раньше следует за sizePct (единый "объём")
     // Патч "УР.4": rotationDeg — эксклюзивный регулятор Сверхновой;
@@ -483,21 +496,41 @@
     // bubbleCountB — правая)
     const { hue, hue2=null, sat=70, sizePct, heightPct=null, bubbleCount, bubbleR, seed, shapeIdx=0,
             overridePositions=null, badBubbles=[], rotationDeg=null, garnishPts=null,
-            splitHalves=false, bubbleCountB=0 } = opts;
-    const svg = $('jarSvg');
+            splitHalves=false, bubbleCountB=0, showGrid=false } = opts;
+    // несколько банок на экране одновременно (сетка Коллекционера) не должны
+    // делить между собой id defs/clipPath — иначе все клипались бы по контуру первой
+    const cJarClip = `${idPrefix}jarClip`, cInkDots = `${idPrefix}inkDots`,
+          cInkDotsLight = `${idPrefix}inkDotsLight`, cGlassGrad = `${idPrefix}glassGrad`,
+          cLiqGrad = `${idPrefix}liqGrad`;
     const w = 60 + (sizePct/100)*60;
     const h = 140 + ((heightPct ?? sizePct)/100)*70;
     const cx = 100, baseY = 240, topY = baseY - h;
     const sp = SHAPE_PROFILES[shapeIdx] || SHAPE_PROFILES[0];
     const bodyPath = jarOutlinePath(cx, topY, baseY, w, sp.points, sp.smooth);
 
+    // Патч "УР.4" (Векс): сетка-ориентир внутри банки — подстраивается под
+    // текущие w/h банки, чтобы игрок видел, куда возвращать сгустки
+    let gridEls = '';
+    if(showGrid){
+      const gx0 = cx - w/2, gx1 = cx + w/2, gy0 = topY+40, gy1 = baseY;
+      const cols = 4, rows = 5;
+      for(let i=1;i<cols;i++){
+        const gx = (gx0 + (gx1-gx0)*i/cols).toFixed(1);
+        gridEls += `<line x1="${gx}" y1="${gy0.toFixed(1)}" x2="${gx}" y2="${gy1.toFixed(1)}" stroke="rgba(255,255,255,.28)" stroke-width="1"/>`;
+      }
+      for(let j=1;j<rows;j++){
+        const gy = (gy0 + (gy1-gy0)*j/rows).toFixed(1);
+        gridEls += `<line x1="${gx0.toFixed(1)}" y1="${gy}" x2="${gx1.toFixed(1)}" y2="${gy}" stroke="rgba(255,255,255,.28)" stroke-width="1"/>`;
+      }
+    }
+
     let fillDef = '', fillRef;
     if(hue2 !== null){
-      fillDef = `<linearGradient id="liqGrad" x1="0" y1="0" x2="0" y2="1">
+      fillDef = `<linearGradient id="${cLiqGrad}" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="hsl(${hue},70%,52%)"/>
         <stop offset="100%" stop-color="hsl(${hue2},70%,52%)"/>
       </linearGradient>`;
-      fillRef = 'url(#liqGrad)';
+      fillRef = `url(#${cLiqGrad})`;
     } else {
       fillRef = `hsl(${hue}, ${sat}%, 52%)`;
     }
@@ -506,9 +539,11 @@
     if(overridePositions){
       pts = overridePositions;
     } else if(splitHalves){
+      // Патч (Двуликая жрица): "Сгустки Б" держат левую половину (как и
+      // раньше), "Сгустки А" — только правую (раньше задевали обе)
       pts = [
-        ...packBubbles(bubbleCount, bubbleR, w, topY, baseY, sp.points, seed, 'left'),
-        ...packBubbles(bubbleCountB, bubbleR, w, topY, baseY, sp.points, seed+7331, 'right')
+        ...packBubbles(bubbleCountB, bubbleR, w, topY, baseY, sp.points, seed+7331, 'left'),
+        ...packBubbles(bubbleCount, bubbleR, w, topY, baseY, sp.points, seed, 'right')
       ];
     } else {
       pts = packBubbles(bubbleCount, bubbleR, w, topY, baseY, sp.points, seed);
@@ -530,7 +565,7 @@
     // blob halftone shadows (printed-ink feel under each ectoplasm chunk)
     const blobShadows = pts.map(p=>{
       const r = p.r || bubbleR;
-      return `<ellipse cx="${(p.x+r*0.35).toFixed(1)}" cy="${(p.y+r*0.85).toFixed(1)}" rx="${(r*0.95).toFixed(1)}" ry="${(r*0.4).toFixed(1)}" fill="url(#inkDots)" opacity=".8"/>`;
+      return `<ellipse cx="${(p.x+r*0.35).toFixed(1)}" cy="${(p.y+r*0.85).toFixed(1)}" rx="${(r*0.95).toFixed(1)}" ry="${(r*0.4).toFixed(1)}" fill="url(#${cInkDots})" opacity=".8"/>`;
     }).join('');
 
     // Патч "УР.4" (Шеф туманности): декоративные "гарниши" — почти как
@@ -557,20 +592,20 @@
         </g>`;
     }).join('');
 
-    svg.innerHTML = `
+    return `
       <defs>
-        <clipPath id="jarClip"><path d="${bodyPath}"/></clipPath>
+        <clipPath id="${cJarClip}"><path d="${bodyPath}"/></clipPath>
         ${fillDef}
         <!-- staggered halftone dot pattern, like printed manga raster -->
-        <pattern id="inkDots" width="7" height="7" patternUnits="userSpaceOnUse">
+        <pattern id="${cInkDots}" width="7" height="7" patternUnits="userSpaceOnUse">
           <circle cx="1.8" cy="1.8" r="1.15" fill="rgba(0,0,0,.30)"/>
           <circle cx="5.3" cy="5.3" r="1.15" fill="rgba(0,0,0,.30)"/>
         </pattern>
-        <pattern id="inkDotsLight" width="8" height="8" patternUnits="userSpaceOnUse">
+        <pattern id="${cInkDotsLight}" width="8" height="8" patternUnits="userSpaceOnUse">
           <circle cx="2" cy="2" r="1.05" fill="rgba(255,255,255,.30)"/>
           <circle cx="6" cy="6" r="1.05" fill="rgba(255,255,255,.30)"/>
         </pattern>
-        <linearGradient id="glassGrad" x1="0" y1="0" x2="1" y2="0">
+        <linearGradient id="${cGlassGrad}" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stop-color="rgba(159,242,255,.28)"/>
           <stop offset="18%" stop-color="rgba(159,242,255,.02)"/>
           <stop offset="100%" stop-color="rgba(159,242,255,.06)"/>
@@ -587,30 +622,28 @@
       <path d="${bodyPath}" fill="none" stroke="rgba(53,224,255,.28)" stroke-width="8"/>
       <!-- container body -->
       <path d="${bodyPath}" fill="rgba(53,224,255,.05)"/>
-      <g clip-path="url(#jarClip)">
+      <g clip-path="url(#${cJarClip})">
         <rect x="${cx-w/2-6}" y="${topY+40}" width="${w+12}" height="${h}" fill="${fillRef}"/>
         <!-- liquid volume: dark side band + halftone shading on the right -->
         <rect x="${(cx+w*0.18).toFixed(1)}" y="${topY+40}" width="${(w*0.4).toFixed(1)}" height="${h}" fill="rgba(0,0,0,.16)"/>
-        <rect x="${(cx+w*0.10).toFixed(1)}" y="${topY+40}" width="${(w*0.5).toFixed(1)}" height="${h}" fill="url(#inkDots)"/>
+        <rect x="${(cx+w*0.10).toFixed(1)}" y="${topY+40}" width="${(w*0.5).toFixed(1)}" height="${h}" fill="url(#${cInkDots})"/>
         <!-- light side: halftone highlight strip -->
-        <rect x="${(cx-w/2).toFixed(1)}" y="${topY+40}" width="${(w*0.2).toFixed(1)}" height="${h}" fill="url(#inkDotsLight)"/>
+        <rect x="${(cx-w/2).toFixed(1)}" y="${topY+40}" width="${(w*0.2).toFixed(1)}" height="${h}" fill="url(#${cInkDotsLight})"/>
         <!-- liquid surface: bold ink line + bright edge -->
         <rect x="${cx-w/2-6}" y="${topY+40}" width="${w+12}" height="3.2" fill="rgba(10,13,24,.85)"/>
         <rect x="${cx-w/2-6}" y="${topY+43}" width="${w+12}" height="5" fill="rgba(255,255,255,.30)"/>
+        ${gridEls}
         ${blobShadows}
         ${bubbleEls}
         ${garnishEls}
         ${splitDividerEl}
       </g>
-      <path d="${bodyPath}" fill="url(#glassGrad)"/>
+      <path d="${bodyPath}" fill="url(#${cGlassGrad})"/>
       <!-- thick manga ink outline with neon core -->
       <path d="${bodyPath}" fill="none" stroke="#0a0d18" stroke-width="5"/>
       <path d="${bodyPath}" fill="none" stroke="#35e0ff" stroke-width="1.8"/>
       ${badBubbleEls}
     `;
-    // Патч "УР.4" (Сверхновая): поворот всей банки — CSS-трансформ, а не
-    // перерисовка путей, проще и дешевле
-    svg.style.transform = rotationDeg ? `rotate(${rotationDeg}deg)` : '';
   }
 
   function idxToVal(idx, steps, maxVal){ return steps<=1 ? 0 : idx*(maxVal/(steps-1)); }
@@ -1013,17 +1046,15 @@
       $('windowFrame').classList.add('l4-shake');
     },
     craftStart(){
+      // Патч: цвет/накал (спектр) больше не трогаем вообще — остаются
+      // слева и выглядят как обычные ползунки. "Коробка передач" — только
+      // у новых правых регуляторов (размер/сгустки/разм. сгуст.)
       const rightCol = $('rightCol');
       if(rightCol) rightCol.classList.add('l4-trucker-col');
       l4TruckerReal = {}; l4TruckerWidgets = {};
-      [...target.activeKeys].filter(k => S[k] && L4_MOUNT_ID[k]).forEach(k=>{
+      [...target.activeKeys].filter(k => S[k] && L4_MOUNT_ID[k] && !TRUCKER_LEFT_KEYS.includes(k)).forEach(k=>{
         const mount = $(L4_MOUNT_ID[k]);
         if(!mount) return;
-        // "Все ползунки справа, в столбик" — левые (спектр/накал) переезжают
-        if(rightCol && TRUCKER_LEFT_KEYS.includes(k)){
-          const group = mount.closest('.vslider-group');
-          if(group) rightCol.appendChild(group);
-        }
         l4TruckerReal[k] = S[k];
         S[k] = makeGearPathWidget(S[k], mount, k);
         l4TruckerWidgets[k] = S[k];
@@ -1034,7 +1065,7 @@
     },
     stop(){
       $('windowFrame').classList.remove('l4-shake');
-      const rightCol = $('rightCol'), leftCol = $('leftCol');
+      const rightCol = $('rightCol');
       if(rightCol) rightCol.classList.remove('l4-trucker-col');
       if(l4TruckerWidgets){
         Object.keys(l4TruckerWidgets).forEach(k=>{
@@ -1046,21 +1077,15 @@
         Object.keys(l4TruckerReal).forEach(k=>{ S[k] = l4TruckerReal[k]; });
         l4TruckerReal = null;
       }
-      if(leftCol){
-        TRUCKER_LEFT_KEYS.forEach(k=>{
-          const mount = $(L4_MOUNT_ID[k]);
-          const group = mount && mount.closest('.vslider-group');
-          if(group) leftCol.appendChild(group);
-        });
-      }
     }
   };
 
   // ---------- Инспектор Гильдии: "Допуски" — текстовый лист вместо визуальной подгонки ----------
-  // Патч: вся механика заменена. Игрок видит на запоминании настоящий образец
-  // (который ЗАПРЕЩЕНО повторять), а на игре открывает текстовый лист
-  // "Допуски" с настоящей целью (числами, ±допуск) — см. finalizeResult()
-  // для разбора результата и inspectorKeyBounds/inspectorDecoyIdx ниже.
+  // Патч: фазы показа больше нет вообще (см. ветку 'guild_inspector' в
+  // showMemorize) — сразу лист "Допуски" со сплошным текстом (не список),
+  // числа вшиты в предложения, чтобы их нужно было выискивать чтением, а не
+  // глазами. Таймер на воссоздание удвоен (craftStart ниже) — компенсация за
+  // то, что читать длиннее, чем смотреть на банку.
   function inspectorKeyBounds(key){
     const cfg = target.cfg;
     switch(key){
@@ -1094,32 +1119,50 @@
       default: return String(idx);
     }
   }
-  const INSPECTOR_KEY_LABEL_MAP = {
-    color:'LABEL_SPECTRUM', colorB:'LABEL_SPECTRUM_B', size:'LABEL_VOLUME', size2:'LABEL_HEIGHT',
-    bsize:'LABEL_COUNT_SIZE', count:'LABEL_COUNT_QTY', sat:'LABEL_SATURATION', shape:'LABEL_SHAPE'
+  // Патч: числа теперь вшиты прямо в предложение о каждом показателе (не
+  // "Ярлык: значение" строкой) — фраза на каждый ключ своя, по-русски и
+  // по-английски напрямую (этот текст не авторский лор, а служебный, потому
+  // без LT/content.js)
+  const INSPECTOR_KEY_PHRASE = {
+    color:  v => LANG==='ru' ? `спектр смеси обязан лечь ровно на отметку ${v}` : `the mixture's spectrum must land exactly on the ${v} mark`,
+    colorB: v => LANG==='ru' ? `второй спектр градиента должен встать на ${v}` : `the gradient's second spectrum must sit at ${v}`,
+    size:   v => LANG==='ru' ? `объём сосуда обязан встать на отметке ${v}` : `the vessel's volume must sit at the ${v} mark`,
+    size2:  v => LANG==='ru' ? `высота сосуда отдельно выставляется на ${v}` : `the vessel's height, separately, is set to ${v}`,
+    bsize:  v => LANG==='ru' ? `калибр каждого сгустка выставлен на отметке ${v}` : `each blob's caliber is set at the ${v} mark`,
+    count:  v => LANG==='ru' ? `внутри обязано плавать ровно ${v} сгустков по счёту` : `there must be exactly ${v} blobs floating inside, by count`,
+    sat:    v => LANG==='ru' ? `накал цвета выставляется на отметке ${v}` : `the color's intensity is set at the ${v} mark`,
+    shape:  v => LANG==='ru' ? `форма сосуда должна соответствовать образцу №${v}` : `the vessel's shape must match reference #${v}`
   };
   function inspectorActiveKeys(){
     return [...(target.activeKeys||[])].filter(k => S[k] && target.inspectorTarget && target.inspectorTarget[k] !== undefined);
   }
+  // сплошной абзац предложений вместо списка "Ярлык: значение" — плюс порядок
+  // показателей каждый раз перемешан (по сиду заказа), чтобы нельзя было
+  // просто запомнить, "какое число по счёту" отвечает за нужный параметр
+  function inspectorJoinSentences(keys){
+    const rng = mulberry32((target.seed+4271)>>>0);
+    const order = [...keys];
+    for(let i=order.length-1;i>0;i--){
+      const j = Math.floor(rng()*(i+1));
+      [order[i],order[j]] = [order[j],order[i]];
+    }
+    const clauses = order.map(k=>{
+      const gen = INSPECTOR_KEY_PHRASE[k];
+      return gen ? gen(inspectorFormatValue(k, target.inspectorTarget[k])) : null;
+    }).filter(Boolean);
+    if(!clauses.length) return '';
+    let s;
+    if(clauses.length === 1) s = clauses[0];
+    else {
+      const and = LANG==='ru' ? ', а ' : ', and ';
+      s = clauses.slice(0,-1).join(', ') + and + clauses[clauses.length-1];
+    }
+    return s.charAt(0).toUpperCase() + s.slice(1) + '.';
+  }
   function inspectorBuildText(){
     const keys = inspectorActiveKeys();
-    const lines = keys.map(k=>{
-      const labelKey = INSPECTOR_KEY_LABEL_MAP[k];
-      const label = LT(UI_TEXT[labelKey] || UI_TEXT.LABEL_VOLUME);
-      return `${label}: ${inspectorFormatValue(k, target.inspectorTarget[k])}`;
-    });
     const tpl = INSPECTOR_TOLERANCE_TEMPLATES[target.inspectorTemplateIdx % INSPECTOR_TOLERANCE_TEMPLATES.length];
-    return LT(tpl).replace(/\{TOL\}/g, target.inspectorTolerance).replace('{LINES}', lines.join('\n'));
-  }
-  function l4InspectorShowBanner(){
-    const wf = $('windowFrame');
-    if(!wf) return;
-    let el = document.getElementById('l4InspectorBanner');
-    if(!el){ el = document.createElement('div'); el.id = 'l4InspectorBanner'; el.className = 'l4-inspector-banner'; wf.appendChild(el); }
-    el.textContent = LT(UI_TEXT.INSPECTOR_BANNER);
-  }
-  function l4InspectorHideBanner(){
-    const el = document.getElementById('l4InspectorBanner'); if(el) el.remove();
+    return LT(tpl).replace('{SENTENCES}', inspectorJoinSentences(keys)).replace(/\{TOL\}/g, target.inspectorTolerance);
   }
   function l4InspectorShowTolBtn(){
     const wf = $('windowFrame');
@@ -1153,15 +1196,14 @@
       });
       target.inspectorTemplateIdx = randInt(0, INSPECTOR_TOLERANCE_TEMPLATES.length-1);
     },
-    memorizeStart(){
-      l4InspectorShowBanner();
-    },
     craftStart(){
-      l4InspectorHideBanner();
       l4InspectorShowTolBtn();
+      // Патч: фазы показа больше нет — таймер на воссоздание удваиваем,
+      // чтобы хватило времени спокойно прочитать сплошной текст "Допусков"
+      target.craftDuration *= 2;
+      target.craftBaseDuration *= 2;
     },
     stop(){
-      l4InspectorHideBanner();
       l4InspectorHideTolBtn();
       const ov = $('inspectorTolOverlay'); if(ov) ov.classList.remove('show');
     }
@@ -1172,21 +1214,36 @@
   // местах (плюс реплика Векса внизу). На игре они разлетаются внутри той
   // же зоны банки, и их нужно руками перетащить обратно как можно точнее —
   // это отдельный, более весомый компонент результата (см. computeScoreComponents).
-  const L4_VEX_ZONE = { xMin:30, xMax:70, yMin:32, yMax:85 };
+  // Патч: сгустки теперь всегда упаковываются ВНУТРИ реального контура банки
+  // (как обычные пузыри — через packBubbles/SHAPE_PROFILES), а не в грубом
+  // прямоугольнике % от windowFrame — иначе на маленькой банке они вылезали
+  // за стекло. Размер сгустка фиксирован (ползунок "Разм. сгуст." Вексу не нужен).
+  const L4_VEX_BLOB_R = 9; // в единицах viewBox банки (0..200 x 0..260)
   let l4VexItems = [], l4VexIsCraft = false;
+  function l4VexViewBoxToWfPercent(vx, vy){
+    const wf = $('windowFrame'), svg = $('jarSvg');
+    if(!wf || !svg) return { x:50, y:50 };
+    const wfRect = wf.getBoundingClientRect();
+    const svgRect = svg.getBoundingClientRect();
+    const vb = (svg.viewBox && svg.viewBox.baseVal) || { width:200, height:260 };
+    if(!wfRect.width || !svgRect.width) return { x:50, y:50 };
+    // jarSvg вписан в свой квадратный бокс с сохранением пропорций
+    // (preserveAspectRatio по умолчанию) — учитываем "письма-ящики" по бокам
+    const scale = Math.min(svgRect.width/vb.width, svgRect.height/vb.height);
+    const dispW = vb.width*scale, dispH = vb.height*scale;
+    const offX = svgRect.left + (svgRect.width-dispW)/2;
+    const offY = svgRect.top + (svgRect.height-dispH)/2;
+    const screenX = offX + vx*scale, screenY = offY + vy*scale;
+    return {
+      x: (screenX-wfRect.left)/wfRect.width*100,
+      y: (screenY-wfRect.top)/wfRect.height*100
+    };
+  }
   function l4VexGeneratePositions(n){
-    const pts = [], minDist = 11;
-    for(let i=0;i<n;i++){
-      let x, y, tries = 0, ok = false;
-      do{
-        x = L4_VEX_ZONE.xMin + Math.random()*(L4_VEX_ZONE.xMax-L4_VEX_ZONE.xMin);
-        y = L4_VEX_ZONE.yMin + Math.random()*(L4_VEX_ZONE.yMax-L4_VEX_ZONE.yMin);
-        ok = pts.every(p=>Math.hypot(p.x-x, p.y-y) >= minDist);
-        tries++;
-      } while(!ok && tries < 60);
-      pts.push({x,y});
-    }
-    return pts;
+    const geom = computeJarGeom(target.size);
+    const profile = SHAPE_PROFILES[target.shapeIdx||0].points;
+    const pts = packBubbles(n, L4_VEX_BLOB_R, geom.w, geom.topY, geom.baseY, profile, randInt(1,999999));
+    return pts.map(p => l4VexViewBoxToWfPercent(p.x, p.y));
   }
   function l4VexCreateEl(item){
     const wf = $('windowFrame');
@@ -1241,6 +1298,12 @@
         item.x = scattered[i].x; item.y = scattered[i].y; item.dragging = false;
         if(item.el){ item.el.style.left = item.x+'%'; item.el.style.top = item.y+'%'; item.el.classList.add('l4-vex-scatter'); }
       });
+      // Патч: "Сгустки" и "Разм. сгуст." Вексу не нужны — позиция сгустков и
+      // так фиксированного размера/числа, эти ползунки только сбивали с толку
+      const countGroup = $('mCount') && $('mCount').closest('.vslider-group');
+      if(countGroup) countGroup.classList.add('l4-fly-hidden');
+      const bsizeGroup = $('mBsize') && $('mBsize').closest('.vslider-group');
+      if(bsizeGroup) bsizeGroup.classList.add('l4-fly-hidden');
     },
     stop(){
       l4VexIsCraft = false;
@@ -1251,6 +1314,10 @@
       target.vexFinalPositions = l4VexItems.map(item=>({ x:item.x, y:item.y }));
       l4VexItems.forEach(item=>{ if(item.el) item.el.remove(); });
       l4VexItems = [];
+      const countGroup = $('mCount') && $('mCount').closest('.vslider-group');
+      if(countGroup) countGroup.classList.remove('l4-fly-hidden');
+      const bsizeGroup = $('mBsize') && $('mBsize').closest('.vslider-group');
+      if(bsizeGroup) bsizeGroup.classList.remove('l4-fly-hidden');
     }
   };
 
@@ -1326,19 +1393,16 @@
     }
     return jars;
   }
-  function l4CollectorRenderJarSVG(jar){
-    // фиксированный средний размер для ВСЕХ баночек — размер тут не признак
-    const w = 46, h = 60, cx = 40, baseY = 74, topY = baseY - h;
-    const sp = SHAPE_PROFILES[jar.shapeIdx] || SHAPE_PROFILES[0];
-    const bodyPath = jarOutlinePath(cx, topY, baseY, w, sp.points, sp.smooth);
-    const pts = packBubbles(Math.min(jar.count, 10), 4, w, topY, baseY, sp.points, jar.seed);
-    const blobs = pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="rgba(125,255,106,.85)" stroke="#0a0d18" stroke-width="1"/>`).join('');
-    return `<svg viewBox="0 0 80 90" class="collector-jar-svg">
-      <path d="${bodyPath}" fill="hsl(${jar.hue.toFixed(0)},70%,50%)" opacity="0.88"/>
-      <path d="${bodyPath}" fill="none" stroke="#0a0d18" stroke-width="3"/>
-      <path d="${bodyPath}" fill="none" stroke="#35e0ff" stroke-width="1.2"/>
-      ${blobs}
-    </svg>`;
+  function l4CollectorRenderJarSVG(jar, idx){
+    // Патч: каждая ячейка сетки рендерит ПОЛНОЦЕННОЕ зелье — тем же
+    // построителем разметки, что и обычная игра (drawJar), а не упрощённую
+    // схему "форма+цвет+точки". Размер везде одинаковый средний — размер
+    // тут не признак, поэтому sizePct/bubbleR фиксированы.
+    const inner = buildJarMarkup({
+      hue: jar.hue, sizePct: 50, bubbleCount: Math.min(jar.count, 10), bubbleR: 7,
+      seed: jar.seed, shapeIdx: jar.shapeIdx
+    }, `col${idx}_`);
+    return `<svg viewBox="0 0 200 260" class="collector-jar-svg">${inner}</svg>`;
   }
   function l4CollectorRenderGrid(){
     const grid = $('collectorGrid');
@@ -1347,7 +1411,7 @@
     target.collectorJars.forEach((jar, i)=>{
       const cell = document.createElement('div');
       cell.className = 'collector-jar-cell';
-      cell.innerHTML = l4CollectorRenderJarSVG(jar);
+      cell.innerHTML = l4CollectorRenderJarSVG(jar, i);
       cell.addEventListener('click', ()=> l4CollectorChoose(i));
       grid.appendChild(cell);
     });
@@ -1586,6 +1650,10 @@
   let l4Logic9Boxes = {};
   LEVEL4_FX.logic9 = {
     craftStart(){
+      // Патч: степпер по одному делению медленнее, чем свободный слайдер —
+      // таймер на воссоздание увеличен в полтора раза, чтобы хватало кликов
+      target.craftDuration = Math.round(target.craftDuration * 1.5);
+      target.craftBaseDuration = Math.round(target.craftBaseDuration * 1.5);
       [...target.activeKeys].filter(k => S[k] && L4_MOUNT_ID[k]).forEach(k=>{
         const mount = $(L4_MOUNT_ID[k]);
         if(!mount) return;
@@ -1703,13 +1771,6 @@
   // Механики УР.4 — блок 4: составные (несколько фаз/эффектов сразу)
   // ============================================================
 
-  // продлевает ИДУЩИЙ таймер фазы "воссоздай" прямо по ходу (не только
-  // будущий craftDuration) — тот же приём, что раньше был у Того-Кто-Ждёт
-  function l4ExtendCraftTimer(ms){
-    timerDurationMs = Math.max(500, timerDurationMs + ms);
-    target.craftDuration = timerDurationMs;
-  }
-
   // ---------- Аптекарь Мо: полоска "состояния пациента" + доп. рейтинг ----------
   let l4ApothTimer = null, l4ApothFrac = 1;
   LEVEL4_FX.apothecary_mo = {
@@ -1776,18 +1837,34 @@
   // Патч: убрали цикл из 4 цветов на фазе показа целиком — вместо него
   // простая блокировка регуляторов на фазе игры (см. также бонус +1.5с к
   // memDuration в startOrder — "fashionistaL4Bonus").
-  let l4FashionActiveKey = null;
+  // Патч: "дальше" раньше выбирал случайный ползунок (мог вернуться к уже
+  // отредактированному раньше, чем добрался до остальных) — теперь порядок
+  // перемешивается ОДИН раз в начале раунда и "дальше" просто идёт по кругу
+  // этого порядка, так что каждый ползунок посещается ровно один раз за
+  // круг, а по исчерпании круг повторяется в том же порядке.
+  let l4FashionActiveKey = null, l4FashionOrder = [], l4FashionOrderIdx = 0;
+  function l4FashionShuffle(arr){
+    const a = [...arr];
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
   LEVEL4_FX.fashionista = {
     craftStart(){
       const keys = [...target.activeKeys].filter(k => S[k]);
       if(!keys.length) return;
-      l4FashionActiveKey = pick(keys);
+      l4FashionOrder = l4FashionShuffle(keys);
+      l4FashionOrderIdx = 0;
+      l4FashionActiveKey = l4FashionOrder[0];
       l4FashionApplyLocks();
       l4FashionShowPhrase();
       l4FashionAddConfirmBtn();
     },
     stop(){
       l4FashionActiveKey = null;
+      l4FashionOrder = []; l4FashionOrderIdx = 0;
       [...target.activeKeys].filter(k => S[k]).forEach(k => S[k].setDisabled(false));
       const el = document.getElementById('l4FashionPhrase'); if(el) el.remove();
       const btn = document.getElementById('l4FashionConfirmBtn'); if(btn) btn.remove();
@@ -1799,11 +1876,9 @@
     });
   }
   function l4FashionNextKey(){
-    const keys = [...target.activeKeys].filter(k => S[k]);
-    if(keys.length <= 1) return;
-    let next = l4FashionActiveKey, guard = 10;
-    while(next === l4FashionActiveKey && guard-- > 0) next = pick(keys);
-    l4FashionActiveKey = next;
+    if(l4FashionOrder.length <= 1) return;
+    l4FashionOrderIdx = (l4FashionOrderIdx + 1) % l4FashionOrder.length;
+    l4FashionActiveKey = l4FashionOrder[l4FashionOrderIdx];
     l4FashionApplyLocks();
     l4FashionShowPhrase();
     SFX.uiClick();
@@ -1881,89 +1956,70 @@
     }
   };
 
-  // ---------- Бармен плазма-бара: схвати банку курсором и потряси ----------
-  // Пока не тряхнул 3 раза — "Готово!" недоступно. Каждая тряска: обязательно
-  // меняет число сгустков (+1/-1) и сбивает СВОЙ, ещё не тронутый регулятор.
-  let l4BarShakeCount = 0, l4BarUsedKeys = [], l4BarDragging = false, l4BarLastX = 0, l4BarShakeAccum = 0,
-      l4BarDownHandler = null, l4BarMoveHandler = null, l4BarUpHandler = null;
-  function l4BarUpdateHint(){
-    const el = document.getElementById('l4BarHint');
-    if(el) el.textContent = LT(UI_TEXT.L4_BAR_SHAKE_HINT).replace('{n}', Math.min(3,l4BarShakeCount));
+  // ---------- Бармен плазма-бара: сгустки летают внутри банки на фазе
+  // "воссоздай", скорость полёта = ползунок "Скорость" в реальном времени ----------
+  // Патч: механику "схвати банку курсором и тряхни" убрали целиком — она
+  // никак не была связана со скоростью, а сам полёт во время игры вообще не
+  // показывался, поэтому ползунок "Скорость" крутили вслепую. Теперь сгустки
+  // летают постоянно, читая текущее значение ползунка каждый кадр — так же,
+  // как размер/число/цвет читаются с их ползунков — так что скорость можно
+  // выставить на глаз, а движение сразу видно при любой правке любого ползунка.
+  let l4BarMoveRafId = null, l4BarMoveBubbles = [], l4BarMoveLastT = 0;
+  function l4BarStopMove(){
+    if(l4BarMoveRafId){ cancelAnimationFrame(l4BarMoveRafId); l4BarMoveRafId = null; }
+    l4BarMoveLastT = 0;
+    l4BarMoveBubbles = [];
   }
-  function l4BarJitterOne(){
-    const keys = [...target.activeKeys].filter(k => S[k] && !l4BarUsedKeys.includes(k));
-    if(!keys.length) return;
-    const key = pick(keys);
-    l4BarUsedKeys.push(key);
-    const sl = S[key], old = sl.value;
-    const dir = Math.random() < 0.5 ? -1 : 1;
-    sl.value = Math.max(sl.min, Math.min(sl.max, sl.value + dir*(sl.step||1)));
-    onSliderInput(key, sl.value, old);
+  function l4BarRescaleSpeed(bubbles, speed){
+    bubbles.forEach(b=>{
+      const mag = Math.hypot(b.vx, b.vy) || 1;
+      const scale = speed/mag;
+      b.vx *= scale; b.vy *= scale;
+    });
   }
-  function l4BarRegisterShake(){
-    if(l4BarShakeCount >= 3) return;
-    l4BarShakeCount++;
-    l4BarJitterOne();
-    // сгустки всегда либо плодятся, либо исчезают — без исключений
-    const delta = Math.random() < 0.5 ? -1 : 1;
-    target.count = Math.max(1, Math.min(target.cfg.countMax, target.count + delta));
-    updatePlayerJar();
-    l4ExtendCraftTimer(2500);
-    SFX.badPop();
-    const jarSvg = $('jarSvg');
-    if(jarSvg){ jarSvg.classList.remove('l4-bar-shaking'); void jarSvg.offsetWidth; jarSvg.classList.add('l4-bar-shaking'); }
-    l4BarUpdateHint();
-    if(l4BarShakeCount >= 3){
-      $('brewBtn').disabled = false;
-      const hint = document.getElementById('l4BarHint');
-      if(hint) hint.classList.add('ready');
-    }
-  }
-  function l4BarAttachGrab(){
-    const jarSvg = $('jarSvg');
-    if(!jarSvg) return;
-    jarSvg.classList.add('l4-bar-grabbable');
-    l4BarDownHandler = (e)=>{
-      if(!target || target.cfg.id !== 'plasma_bartender' || currentPhase !== 'craft' || craftLocked) return;
-      l4BarDragging = true;
-      l4BarLastX = e.clientX;
-      l4BarShakeAccum = 0;
-      jarSvg.classList.add('l4-bar-grabbing');
-      try{ jarSvg.setPointerCapture(e.pointerId); }catch(err){}
-      e.preventDefault();
-    };
-    l4BarMoveHandler = (e)=>{
-      if(!l4BarDragging) return;
-      const dx = e.clientX - l4BarLastX;
-      l4BarLastX = e.clientX;
-      l4BarShakeAccum += Math.abs(dx);
-      if(l4BarShakeAccum >= 260){
-        l4BarShakeAccum = 0;
-        l4BarRegisterShake();
+  function l4BarStartMove(){
+    l4BarStopMove();
+    const cfg = target.cfg;
+    const profile = SHAPE_PROFILES[target.shapeIdx||0].points;
+    function frame(t){
+      if(!target || target.cfg.id !== 'plasma_bartender' || currentPhase !== 'craft'){ l4BarMoveRafId = null; return; }
+      if(!l4BarMoveLastT) l4BarMoveLastT = t;
+      const dt = Math.min(0.05, (t-l4BarMoveLastT)/1000); l4BarMoveLastT = t;
+      const size = idxToVal(S.size.value, cfg.sizeSteps, 100);
+      const bsize = idxToVal(S.bsize.value, cfg.bsizeSteps, 100);
+      const geom = computeJarGeom(size);
+      const r = 3 + (bsize/100)*9;
+      const speed = Math.max(5, S.speed.value*10);
+      const n = S.count.value;
+      if(l4BarMoveBubbles.length === 0 && n > 0){
+        l4BarMoveBubbles = makePhysicsBubbles(n, r, geom, profile, target.seed, speed);
+      } else {
+        // "Сгустки" подвинули прямо на игре — досоздаём/обрезаем на лету
+        while(l4BarMoveBubbles.length < n){
+          const spot = packBubbles(1, r, geom.w, geom.topY, geom.baseY, profile, randInt(1,999999))[0];
+          const ang = Math.random()*Math.PI*2;
+          l4BarMoveBubbles.push({ x:spot.x, y:spot.y, vx:Math.cos(ang)*speed, vy:Math.sin(ang)*speed, r });
+        }
+        if(l4BarMoveBubbles.length > n) l4BarMoveBubbles.length = n;
       }
-    };
-    l4BarUpHandler = ()=>{
-      l4BarDragging = false;
-      jarSvg.classList.remove('l4-bar-grabbing');
-    };
-    jarSvg.addEventListener('pointerdown', l4BarDownHandler);
-    jarSvg.addEventListener('pointermove', l4BarMoveHandler);
-    window.addEventListener('pointerup', l4BarUpHandler);
-  }
-  function l4BarDetachGrab(){
-    const jarSvg = $('jarSvg');
-    if(jarSvg){
-      jarSvg.classList.remove('l4-bar-grabbable','l4-bar-grabbing','l4-bar-shaking');
-      if(l4BarDownHandler) jarSvg.removeEventListener('pointerdown', l4BarDownHandler);
-      if(l4BarMoveHandler) jarSvg.removeEventListener('pointermove', l4BarMoveHandler);
+      l4BarMoveBubbles.forEach(b=>{ b.r = r; });
+      l4BarRescaleSpeed(l4BarMoveBubbles, speed);
+      stepPhysics(l4BarMoveBubbles, geom, profile, r, dt);
+      const hue = idxToVal(S.color.value, cfg.colorSteps, 360);
+      drawJar({ hue, hue2:null, sat:70, sizePct:size, bubbleCount:0, bubbleR:r,
+        shapeIdx: target.shapeIdx||0, seed: target.seed, overridePositions: l4BarMoveBubbles });
+      l4BarMoveRafId = requestAnimationFrame(frame);
     }
-    if(l4BarUpHandler) window.removeEventListener('pointerup', l4BarUpHandler);
-    l4BarDownHandler = l4BarMoveHandler = l4BarUpHandler = null;
+    l4BarMoveRafId = requestAnimationFrame(frame);
   }
   LEVEL4_FX.plasma_bartender = {
     setup(){
-      // Патч: скорость тряски — эксклюзивный регулятор для этого НПС
+      // Патч: скорость полёта — эксклюзивный регулятор для этого НПС. Та же
+      // цифра идёт и в анимацию на фазе показа (target.moveSpeed), и как цель
+      // для ползунка на фазе игры (target.speed) — раньше это были два никак
+      // не связанных случайных числа, и ползунок было не откалибровать визуально.
       target.speed = randInt(0,10)*10;
+      target.moveSpeed = Math.max(15, target.speed);
       // Патч (сгустки не должны упираться друг в друга): очень маленькая
       // банка не может физически вместить много очень крупных сгустков без
       // наложения — сужаем целевой размер сгустков, пока они не помещаются
@@ -1980,26 +2036,13 @@
       }
     },
     craftStart(){
-      l4BarShakeCount = 0; l4BarUsedKeys = []; l4BarDragging = false; l4BarShakeAccum = 0;
-      $('brewBtn').disabled = true;
-      const wf = $('windowFrame');
-      if(wf){
-        const hint = document.createElement('div');
-        hint.id = 'l4BarHint'; hint.className = 'l4-bar-hint';
-        wf.appendChild(hint);
-      }
-      l4BarUpdateHint();
-      l4BarAttachGrab();
       $('speedGroup') && $('speedGroup').classList.remove('hidden');
       S.speed.configure({ min:0, max:10, step:1, value:0 });
+      l4BarStartMove();
     },
     stop(){
-      l4BarDetachGrab();
-      const el = document.getElementById('l4BarHint'); if(el) el.remove();
+      l4BarStopMove();
       $('speedGroup') && $('speedGroup').classList.add('hidden');
-    },
-    scoreBonus(){
-      return l4BarShakeCount >= 3 ? { ratingMultAdd: 0.08 } : null;
     }
   };
 
@@ -2112,6 +2155,11 @@
       const mount = $('mCount');
       const group = mount && mount.closest('.vslider-group');
       if(group) group.classList.add('l4-fly-hidden');
+      // Патч: "Разм. сгуст." тут ни на что не влияет (детали — фиксированные
+      // иконки, а не пузыри) — прячем тот же способом, что и "Сгустки"
+      const bmount = $('mBsize');
+      const bgroup = bmount && bmount.closest('.vslider-group');
+      if(bgroup) bgroup.classList.add('l4-fly-hidden');
     },
     stop(){
       l4FlySpawnTimeouts.forEach(clearTimeout); l4FlySpawnTimeouts = [];
@@ -2123,6 +2171,9 @@
       const mount = $('mCount');
       const group = mount && mount.closest('.vslider-group');
       if(group) group.classList.remove('l4-fly-hidden');
+      const bmount = $('mBsize');
+      const bgroup = bmount && bmount.closest('.vslider-group');
+      if(bgroup) bgroup.classList.remove('l4-fly-hidden');
     }
   };
 
@@ -2272,6 +2323,13 @@
     // Патч "УР.4" (Векс): доп. компонент результата — положение сгустков
     if(cfg.id === 'vex' && level === 4) allKeys.push('vexPosition');
     const allSet = new Set(allKeys);
+    // Патч "УР.4" (Векс): сгустки всегда одного размера и фиксированного
+    // числа — "Сгустки"/"Разм. сгуст." ему не нужны ни на экране, ни в очках
+    if(cfg.id === 'vex' && level === 4){ allSet.delete('count'); allSet.delete('bsize'); }
+    // Патч "УР.4" (Хозяин Роя): детали — фиксированные иконки без размера,
+    // "Разм. сгуст." тут нечего оценивать (счётчик "Сгустки" при этом остаётся —
+    // он и есть механика "сколько деталей вернули в банку")
+    if(cfg.id === 'swarm_navigator' && level === 4){ allSet.delete('bsize'); }
 
     if(level >= 3) return allSet;
 
@@ -2925,7 +2983,8 @@
         heightPct: target.size2 ?? null,
         bubbleCount: (isFlySwarm || isVexDrag) ? 0 : (noBubblesPreview ? 0 : target.count),
         bubbleR:targetR, seed:target.seed, shapeIdx: target.shapeIdx ?? 0,
-        splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? (target.countB||0) : 0 });
+        splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? (target.countB||0) : 0,
+        showGrid: isVexDrag });
     }
 
     $('fog').classList.remove('show');
@@ -2966,6 +3025,11 @@
     } else if(cfg.id === 'intern_beep' && regLevel === 4){
       // Патч "УР.4" (Стажёр Бип): фазы запоминания нет вообще — он "принимает
       // любой коктейль", играть начинаем мгновенно
+      stopMovingAnim();
+      startGuessPhase();
+    } else if(cfg.id === 'guild_inspector' && regLevel === 4){
+      // Патч "УР.4" (Инспектор Гильдии): фазы показа "запрещённого образца"
+      // больше нет — сразу лист "Допусков" с текстом (таймер там же удвоен)
       stopMovingAnim();
       startGuessPhase();
     } else {
@@ -3193,6 +3257,10 @@
       shapeIdx = S.shape.value;
       $('lblShape').textContent = LT(SHAPE_NAMES[shapeIdx]);
     }
+    // Патч "УР.4" (Тот-Кто-Ждёт): банка игрока тоже в форме песочных часов
+    if(cfg.id === 'the_waiter' && target.regLevel === 4){
+      shapeIdx = target.shapeIdx;
+    }
     // Патч (Сверхновая): высота банки живёт на отдельном ползунке
     let heightPct = null;
     if(cfg.special === 'dual_size'){
@@ -3229,7 +3297,8 @@
     drawJar({ hue, hue2, sat, sizePct:size, heightPct, bubbleCount:effCount, bubbleR:r, shapeIdx,
       rotationDeg, garnishPts: target.garnishPts || null,
       splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? S.countB.value : 0,
-      seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles });
+      seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles,
+      showGrid: isVexDrag });
   }
 
   function hueDist(a,b){ const d = Math.abs(a-b)%360; return d>180 ? 360-d : d; }
@@ -3402,6 +3471,14 @@
     }
     craftLocked = true;
     cancelAnimationFrame(rafId);
+    // Патч (визуальный сброс ползунков #2): прячем колонки регуляторов ДО
+    // level4Stop() — иначе все ~450мс перед result-overlay (пока крутится
+    // "celebrate"-анимация банки) игрок видел, как уникальная механика УР.4
+    // (степпер/шестерёнки/разделённая банка и т.п.) сбрасывается на обычные
+    // ползунки прямо на виду — #panel.locked тут не помогает, он дималит
+    // только счётчик ингредиентов и кнопку "Готово!", а не leftCol/rightCol.
+    $('leftCol').classList.remove('show');
+    $('rightCol').classList.remove('show');
     stopMovingAnim();
     stopBadBubbles();
     stopMatrixRain(); // Патч (Хранитель): дождь символов гаснет с таймером
@@ -3441,24 +3518,18 @@
       }
     }
     // Патч "УР.4" (Инспектор Гильдии): реальная цель — числа из листа
-    // "Допуски", а не то, что было показано на запоминании. Совпадение
-    // ровно с показанным образцом (по ВСЕМ параметрам) — автопровал.
-    // Иначе результат = доля параметров, попавших в допуск ±N.
-    let inspectorAutoFail = false;
+    // "Допуски" (нет больше показанного образца, который надо избегать —
+    // фазы показа для него нет вообще). Результат = доля параметров,
+    // попавших в допуск ±N.
     if(cfg.id === 'guild_inspector' && target.regLevel === 4 && target.inspectorTarget){
       const keys = inspectorActiveKeys();
       const tol = target.inspectorTolerance || 2;
       let missed = 0;
-      inspectorAutoFail = keys.length > 0;
       keys.forEach(k=>{
         const val = S[k].value;
-        if(val !== inspectorDecoyIdx(k)) inspectorAutoFail = false;
         if(Math.abs(val - target.inspectorTarget[k]) > tol) missed++;
       });
-      // не автопровал: ЛЮБОЕ количество промахов всё ещё "хорошо" (просто
-      // небольшой вычет, растущий с числом промахов) — только точное
-      // совпадение с образцом валит результат целиком в ноль выше
-      overall = inspectorAutoFail ? 0 : (missed === 0 ? 1 : Math.max(0.80, 0.94 - missed*0.03));
+      overall = missed === 0 ? 1 : Math.max(0.80, 0.94 - missed*0.03);
     }
     // Патч "УР.4" (Коллекционер): бинарный результат — попал в правильную
     // баночку из 16 (идеал) или нет (худший результат), никаких полутонов
@@ -3555,8 +3626,6 @@
     }
     // Патч "УР.4" (Инспектор Гильдии): бонус за скорость не учитывается —
     // если рейтинг вообще положен (good), всегда фиксированные +50%.
-    // Автопровал (inspectorAutoFail, good===false) уже даёт -effReward
-    // через обычную bad-ветку выше (overall=0), трогать не нужно.
     if(cfg.id === 'guild_inspector' && target.regLevel === 4 && good){
       delta = Math.round(effReward * overall * 1.5);
     }
