@@ -104,6 +104,14 @@
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function randInt(min,max){ return Math.floor(rand(min,max+1)); }
   function pick(arr){ return arr[randInt(0,arr.length-1)]; }
+  function shuffleArr(arr){
+    const a = [...arr];
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
 
   // avatar/sticker renderer: file path -> <img>, otherwise emoji text
   // (an array means "variants" — a random one is picked)
@@ -362,13 +370,20 @@
       const yFrac = Math.min(1, Math.max(0, (y-yTop)/bodyH));
       const hw = (w/2)*shapeHalfWidthFrac(yFrac, profile) - r - margin;
       if(hw <= 0) return null;
+      // Патч (Двуликая жрица): в тесной банке (маленький объём + крупные
+      // сгустки) halfGap+r раньше мог схлопнуть диапазон половины в null —
+      // сгусток тогда падал в аварийный фолбэк packBubbles ({x:cx,...}), т.е.
+      // ровно на границу, и визуально "заходил" на чужую половину. Теперь
+      // диапазон вместо null всегда зажимается, но строго по свою сторону cx.
       if(halfSide === 'left'){
-        const lo = cx-hw, hi = cx-halfGap-r;
-        return hi > lo ? [lo, hi] : null;
+        const lo = cx-hw;
+        const hi = Math.min(cx-0.5, Math.max(lo, cx-halfGap-r));
+        return [lo, hi];
       }
       if(halfSide === 'right'){
-        const lo = cx+halfGap+r, hi = cx+hw;
-        return hi > lo ? [lo, hi] : null;
+        const hi = cx+hw;
+        const lo = Math.max(cx+0.5, Math.min(hi, cx+halfGap+r));
+        return [lo, hi];
       }
       return [cx-hw, cx+hw];
     }
@@ -489,13 +504,12 @@
   function buildJarMarkup(opts, idPrefix=''){
     // Патч (Сверхновая): heightPct — независимая высота банки; если не
     // передана, высота как раньше следует за sizePct (единый "объём")
-    // Патч "УР.4": rotationDeg — эксклюзивный регулятор Сверхновой;
-    // garnishPts — декоративные "гарниши" Шефа туманности (не считаются в count)
+    // Патч "УР.4": rotationDeg — эксклюзивный регулятор Сверхновой
     // Патч "УР.4" (Двуликая жрица): splitHalves — банка на 2 половины, у
-    // каждой свой независимый счётчик сгустков (bubbleCount — левая,
-    // bubbleCountB — правая)
+    // каждой свой независимый счётчик сгустков (bubbleCountB — левая,
+    // bubbleCount — правая, см. ветку splitHalves ниже)
     const { hue, hue2=null, sat=70, sizePct, heightPct=null, bubbleCount, bubbleR, seed, shapeIdx=0,
-            overridePositions=null, badBubbles=[], rotationDeg=null, garnishPts=null,
+            overridePositions=null, badBubbles=[], rotationDeg=null,
             splitHalves=false, bubbleCountB=0, showGrid=false } = opts;
     // несколько банок на экране одновременно (сетка Коллекционера) не должны
     // делить между собой id defs/clipPath — иначе все клипались бы по контуру первой
@@ -508,12 +522,16 @@
     const sp = SHAPE_PROFILES[shapeIdx] || SHAPE_PROFILES[0];
     const bodyPath = jarOutlinePath(cx, topY, baseY, w, sp.points, sp.smooth);
 
-    // Патч "УР.4" (Векс): сетка-ориентир внутри банки — подстраивается под
-    // текущие w/h банки, чтобы игрок видел, куда возвращать сгустки
+    // Патч "УР.4" (Векс): сетка — рабочий магнит для сгустков, не просто
+    // ориентир, поэтому считается по ЗАФИКСИРОВАННОМУ на весь раунд
+    // target.size, а не по текущему sizePct (тот может быть просто ползунком
+    // игрока "Объём") — иначе нарисованные линии/узлы разъехались бы с
+    // реальными точками, куда магнитятся сгустки.
     let gridEls = '';
-    if(showGrid){
-      const gx0 = cx - w/2, gx1 = cx + w/2, gy0 = topY+40, gy1 = baseY;
-      const cols = 4, rows = 5;
+    if(showGrid && target){
+      const gGeom = computeJarGeom(target.size);
+      const gx0 = gGeom.cx - gGeom.w/2, gx1 = gGeom.cx + gGeom.w/2, gy0 = gGeom.topY+40, gy1 = gGeom.baseY;
+      const cols = L4_VEX_GRID_COLS, rows = L4_VEX_GRID_ROWS;
       for(let i=1;i<cols;i++){
         const gx = (gx0 + (gx1-gx0)*i/cols).toFixed(1);
         gridEls += `<line x1="${gx}" y1="${gy0.toFixed(1)}" x2="${gx}" y2="${gy1.toFixed(1)}" stroke="rgba(255,255,255,.28)" stroke-width="1"/>`;
@@ -521,6 +539,14 @@
       for(let j=1;j<rows;j++){
         const gy = (gy0 + (gy1-gy0)*j/rows).toFixed(1);
         gridEls += `<line x1="${gx0.toFixed(1)}" y1="${gy}" x2="${gx1.toFixed(1)}" y2="${gy}" stroke="rgba(255,255,255,.28)" stroke-width="1"/>`;
+      }
+      // узлы — маленькие маркеры точно на пересечениях, куда магнитятся сгустки
+      for(let i=1;i<cols;i++){
+        for(let j=1;j<rows;j++){
+          const nx = (gx0 + (gx1-gx0)*i/cols).toFixed(1);
+          const ny = (gy0 + (gy1-gy0)*j/rows).toFixed(1);
+          gridEls += `<circle cx="${nx}" cy="${ny}" r="2.4" fill="rgba(255,255,255,.5)"/>`;
+        }
       }
     }
 
@@ -568,15 +594,6 @@
       return `<ellipse cx="${(p.x+r*0.35).toFixed(1)}" cy="${(p.y+r*0.85).toFixed(1)}" rx="${(r*0.95).toFixed(1)}" ry="${(r*0.4).toFixed(1)}" fill="url(#${cInkDots})" opacity=".8"/>`;
     }).join('');
 
-    // Патч "УР.4" (Шеф туманности): декоративные "гарниши" — почти как
-    // настоящие сгустки, но чуть иначе поблёскивают (в count не входят)
-    const garnishEls = (garnishPts||[]).map((p,i)=>{
-      const r = p.r || bubbleR*0.85;
-      return `
-        <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(r*1.5).toFixed(1)}" fill="rgba(255,217,138,.18)"/>
-        <path d="${blobPath(p.x, p.y, r, seed+900+i*17)}" fill="rgba(255,217,138,.7)" stroke="#3a2607" stroke-width="2"/>
-        <circle cx="${(p.x-r*0.2).toFixed(1)}" cy="${(p.y-r*0.2).toFixed(1)}" r="${(r*0.35).toFixed(1)}" fill="rgba(255,255,255,.9)"/>`;
-    }).join('');
 
     // Фаза E: "плохие" пузыри — рисуются ПОСЛЕ clip-path'а (не внутри
     // <g clip-path>), чтобы клик по ним не зависел от обрезки контейнера
@@ -635,7 +652,6 @@
         ${gridEls}
         ${blobShadows}
         ${bubbleEls}
-        ${garnishEls}
         ${splitDividerEl}
       </g>
       <path d="${bodyPath}" fill="url(#${cGlassGrad})"/>
@@ -916,6 +932,16 @@
     setup(){
       const keys = [...(target.activeKeys||[])].filter(k => S[k]);
       target.tentacloidKey = keys.length ? pick(keys) : null;
+    },
+    craftStart(){
+      const wf = $('windowFrame');
+      if(!wf) return;
+      let el = document.getElementById('l4TentaBanner');
+      if(!el){ el = document.createElement('div'); el.id = 'l4TentaBanner'; el.className = 'l4-tenta-banner'; wf.appendChild(el); }
+      el.textContent = LT(UI_TEXT.TENTACLOID_UNDECIDED_BANNER);
+    },
+    stop(){
+      const el = document.getElementById('l4TentaBanner'); if(el) el.remove();
     }
   };
 
@@ -1116,6 +1142,7 @@
       case 'color': case 'colorB': return Math.round(idxToVal(idx, cfg.colorSteps, 360)) + '°';
       case 'size': case 'size2':   return Math.round(idxToVal(idx, cfg.sizeSteps, 100)) + '%';
       case 'bsize':                return Math.round(idxToVal(idx, cfg.bsizeSteps, 100)) + '%';
+      case 'sat':                  return Math.round(satFromIdx(idx)) + '%';
       default: return String(idx);
     }
   }
@@ -1214,12 +1241,15 @@
   // местах (плюс реплика Векса внизу). На игре они разлетаются внутри той
   // же зоны банки, и их нужно руками перетащить обратно как можно точнее —
   // это отдельный, более весомый компонент результата (см. computeScoreComponents).
-  // Патч: сгустки теперь всегда упаковываются ВНУТРИ реального контура банки
-  // (как обычные пузыри — через packBubbles/SHAPE_PROFILES), а не в грубом
-  // прямоугольнике % от windowFrame — иначе на маленькой банке они вылезали
-  // за стекло. Размер сгустка фиксирован (ползунок "Разм. сгуст." Вексу не нужен).
-  const L4_VEX_BLOB_R = 9; // в единицах viewBox банки (0..200 x 0..260)
-  let l4VexItems = [], l4VexIsCraft = false;
+  // Патч: сетка внутри банки — теперь не просто ориентир, а рабочий магнит.
+  // Сгустки могут сидеть ТОЛЬКО на пересечениях сетки и нигде больше — даже
+  // во время перетаскивания элемент отображается в ближайшем СВОБОДНОМ узле
+  // (не под курсором), а не в произвольной точке. Сетка считается по
+  // ЗАФИКСИРОВАННОМУ на весь раунд target.size, а не по текущему ползунку
+  // "Объём" — иначе узлы "уезжали" бы от места, где реально стоят сгустки.
+  const L4_VEX_BLOB_R = 9; // в единицах viewBox банки (0..200 x 0..260) — для скоринга/визуала блоба
+  const L4_VEX_GRID_COLS = 4, L4_VEX_GRID_ROWS = 5; // те же деления, что и раньше рисовала визуальная сетка
+  let l4VexItems = [], l4VexIsCraft = false, l4VexGridCache = [];
   function l4VexViewBoxToWfPercent(vx, vy){
     const wf = $('windowFrame'), svg = $('jarSvg');
     if(!wf || !svg) return { x:50, y:50 };
@@ -1239,11 +1269,33 @@
       y: (screenY-wfRect.top)/wfRect.height*100
     };
   }
-  function l4VexGeneratePositions(n){
+  // строит фиксированный список узлов сетки (% от windowFrame), один раз на раунд
+  function l4VexBuildGrid(){
     const geom = computeJarGeom(target.size);
-    const profile = SHAPE_PROFILES[target.shapeIdx||0].points;
-    const pts = packBubbles(n, L4_VEX_BLOB_R, geom.w, geom.topY, geom.baseY, profile, randInt(1,999999));
-    return pts.map(p => l4VexViewBoxToWfPercent(p.x, p.y));
+    const gx0 = geom.cx - geom.w/2, gx1 = geom.cx + geom.w/2;
+    const gy0 = geom.topY+40, gy1 = geom.baseY;
+    const pts = [];
+    for(let i=1;i<L4_VEX_GRID_COLS;i++){
+      for(let j=1;j<L4_VEX_GRID_ROWS;j++){
+        const vx = gx0 + (gx1-gx0)*i/L4_VEX_GRID_COLS;
+        const vy = gy0 + (gy1-gy0)*j/L4_VEX_GRID_ROWS;
+        pts.push(l4VexViewBoxToWfPercent(vx, vy));
+      }
+    }
+    l4VexGridCache = pts;
+  }
+  // n РАЗНЫХ случайных узлов сетки (с их индексами — для учёта занятости)
+  function l4VexGeneratePositions(n){
+    return shuffleArr(l4VexGridCache.map((p,idx)=>({ idx, x:p.x, y:p.y }))).slice(0, n);
+  }
+  function l4VexNearestFreeNodeIdx(x, y, selfItem){
+    let best = -1, bestD = Infinity;
+    l4VexGridCache.forEach((p, idx)=>{
+      if(l4VexItems.some(it => it !== selfItem && it.gridIdx === idx)) return;
+      const d = Math.hypot(p.x-x, p.y-y);
+      if(d < bestD){ bestD = d; best = idx; }
+    });
+    return best;
   }
   function l4VexCreateEl(item){
     const wf = $('windowFrame');
@@ -1263,9 +1315,16 @@
     el.addEventListener('pointermove', e=>{
       if(!item.dragging) return;
       const rect = wf.getBoundingClientRect();
-      item.x = Math.max(2, Math.min(98, (e.clientX-rect.left)/rect.width*100));
-      item.y = Math.max(2, Math.min(98, (e.clientY-rect.top)/rect.height*100));
-      el.style.left = item.x+'%'; el.style.top = item.y+'%';
+      const rawX = Math.max(2, Math.min(98, (e.clientX-rect.left)/rect.width*100));
+      const rawY = Math.max(2, Math.min(98, (e.clientY-rect.top)/rect.height*100));
+      // магнит: сгусток визуально всегда лежит в ближайшем СВОБОДНОМ узле,
+      // а не под курсором — курсор просто выбирает, к какому узлу тянуть
+      const idx = l4VexNearestFreeNodeIdx(rawX, rawY, item);
+      if(idx !== -1){
+        item.gridIdx = idx;
+        item.x = l4VexGridCache[idx].x; item.y = l4VexGridCache[idx].y;
+        el.style.left = item.x+'%'; el.style.top = item.y+'%';
+      }
     });
     el.addEventListener('pointerup', ()=>{
       if(!item.dragging) return;
@@ -1276,11 +1335,12 @@
   }
   LEVEL4_FX.vex = {
     setup(){
+      l4VexBuildGrid();
       target.vexPositions = l4VexGeneratePositions(target.count);
     },
     memorizeStart(){
       l4VexIsCraft = false;
-      l4VexItems = (target.vexPositions||[]).map(p=>({ x:p.x, y:p.y, dragging:false, el:null }));
+      l4VexItems = (target.vexPositions||[]).map(p=>({ x:p.x, y:p.y, gridIdx:p.idx, dragging:false, el:null }));
       l4VexItems.forEach(item=>l4VexCreateEl(item));
       const wf = $('windowFrame');
       if(wf){
@@ -1292,10 +1352,10 @@
     craftStart(){
       l4VexIsCraft = true;
       const el = document.getElementById('l4VexLine'); if(el) el.remove();
-      // разлетаются внутри той же зоны — нужно вернуть каждый на своё место
+      // разлетаются по другим узлам той же сетки — нужно вернуть каждый на своё место
       const scattered = l4VexGeneratePositions(l4VexItems.length);
       l4VexItems.forEach((item,i)=>{
-        item.x = scattered[i].x; item.y = scattered[i].y; item.dragging = false;
+        item.x = scattered[i].x; item.y = scattered[i].y; item.gridIdx = scattered[i].idx; item.dragging = false;
         if(item.el){ item.el.style.left = item.x+'%'; item.el.style.top = item.y+'%'; item.el.classList.add('l4-vex-scatter'); }
       });
       // Патч: "Сгустки" и "Разм. сгуст." Вексу не нужны — позиция сгустков и
@@ -1322,8 +1382,13 @@
   };
 
   // ---------- Хранитель Архива: печать на одном регуляторе по очереди ----------
-  let l4ArchivistTimer = null, l4ArchivistKey = null;
-  function archivistReseal(){
+  // Патч: первая печать — на случайном ползунке (как и раньше). Дальше он
+  // печатает только ползунок, который уже выставлен ВЕРНО — если верных
+  // несколько, чередует между ними по кругу. Если верно не выставлен ни
+  // один — печати в этот раз просто нет (все ползунки временно свободны).
+  const L4_ARCHIVIST_CORRECT_THRESHOLD = 0.9;
+  let l4ArchivistTimer = null, l4ArchivistKey = null, l4ArchivistLastCorrect = null;
+  function archivistReseal(isFirst){
     if(!target || target.cfg.id !== 'archivist') return;
     if(l4ArchivistKey && S[l4ArchivistKey]){
       S[l4ArchivistKey].setDisabled(false);
@@ -1331,15 +1396,29 @@
     }
     const keys = [...target.activeKeys].filter(k => S[k]);
     if(!keys.length) return;
-    l4ArchivistKey = pick(keys);
+    let nextKey = null;
+    if(isFirst){
+      nextKey = pick(keys);
+    } else {
+      const { components } = computeScoreComponents();
+      const correctKeys = components.filter(c => keys.includes(c.key) && c.score >= L4_ARCHIVIST_CORRECT_THRESHOLD).map(c => c.key);
+      if(correctKeys.length){
+        const prevIdx = correctKeys.indexOf(l4ArchivistLastCorrect);
+        nextKey = correctKeys[(prevIdx+1) % correctKeys.length];
+      }
+    }
+    l4ArchivistKey = nextKey;
+    if(!nextKey) return; // ни один ползунок не выставлен верно — печати нет
+    l4ArchivistLastCorrect = nextKey;
     S[l4ArchivistKey].setDisabled(true);
     S[l4ArchivistKey].setFlag && S[l4ArchivistKey].setFlag('l4-sealed', true);
   }
   LEVEL4_FX.archivist = {
     craftStart(){
       l4ArchivistKey = null;
-      archivistReseal();
-      l4ArchivistTimer = setInterval(archivistReseal, 5000);
+      l4ArchivistLastCorrect = null;
+      archivistReseal(true);
+      l4ArchivistTimer = setInterval(()=>archivistReseal(false), 5000);
     },
     stop(){
       if(l4ArchivistTimer){ clearInterval(l4ArchivistTimer); l4ArchivistTimer = null; }
@@ -1367,12 +1446,13 @@
     while(v === val && guard-- > 0) v = randInt(min, max);
     return v;
   }
+  const L4_COLLECTOR_GRID_N = 25; // Патч: сетка 5x5 вместо 4x4 — сложнее найти свою баночку
   function l4CollectorBuildJars(){
     const cfg = target.cfg;
-    const jars = new Array(16);
-    const correctIdx = randInt(0, 15);
+    const jars = new Array(L4_COLLECTOR_GRID_N);
+    const correctIdx = randInt(0, L4_COLLECTOR_GRID_N-1);
     let decoyI = 0;
-    for(let i=0;i<16;i++){
+    for(let i=0;i<L4_COLLECTOR_GRID_N;i++){
       if(i === correctIdx){
         jars[i] = { hue: target.hue, count: target.count, shapeIdx: target.shapeIdx, seed: randInt(1,99999), correct:true };
         continue;
@@ -1634,12 +1714,61 @@
   };
 
   // ---------- Стажёр Бип: механика полностью заменена ----------
-  // Патч: раньше — подсказка-пузырь и авто-сбитый регулятор. Теперь у Бипа
-  // на УР.4 нет фазы запоминания и нет цели вообще ("принимает любой
-  // коктейль") — вся логика (мгновенный старт крафта, рейтинг как среднее
-  // трёх предыдущих визитов, бафф +33% на 3 следующих заказа) реализована
-  // напрямую в startOrder()/finalizeResult(), регуляторы ни на что не влияют.
-  LEVEL4_FX.intern_beep = {};
+  // Патч: раньше — подсказка-пузырь и авто-сбитый регулятор, затем — тихое
+  // автосреднее трёх предыдущих визитов. Теперь у Бипа на УР.4 по-прежнему
+  // нет фазы запоминания, но появляется кнопка-надпись ("мне всё равно, а
+  // что там было") — открывает окно с 3 предыдущими визитёрами и ползунками,
+  // где нужно ВСПОМНИТЬ их %; точность вспоминания и определяет рейтинг
+  // (см. finalizeResult — там читается target.beepGuesses).
+  function l4BeepBuildRows(){
+    const wrap = $('beepGuessRows');
+    if(!wrap) return;
+    const recent = orderAccuracyHistory.slice(-3);
+    if(!target.beepGuesses) target.beepGuesses = [50,50,50];
+    wrap.innerHTML = recent.map((h,i)=>`
+      <div class="beep-guess-row">
+        <div class="beep-guess-npc">${visualHTML(h.avatar,'npc-img')}<span>${LT(h.nameObj)}</span></div>
+        <input type="range" class="beep-guess-slider" min="0" max="100" step="1" value="${target.beepGuesses[i] ?? 50}" data-idx="${i}">
+        <div class="beep-guess-val">${target.beepGuesses[i] ?? 50}%</div>
+      </div>
+    `).join('');
+    wrap.querySelectorAll('.beep-guess-slider').forEach(sl=>{
+      sl.addEventListener('input', ()=>{
+        const idx = Number(sl.dataset.idx);
+        target.beepGuesses[idx] = Number(sl.value);
+        sl.nextElementSibling.textContent = sl.value + '%';
+        SFX.tick();
+      });
+    });
+  }
+  function l4BeepShowGuessBtn(){
+    const wf = $('windowFrame');
+    if(!wf || document.getElementById('l4BeepGuessBtn')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.id = 'l4BeepGuessBtn'; btn.className = 'l4-beep-guess-btn';
+    btn.textContent = LT(UI_TEXT.BEEP_GUESS_BTN);
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      l4BeepBuildRows();
+      $('beepGuessOverlay').classList.add('show');
+    });
+    wf.appendChild(btn);
+  }
+  function l4BeepHideGuessBtn(){
+    const el = document.getElementById('l4BeepGuessBtn'); if(el) el.remove();
+  }
+  LEVEL4_FX.intern_beep = {
+    setup(){
+      target.beepGuesses = [50,50,50];
+    },
+    craftStart(){
+      if(orderAccuracyHistory.slice(-3).length >= 3) l4BeepShowGuessBtn();
+    },
+    stop(){
+      l4BeepHideGuessBtn();
+      const ov = $('beepGuessOverlay'); if(ov) ov.classList.remove('show');
+    }
+  };
 
   // ============================================================
   // Механики УР.4 — блок 3: новые виджеты ввода
@@ -1843,19 +1972,11 @@
   // этого порядка, так что каждый ползунок посещается ровно один раз за
   // круг, а по исчерпании круг повторяется в том же порядке.
   let l4FashionActiveKey = null, l4FashionOrder = [], l4FashionOrderIdx = 0;
-  function l4FashionShuffle(arr){
-    const a = [...arr];
-    for(let i=a.length-1;i>0;i--){
-      const j = Math.floor(Math.random()*(i+1));
-      [a[i],a[j]] = [a[j],a[i]];
-    }
-    return a;
-  }
   LEVEL4_FX.fashionista = {
     craftStart(){
       const keys = [...target.activeKeys].filter(k => S[k]);
       if(!keys.length) return;
-      l4FashionOrder = l4FashionShuffle(keys);
+      l4FashionOrder = shuffleArr(keys);
       l4FashionOrderIdx = 0;
       l4FashionActiveKey = l4FashionOrder[0];
       l4FashionApplyLocks();
@@ -1922,14 +2043,6 @@
     el.textContent = LT(UI_TEXT.TASTE_RETRY_NOTE);
     SFX.badPop();
   }
-
-  LEVEL4_FX.nebula_chef = {
-    setup(){
-      const n = randInt(2,3), pts = [];
-      for(let i=0;i<n;i++) pts.push({ x:100+rand(-24,24), y:170+rand(-38,38), r:3+Math.random()*3.5 });
-      target.garnishPts = pts;
-    }
-  };
 
   // ---------- Двуликая жрица: банка разделена на 2 половины — свой независимый
   // счётчик сгустков у каждой (макс. 7 на сторону) ----------
@@ -2840,6 +2953,10 @@
     currentOrd = ord;
     currentOrd.regLevel = regLevel;
     orderNum++;
+    // Патч (Диджей Пульсар): на время его заказа общий эмбиент приглушаем до
+    // нуля (не мешать его собственному ритму) — на любом другом заказе звук
+    // возвращается
+    setDjAmbientDuck(cfg.id === 'dj_pulsar');
     stopMovingAnim();
     stopBadBubbles(); // сбрасываем "плохие" пузыри прошлого заказа, если были
     stopMatrixRain();      // Патч: дождь символов прошлого заказа
@@ -2984,7 +3101,10 @@
         bubbleCount: (isFlySwarm || isVexDrag) ? 0 : (noBubblesPreview ? 0 : target.count),
         bubbleR:targetR, seed:target.seed, shapeIdx: target.shapeIdx ?? 0,
         splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? (target.countB||0) : 0,
-        showGrid: isVexDrag });
+        showGrid: isVexDrag,
+        // Патч "УР.4" (Сверхновая): банку на фазе показа тоже нужно повернуть —
+        // раньше поворот применялся только к банке игрока на фазе игры
+        rotationDeg: (cfg.id === 'supernova_child' && regLevel === 4) ? target.rotation : null });
     }
 
     $('fog').classList.remove('show');
@@ -3295,7 +3415,7 @@
     const isVexDrag = cfg.id === 'vex' && target.regLevel === 4;
     const effCount = (noBubbles || isFlySwarm || isVexDrag) ? 0 : count;
     drawJar({ hue, hue2, sat, sizePct:size, heightPct, bubbleCount:effCount, bubbleR:r, shapeIdx,
-      rotationDeg, garnishPts: target.garnishPts || null,
+      rotationDeg,
       splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? S.countB.value : 0,
       seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles,
       showGrid: isVexDrag });
@@ -3504,15 +3624,19 @@
   function finalizeResult(scoreData, timeFrac){
     let { cfg, overall, components } = scoreData;
     const rawOverall = overall; // до подмены Бипом — идёт в историю точности
-    // Патч "УР.4" (Стажёр Бип): ему неважно, что накрутил игрок — свой
-    // рейтинг он определяет средней точностью трёх ПРЕДЫДУЩИХ посетителей.
-    // Если истории меньше трёх — просто принимает коктейль без рейтинга и
-    // дарит бафф (+33% рейтинга) на трёх следующих посетителей.
+    // Патч "УР.4" (Стажёр Бип): ему неважно, что накрутил игрок — свой рейтинг
+    // определяется тем, насколько точно игрок ВСПОМНИЛ (окно-угадайка,
+    // кнопка на экране игры) проценты трёх ПРЕДЫДУЩИХ посетителей. Если
+    // истории меньше трёх — просто принимает коктейль без рейтинга и дарит
+    // бафф (+33% рейтинга) на трёх следующих посетителей.
     const beepBuffActiveNow = beepBuffRemaining > 0;
     let beepNoHistory = false;
     if(cfg.id === 'intern_beep' && target.regLevel === 4){
-      if(orderAccuracyHistory.length >= 3){
-        overall = orderAccuracyHistory.slice(-3).reduce((a,b)=>a+b,0)/3;
+      const recent = orderAccuracyHistory.slice(-3);
+      if(recent.length >= 3){
+        const guesses = target.beepGuesses || [50,50,50];
+        const avgErr = recent.reduce((s,h,i)=> s + Math.abs((guesses[i] ?? 50) - h.pct), 0) / recent.length;
+        overall = curveScore(1 - avgErr/100);
       } else {
         beepNoHistory = true;
       }
@@ -3641,8 +3765,9 @@
       beepBuffRemaining = 3;
     }
     // история точности — по НЕПОДМЕНЁННОЙ реальной точности этого заказа,
-    // нужна для рейтинга следующих визитов Бипа
-    orderAccuracyHistory.push(rawOverall);
+    // нужна для угадайки Бипа (имя/аватар — храним объект, а не голое число,
+    // чтобы окно угадывания могло показать, КОГО именно вспоминать)
+    orderAccuracyHistory.push({ nameObj: cfg.name, avatar: currentOrd.avatar, pct: Math.round(rawOverall*100) });
     if(orderAccuracyHistory.length > 3) orderAccuracyHistory.shift();
     // Патч "Ежедневный заказ": репутации тут нет вовсе — бонус к рейтингу
     // (ratingMultAdd/waiterThresholdOverride выше) остаётся, а repBonus молча игнорируется
@@ -3826,6 +3951,15 @@
     // ---------- Шеф туманности: годнота не платит ничего — только реплика ----------
     if(cfg.id === 'nebula_chef' && good && !perfect){
       npcNoteText = LT(pickLocalized(NEBULA_CHEF_MEH_PHRASES));
+    }
+
+    // ---------- Тентаклоид: раскрывает на результатах, какой ОДИН параметр
+    // на самом деле решал (см. LEVEL4_FX.tentacloid — components[].decisive) ----------
+    if(cfg.id === 'tentacloid' && target.regLevel === 4){
+      const decisiveComp = components.find(c => c.decisive);
+      if(decisiveComp){
+        npcNoteText = LT(pickLocalized(TENTACLOID_REVEAL_PHRASES)).replace('{PARAM}', LT(decisiveComp.label));
+      }
     }
 
     // ---------- Дегустатор: реплика на каждый из 4 исходов дегустации ----------
@@ -4074,6 +4208,11 @@
   const inspectorTolCloseBtnEl = $('inspectorTolCloseBtn');
   if(inspectorTolCloseBtnEl) inspectorTolCloseBtnEl.addEventListener('click', ()=>{
     SFX.uiClick(); $('inspectorTolOverlay').classList.remove('show');
+  });
+  // Патч "УР.4" (Стажёр Бип): закрыть окно угадывания % трёх предыдущих
+  const beepGuessCloseBtnEl = $('beepGuessCloseBtn');
+  if(beepGuessCloseBtnEl) beepGuessCloseBtnEl.addEventListener('click', ()=>{
+    SFX.uiClick(); $('beepGuessOverlay').classList.remove('show');
   });
 
   // ============================================================
@@ -4842,6 +4981,14 @@
   const ambientAudio = $('ambientAudio');
   const volumeSlider = $('volumeSlider');
   const volumeIcon = $('volumeIcon');
+  // Патч (Диджей Пульсар): на время его заказа общий эмбиент приглушаем до
+  // нуля — свой ритм он ставит сам, второй трек поверх только мешает
+  let djAmbientDucked = false;
+  function setDjAmbientDuck(on){
+    if(!ambientAudio || on === djAmbientDucked) return;
+    djAmbientDucked = on;
+    ambientAudio.volume = on ? 0 : (volumeSlider ? volumeSlider.value/100 : .6);
+  }
   function setVolumeIcon(v){
     if(!volumeIcon) return;
     volumeIcon.textContent = v <= 0 ? '🔇' : (v < .5 ? '🔉' : '🔊');

@@ -158,6 +158,9 @@ const UI_TEXT = {
   // Тот-Кто-Ждёт: без таймера — игрок сам жмёт кнопку, когда готов
   WAITER_READY_BTN: { ru:'Готово, воссоздаю', en:'Ready, recreating' },
   SWARM_RETURN_TEXT: { ru:'ВЕРНИ ИХ.', en:'RETURN THEM.' },
+  // УР.4 (Тентаклоид): постоянная надпись внизу экрана на фазе игры
+  TENTACLOID_UNDECIDED_BANNER: { ru:'Я пока не определился, что именно меня интересует — банка, пузырьки, сам напиток. Но ты не отвлекайся. Делай.',
+    en:"I still haven't decided what interests me — the jar, the bubbles, or the drink itself. But don't get distracted. Make it." },
   LABEL_SPEED: { ru:'Скорость', en:'Speed' },
   LABEL_COUNT_A: { ru:'Сгустки А', en:'Blobs A' },
   LABEL_COUNT_B: { ru:'Сгустки Б', en:'Blobs B' },
@@ -167,6 +170,11 @@ const UI_TEXT = {
   TASTE_RETRY_NOTE: { ru:'Это никуда не годится. Доделывай — я подожду.', en:"This won't do at all. Fix it - I'll wait." },
   INSPECTOR_TOL_BTN: { ru:'Допуски', en:'Tolerances' },
   INSPECTOR_TOL_CLOSE: { ru:'Ознакомлен', en:'Acknowledged' },
+  // УР.4 (Стажёр Бип): кнопка-надпись + окно угадывания % трёх предыдущих визитов
+  BEEP_GUESS_BTN: { ru:'Мне всё равно. А что там у предыдущих трёх было? Хотя бы ОДНИМ глазком бы глянуть',
+    en:"I don't care. What did the previous three get, though? Just a peek with ONE eye" },
+  BEEP_GUESS_TITLE: { ru:'Кто заходил до тебя?', en:'Who came before you?' },
+  BEEP_GUESS_CLOSE: { ru:'Готово', en:'Done' },
   VEX_MEMORIZE_LINE: { ru:'Запомни, где именно они лежат. Я хочу увидеть их ТОЧНО на этих местах.', en:'Remember exactly where they lie. I want to see them in EXACTLY those spots.' },
   LABEL_VEX_POSITION: { ru:'Положение сгустков', en:'Blob positions' },
   // Ир: меню доверия
@@ -467,6 +475,19 @@ const NEBULA_CHEF_MEH_PHRASES = { ru:[
   "I'll serve it. Silently. That silence is the verdict."
 ]};
 
+// ---------- Тентаклоид: реплика на результатах — раскрывает, какой ОДИН
+// параметр его на самом деле волновал (см. LEVEL4_FX.tentacloid в game.js).
+// {PARAM} — подставляется ярлык этого параметра ("Спектр", "Сгустки" и т.п.)
+const TENTACLOID_REVEAL_PHRASES = { ru:[
+  'Тентаклоид приоткрывает один зрачок из тысячи: «Меня занимал только {PARAM}. Остальное было просто шумом вселенной».',
+  'Щупальце едва заметно вздрагивает: «{PARAM} — вот всё, на что я смотрел. Прочее прошло мимо, не задев меня».',
+  '«{PARAM}», — доносится глухо из-под мантии. — «Только это имело значение. Ты не знал. Я и не был обязан говорить».'
+], en:[
+  'Tentacloid opens one eye out of a thousand: "Only {PARAM} held my interest. Everything else was just the noise of the universe."',
+  'A tentacle twitches, barely: "{PARAM} — that is all I watched. The rest passed by without touching me."',
+  '"{PARAM}," comes a muffled voice from beneath the mantle. "That alone mattered. You did not know. I was never obliged to say."'
+]};
+
 // ---------- Инспектор Гильдии: варианты канцелярского текста "Допусков" (УР.4) ----------
 // Патч: фазы показа "запрещённого образца" больше нет — текст переписан со
 // списка "Параметр: значение" на сплошной канцелярский абзац. {SENTENCES} —
@@ -647,7 +668,7 @@ const NPC_STAT_EXPLAIN = {
         size:{ ru:['Объём — критичен. В мой бак другое не влезет.','Габариты по накладной, пожалуйста.'],
                en:['Volume is critical. Nothing else fits my tank.','Dimensions per the invoice, please.'] }
       },
-      memorizeMs:6000, craftMs:22000, colorSteps:6, sizeSteps:5, countMax:5, bsizeSteps:5, reward:50,
+      memorizeMs:6900, craftMs:29260, colorSteps:6, sizeSteps:5, countMax:5, bsizeSteps:5, reward:50,
       // ---------- Фаза E ----------
       // Только у ЭТОГО конкретного НПС (стартовый служебный дрон) есть
       // 4-й уровень сложности регуляторов. Остальные тайтл-1 (и другие)
@@ -673,7 +694,7 @@ const NPC_STAT_EXPLAIN = {
         size:{ ru:['Контейнер должен лечь в присоску идеально. Размер решает всё.','Габариты! Мои щупальца чувствительны к габаритам!'],
                en:['The container must fit my sucker perfectly. Size decides everything.','Dimensions! My tentacles are sensitive to dimensions!'] }
       },
-      memorizeMs:5500, craftMs:17000, colorSteps:9, sizeSteps:7, countMax:7, bsizeSteps:7, reward:85 },
+      memorizeMs:6325, craftMs:22610, colorSteps:9, sizeSteps:7, countMax:7, bsizeSteps:7, reward:85 },
     { tier:3, id:'gourmet_vega', type:'normal', emoji:'👾', img: 'assets/npc/gurman.png',
       name:{ ru:'Гурман с Веги', en:'Gourmet from Vega' },
       flavors:{ ru:[
@@ -693,7 +714,7 @@ const NPC_STAT_EXPLAIN = {
         size:{ ru:['Порция должна быть выверена. Объём и калибр — до грамма.','Размер имеет вкус. Поверь гурману.'],
                en:['The portion must be precise. Volume and caliber, to the gram.','Size has a flavor. Trust the gourmet.'] }
       },
-      memorizeMs:5000, craftMs:13800, colorSteps:14, sizeSteps:11, countMax:10, bsizeSteps:11, reward:130 },
+      memorizeMs:5750, craftMs:18354, colorSteps:14, sizeSteps:11, countMax:10, bsizeSteps:11, reward:130 },
     { tier:4, id:'logic9', type:'normal', emoji:'🤖', img: 'assets/npc/kai-9.png',
       name:{ ru:'Логик-9', en:'Logic-9' },
       flavors:{ ru:[
@@ -713,7 +734,7 @@ const NPC_STAT_EXPLAIN = {
         size:{ ru:['ПРИОРИТЕТ: ОБЪЁМ. ГЕОМЕТРИЯ. СОВМЕСТИМОСТЬ. ПРОВЕРЬ.','ОБЪЁМ. КАЛИБР. ГНЕЗДО ЖДЁТ ТОЧНОСТИ.'],
                en:['PRIORITY: VOLUME. GEOMETRY. COMPATIBILITY. VERIFY.','VOLUME. CALIBER. SOCKET AWAITS PRECISION.'] }
       },
-      memorizeMs:4500, craftMs:10000, colorSteps:24, sizeSteps:19, countMax:12, bsizeSteps:19, reward:180 },
+      memorizeMs:5175, craftMs:13300, colorSteps:24, sizeSteps:19, countMax:12, bsizeSteps:19, reward:180 },
     { tier:5, id:'last_of_ir', type:'normal', emoji:'👁', img: 'assets/npc/ir.png',
       name:{ ru:'Последний из Ир', en:'Last of the Ir' },
       flavors:{ ru:[
@@ -733,7 +754,7 @@ const NPC_STAT_EXPLAIN = {
         size:{ ru:['Сосуд должен вместить всё, что от нас осталось. Ни каплей меньше.','Объём — это ковчег. Точность — это надежда.'],
                en:['The vessel must hold everything left of us. Not a drop less.','Volume is the ark. Precision is hope.'] }
       },
-      memorizeMs:4000, craftMs:7500, colorSteps:37, sizeSteps:26, countMax:14, bsizeSteps:26, reward:240,
+      memorizeMs:4600, craftMs:9975, colorSteps:37, sizeSteps:26, countMax:14, bsizeSteps:26, reward:240,
       // Патч "Уникальные механики": на УР.1/2 Ир показывает меню доверия;
       // идеал/брак на УР.3+ даёт бафф/дебафф на следующее задание (game.js)
       special:'trust' }
@@ -751,7 +772,7 @@ const NPC_STAT_EXPLAIN = {
         "In my kitchen, geometry is a spice. Don't mix up the silhouette!",
         'The wrong-shaped vessel ruins the presentation. And presentation is everything.'
       ]},
-      memorizeMs:6500, craftMs:20000, colorSteps:10, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300,
+      memorizeMs:7475, craftMs:26600, colorSteps:10, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300,
       // Патч: у шефа число сгустков выше 5 выпадает СИЛЬНО чаще, чем ниже (game.js)
       countBias:'high' },
     { tier:5, id:'twofaced_priestess', type:'gradient', emoji:'🧿', img: 'assets/npc/twofaced.png',
@@ -765,7 +786,7 @@ const NPC_STAT_EXPLAIN = {
         "Two spectrums. One whole. I'll feel a fake through my skin.",
         'My gods speak in two colors. Convey their words exactly.'
       ]},
-      memorizeMs:7000, craftMs:20000, colorSteps:14, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300 },
+      memorizeMs:8050, craftMs:26600, colorSteps:14, sizeSteps:8, countMax:8, bsizeSteps:8, reward:300 },
     { tier:5, id:'plasma_bartender', type:'moving', emoji:'🍹', img: 'assets/npc/barmen.png',
       name:{ ru:'Бармен плазма-бара', en:'Plasma-Bar Bartender' },
       flavors:{ ru:[
@@ -777,7 +798,7 @@ const NPC_STAT_EXPLAIN = {
         'A living mixture! Alive! Count on the fly, merchant!',
         'My signature cocktail breathes and dashes about. Try to keep up.'
       ]},
-      memorizeMs:7500, craftMs:18100, colorSteps:12, sizeSteps:8, countMax:10, bsizeSteps:8, reward:300 }
+      memorizeMs:8625, craftMs:24073, colorSteps:12, sizeSteps:8, countMax:10, bsizeSteps:8, reward:300 }
   ];
 
   const TIER_COLORS = {1:'var(--t1)',2:'var(--t2)',3:'var(--t3)',4:'var(--t4)',5:'var(--t5)'};
@@ -790,11 +811,11 @@ const NPC_STAT_EXPLAIN = {
   // (0.8/0.95 обычный, 0.85/0.97 — тир5-стиль), levels — какие УР.1-4 доступны.
   const DAILY_DIFFICULTY_PROFILES = {
     easy: { levels:[1,2], color:'var(--daily-easy)', reward:130,
-      memorizeMs:5000, craftMs:13800, colorSteps:14, sizeSteps:11, countMax:10, bsizeSteps:11, scoreTier:3 },
+      memorizeMs:5750, craftMs:18354, colorSteps:14, sizeSteps:11, countMax:10, bsizeSteps:11, scoreTier:3 },
     mid:  { levels:[2,3], color:'var(--daily-mid)', reward:180,
-      memorizeMs:4500, craftMs:10000, colorSteps:24, sizeSteps:19, countMax:12, bsizeSteps:19, scoreTier:4 },
+      memorizeMs:5175, craftMs:13300, colorSteps:24, sizeSteps:19, countMax:12, bsizeSteps:19, scoreTier:4 },
     hard: { levels:[1,2,3,4], color:'var(--daily-hard)', reward:240,
-      memorizeMs:4000, craftMs:7500, colorSteps:37, sizeSteps:26, countMax:14, bsizeSteps:26, scoreTier:5 }
+      memorizeMs:4600, craftMs:9975, colorSteps:37, sizeSteps:26, countMax:14, bsizeSteps:26, scoreTier:5 }
   };
 
   // ---------- Фаза D: сложность регуляторов выбирается ТЕПЕРЬ на заказ ----------
