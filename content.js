@@ -979,10 +979,14 @@ const NPC_STAT_EXPLAIN = {
   //   stickerWidthMult — ширина наклейки как множитель от w
   //   stickerYFrac     — 0..1, где по высоте жидкости она сидит (0=верх,1=низ)
   // Пока пусто — заполняется по мере появления готовых картинок.
+  // aspect = высота/ширина обрезанного PNG (замерено по alpha-боксу файла).
+  // Три рисованных крышки развешены на легкодоступных тир-1 персонажах,
+  // чтобы их сразу было видно в игре — при желании переносятся на любых
+  // других правкой id ниже.
   const NPC_DECOR = {
-    // тестовая крышка (Cap_1.png) — временно на Дальнобойщике Хроме, чтобы
-    // сразу увидеть на первом же персонаже в списке
-    trucker_chrome: { capImg: 'assets/Potions/Cap_1.png', capImgAspect: 0.556, capImgWidthMult: 0.7 }
+    trucker_chrome: { capImg: 'assets/Potions/Cap_2.png', capImgAspect: 0.509, capImgWidthMult: 0.72 },
+    janitor:        { capImg: 'assets/Potions/Cap_3.png', capImgAspect: 0.713, capImgWidthMult: 0.62 },
+    intern_beep:    { capImg: 'assets/Potions/Cap_4.png', capImgAspect: 0.509, capImgWidthMult: 0.72 }
   };
 
   // Патч (кастомные рисованные бутыли): каждая запись — один и тот же сосуд,
