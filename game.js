@@ -450,21 +450,6 @@
     return left + ' ' + rightRev + ' Z';
   }
 
-  // Патч (крышки): крышка — не отдельная нашлёпка, а продолжение ТОГО ЖЕ
-  // контура, что и тело — точки крышки (capT 0..1, 0=шов, 1=макушка)
-  // переводятся в тот же t, что использует jarOutlinePath (отрицательный —
-  // "выше шва"), а ширина в шве берётся МНОЖИТЕЛЕМ от фактической ширины
-  // тела в этой точке (shapeHalfWidthFrac при t=0), поэтому любая крышка
-  // из каталога садится без зазора на любую форму банки.
-  function capBodyProfile(bodyProfile, capStyle, w, spanH){
-    if(!capStyle) return bodyProfile;
-    const bodyTopWf = shapeHalfWidthFrac(0, bodyProfile);
-    const capH = w * capStyle.heightFrac; // высота крышки в тех же единицах, что и spanH
-    const capPts = [...capStyle.points].reverse().slice(0,-1).map(([ct,mult]) =>
-      [ -ct*capH/spanH, mult*bodyTopWf ]);
-    return [...capPts, ...bodyProfile];
-  }
-
   // ---------- ectoplasm blob path ----------
   function blobPath(cx, cy, r, seed){
     const rng = mulberry32((seed*7919+13)>>>0);
@@ -528,7 +513,7 @@
     // крышку/тело/донышко снаружи — clip-path/пузыри/жидкость внутри те же
     const { hue, hue2=null, sat=70, sizePct, heightPct=null, bubbleCount, bubbleR, seed, shapeIdx=0,
             overridePositions=null, badBubbles=[], rotationDeg=null,
-            splitHalves=false, bubbleCountB=0, showGrid=false, customBottle=null, capIdx=0 } = opts;
+            splitHalves=false, bubbleCountB=0, showGrid=false, customBottle=null, capIdx=0, decor=null } = opts;
     // несколько банок на экране одновременно (сетка Коллекционера) не должны
     // делить между собой id defs/clipPath — иначе все клипались бы по контуру первой
     const cJarClip = `${idPrefix}jarClip`, cInkDots = `${idPrefix}inkDots`,
@@ -557,40 +542,68 @@
     }
     const bodyPath = jarOutlinePath(cx, topY, baseY, w, sp.points, sp.smooth);
 
-    // Патч (крышки): единый контур крышка+тело — крышка не рисуется
-    // отдельной нашлёпкой, а продолжает тот же bodyPath вверх, поэтому
-    // неоновый хало/чернильная обводка/стеклянный блик автоматически
-    // оборачивают их как одну фигуру, без шва. clip-path (жидкость/пузыри)
-    // по-прежнему строится только по bodyPath — крышка её не должна впускать.
-    const capStyle = customBottle ? null : (CAP_PROFILES[capIdx] || null);
-    const spanH = baseY - (topY+18);
-    const outlinePath = capStyle ? jarOutlinePath(cx, topY, baseY, w,
-      capBodyProfile(sp.points, capStyle, w, spanH), capStyle.smooth) : bodyPath;
-    // мелкие детали крышки (кольцо-хайлайт/спицы/антенна) — координаты
-    // считаются от того же шва (yTop) и той же ширины тела в шве, что и
-    // сам контур, поэтому садятся на крышку без рассинхрона
-    let capExtras = '';
+    // Патч (крышки, v2): крышка — САМОСТОЯТЕЛЬНАЯ фигура (свой path, свой
+    // халo/заливка/обводка), а не единый контур с телом — так она читается
+    // как крышечка НА банке, а не как продолжение самой банки. Садится
+    // чуть внахлёст на шов (без зазора), но остаётся визуально отдельным
+    // объектом. Ширина — заведомо ≤ ширины банки (widthScale<1 почти
+    // всегда), чтобы не разъезжаться за пределы рисунка на макс. объёме.
+    // clip-path/жидкость по-прежнему строятся только по bodyPath.
+    const outlinePath = bodyPath;
+    const capStyle = (customBottle || (decor && decor.capImg)) ? null : (CAP_PROFILES[capIdx] || null);
+    let capShapeEls = '', capExtras = '';
     if(capStyle){
-      const yTop = topY+18, capH = w*capStyle.heightFrac;
-      const bodyTopWf = shapeHalfWidthFrac(0, sp.points);
-      const hwAt = (ct) => (w/2)*shapeHalfWidthFrac(ct, capStyle.points)*bodyTopWf;
+      const capW = w * (capStyle.widthScale ?? 0.75);
+      const capH = w * capStyle.heightFrac;
+      const overlap = Math.min(14, capH*0.35); // нахлёст на тело банки, чтобы не было щели
+      const seamY = topY + 18 + overlap;        // нижний край крышки
+      const revPts = [...capStyle.points].reverse().map(([ct,wf]) => [1-ct, wf]);
+      const capPath = jarOutlinePath(cx, seamY-capH-18, seamY, capW, revPts, capStyle.smooth);
+      capShapeEls = `
+        <path d="${capPath}" fill="rgba(53,224,255,.05)"/>
+        <path d="${capPath}" fill="#0d1430"/>
+        <path d="${capPath}" fill="none" stroke="#0a0d18" stroke-width="4.5"/>
+        <path d="${capPath}" fill="none" stroke="#35e0ff" stroke-width="1.6"/>
+      `;
+      const hwAt = (ct) => (capW/2)*shapeHalfWidthFrac(ct, capStyle.points);
+      const yAt = (ct) => seamY - ct*capH;
       if(capStyle.ridgeAt != null){
-        const ry = yTop - capStyle.ridgeAt*capH, rhw = hwAt(capStyle.ridgeAt);
+        const ry = yAt(capStyle.ridgeAt), rhw = hwAt(capStyle.ridgeAt);
         capExtras += `<ellipse cx="${cx}" cy="${ry.toFixed(1)}" rx="${rhw.toFixed(1)}" ry="2.2" fill="none" stroke="rgba(53,224,255,.6)" stroke-width="1.5"/>`;
       }
       if(capStyle.spokesAt != null){
-        const sy = yTop - capStyle.spokesAt*capH, shw = hwAt(capStyle.spokesAt);
+        const sy = yAt(capStyle.spokesAt), shw = hwAt(capStyle.spokesAt);
         for(let a=0;a<3;a++){
           const dx = (a-1)*shw*0.62;
           capExtras += `<line x1="${cx}" y1="${sy.toFixed(1)}" x2="${(cx+dx).toFixed(1)}" y2="${sy.toFixed(1)}" stroke="#0a0d18" stroke-width="2.6"/>`;
         }
       }
       if(capStyle.antenna){
-        const topCapY = yTop - capH;
+        const topCapY = seamY - capH;
         capExtras += `<line x1="${cx}" y1="${(topCapY-16).toFixed(1)}" x2="${cx}" y2="${topCapY.toFixed(1)}" stroke="#0a0d18" stroke-width="5"/>
           <line x1="${cx}" y1="${(topCapY-16).toFixed(1)}" x2="${cx}" y2="${topCapY.toFixed(1)}" stroke="#35e0ff" stroke-width="2"/>
           <circle cx="${cx}" cy="${(topCapY-18).toFixed(1)}" r="4.5" fill="#ff4dd2" stroke="#0a0d18" stroke-width="1.8"/>`;
       }
+    }
+
+    // Патч (растровые декор-слои): крышка/наклейка — НЕобязательные PNG
+    // поверх уже готовой процедурной банки. Они не клипают жидкость и не
+    // участвуют в физике пузырей — крышка сидит НАД зоной жидкости (сажается
+    // нижним краем ровно на шов y=topY+18, ширина "дышит" вместе с w, как и
+    // процедурная), наклейка — чисто декоративный слой поверх пузырей.
+    let capImgEl = '', stickerEl = '';
+    if(decor && decor.capImg){
+      const seamY = topY + 18;
+      const cw = w * (decor.capImgWidthMult ?? 1.15);
+      const ch = cw * (decor.capImgAspect ?? 1);
+      capImgEl = `<image href="${decor.capImg}" x="${(cx-cw/2).toFixed(1)}" y="${(seamY-ch).toFixed(1)}" width="${cw.toFixed(1)}" height="${ch.toFixed(1)}" preserveAspectRatio="none"/>`;
+    }
+    if(decor && decor.stickerImg){
+      const yTopBody = topY+18;
+      const sw = w * (decor.stickerWidthMult ?? 0.45);
+      const sh = sw * (decor.stickerAspect ?? 1);
+      const sy = yTopBody + (baseY-yTopBody-sh) * (decor.stickerYFrac ?? 0.5);
+      stickerEl = `<image href="${decor.stickerImg}" x="${(cx-sw/2).toFixed(1)}" y="${sy.toFixed(1)}" width="${sw.toFixed(1)}" height="${sh.toFixed(1)}" preserveAspectRatio="none"/>`;
     }
 
     // Патч "УР.4" (Векс): сетка — рабочий магнит для сгустков, не просто
@@ -770,12 +783,16 @@
       </g>
       ${customBottle ? `${bottleCapEl}${bottleBodyEl}${bottleBaseEl}${bottleGlowEl}` : `
       <path d="${outlinePath}" fill="url(#${cGlassGrad})"/>
-      <!-- thick manga ink outline with neon core, cap+body as one shape -->
+      <!-- thick manga ink outline with neon core -->
       <path d="${outlinePath}" fill="none" stroke="#0a0d18" stroke-width="5"/>
       <path d="${outlinePath}" fill="none" stroke="#35e0ff" stroke-width="1.8"/>
+      <!-- крышечка — отдельная фигура поверх банки -->
+      ${capShapeEls}
       ${capExtras}
       `}
+      ${capImgEl}
       ${badBubbleEls}
+      ${stickerEl}
     `;
   }
 
@@ -886,7 +903,7 @@
       stepPhysics(movingBubbles, movingGeom, movingProfile, movingR, dt);
       drawJar({ hue:target.hue, hue2:null, sat:target.sat, sizePct:target.size, bubbleCount:0, bubbleR:movingR,
         shapeIdx: target.shapeIdx||0, seed: target.seed, overridePositions: movingBubbles,
-        customBottle: target.customBottle, capIdx: target.capIdx });
+        customBottle: target.customBottle, capIdx: target.capIdx, decor: target.decor });
       movingRafId = requestAnimationFrame(frame);
     }
     movingRafId = requestAnimationFrame(frame);
@@ -2296,7 +2313,7 @@
       const hue = idxToVal(S.color.value, cfg.colorSteps, 360);
       drawJar({ hue, hue2:null, sat:70, sizePct:size, bubbleCount:0, bubbleR:r,
         shapeIdx: target.shapeIdx||0, seed: target.seed, overridePositions: l4BarMoveBubbles,
-        customBottle: target.customBottle, capIdx: target.capIdx });
+        customBottle: target.customBottle, capIdx: target.capIdx, decor: target.decor });
       l4BarMoveRafId = requestAnimationFrame(frame);
     }
     l4BarMoveRafId = requestAnimationFrame(frame);
@@ -3326,6 +3343,9 @@
     // Патч (крышки): своя крышка на персонажа — фиксированная (не зависит
     // от заказа), поэтому берётся из справочника по id, а не рандомится
     target.capIdx = (typeof NPC_CAP_STYLE !== 'undefined' && NPC_CAP_STYLE[cfg.id]) || 0;
+    // Патч (растровые декор-слои): крышка/наклейка поверх математической
+    // банки — необязательно, пока список пуст (см. NPC_DECOR в content.js)
+    target.decor = (typeof NPC_DECOR !== 'undefined' && NPC_DECOR[cfg.id]) || null;
 
     // считаем доступные регуляторы уже сейчас (а не только в начале фазы
     // "воссоздай") — чтобы фаза показа тоже не рисовала сгустки, которых
@@ -3352,7 +3372,7 @@
         bubbleCount: (isFlySwarm || isVexDrag) ? 0 : (noBubblesPreview ? 0 : target.count),
         bubbleR:targetR, seed:target.seed, shapeIdx: target.shapeIdx ?? 0,
         splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? (target.countB||0) : 0,
-        showGrid: isVexDrag, customBottle: target.customBottle, capIdx: target.capIdx,
+        showGrid: isVexDrag, customBottle: target.customBottle, capIdx: target.capIdx, decor: target.decor,
         // Патч "УР.4" (Сверхновая): банку на фазе показа тоже нужно повернуть —
         // раньше поворот применялся только к банке игрока на фазе игры
         rotationDeg: (cfg.id === 'supernova_child' && regLevel === 4) ? target.rotation : null });
@@ -3669,7 +3689,7 @@
       rotationDeg,
       splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? S.countB.value : 0,
       seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles,
-      showGrid: isVexDrag, customBottle: target.customBottle, capIdx: target.capIdx });
+      showGrid: isVexDrag, customBottle: target.customBottle, capIdx: target.capIdx, decor: target.decor });
   }
 
   function hueDist(a,b){ const d = Math.abs(a-b)%360; return d>180 ? 360-d : d; }
