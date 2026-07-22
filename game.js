@@ -518,64 +518,49 @@
     // делить между собой id defs/clipPath — иначе все клипались бы по контуру первой
     const cJarClip = `${idPrefix}jarClip`, cInkDots = `${idPrefix}inkDots`,
           cInkDotsLight = `${idPrefix}inkDotsLight`, cGlassGrad = `${idPrefix}glassGrad`,
-          cLiqGrad = `${idPrefix}liqGrad`;
+          cLiqGrad = `${idPrefix}liqGrad`, cBodyWallGrad = `${idPrefix}bodyWallGrad`;
     const w = 60 + (sizePct/100)*60;
     const h = 140 + ((heightPct ?? sizePct)/100)*70;
     const cx = 100, baseY = 240, topY = baseY - h;
 
-    // Патч (кастомные бутыли): геометрия рисованного сосуда считается ДО
-    // bodyPath. Крышка — сплошная, жидкость под ней быть не должна, поэтому
-    // верхняя граница clip/пузырей сдвинута вниз на реальную высоту крышки
-    // (capOnH), а не на фиксные 18px обычной процедурной шейки. Донышко,
-    // наоборот, полупрозрачное и рисуется ПОВЕРХ жидкости — значит, низ
-    // clip-region НЕ сужаем, жидкость должна доходить до истинного дна
-    // (baseY), донышко просто накладывается на неё сверху отдельным слоем.
-    let bottleGeom = null;
+    // Патч (кастомные бутыли): геометрия рисованного сосуда — общий хелпер
+    // customBottleGeom() (см. рядом с computeJarGeom), им же пользуется
+    // физика летающих сгустков/сетка Векса, чтобы не расходиться с отрисовкой.
+    // Верх clip-региона — как у обычной банки (topY+18): крышка рисуется
+    // ПОСЛЕ жидкости отдельным непрозрачным слоем и сама перекрывает всё,
+    // что за ней, поэтому её не нужно вычитать из зоны пузырей/жидкости.
+    let bottleGeom = null, sp;
     if(customBottle){
-      // масштаб — от ширины ВНУТРЕННЕЙ дыры в стекле (holeW), а не всей
-      // картинки: у стекла есть толщина стенки (контур+свечение снаружи),
-      // и если тянуть по общей ширине рисунка, жидкость встанет вровень с
-      // ВНЕШНИМ краем стекла и будет вылезать через стенку наружу
-      const artScale = w / customBottle.holeW;
-      const capOnH = customBottle.capH * artScale;
-      const baseOnH = customBottle.baseH * artScale;
-      const bodyOnH = Math.max(4, h - capOnH - baseOnH);
-      const artX = (cx - w/2) - customBottle.holeX0*artScale;
-      const artOnW = customBottle.artW * artScale;
-      bottleGeom = { capOnH, baseOnH, bodyOnH, artX, artOnW,
-        capY: topY, bodyY: topY + capOnH, baseYArt: baseY - baseOnH };
-    }
-    const shapeTopY = customBottle ? (bottleGeom.bodyY - 18) : topY;
-    const shapeBaseY = baseY;
-    // форма для clip-path/пузырей: у кастомной бутыли — почти прямоугольник
-    // сверху (тело), но донышко нарисовано в перспективе (овал, не прямой
-    // угол) — сужаем профиль в самом низу по замеру baseTaper (в локальных
-    // долях высоты донышка), переведённому в глобальные доли topY..baseY,
-    // иначе жидкость торчит прямоугольными углами за пределами овала.
-    // Без кастомной бутыли — обычный выбранный процедурный профиль.
-    let sp;
-    if(customBottle){
-      const totalSpan = shapeBaseY - shapeTopY;
-      const taperPts = (customBottle.baseTaper || [[0,1],[1,1]]).map(([lf,wf]) => {
-        const t = 1 - (1-lf)*bottleGeom.baseOnH/totalSpan;
-        return [t, wf];
-      });
-      sp = { points: [[0,1], ...taperPts], smooth: true };
+      bottleGeom = customBottleGeom(customBottle, w, h);
+      const artX = (cx - w/2) - customBottle.holeX0*bottleGeom.artScale;
+      const artOnW = customBottle.artW * bottleGeom.artScale;
+      Object.assign(bottleGeom, { artX, artOnW,
+        capY: topY, bodyY: topY + bottleGeom.capOnH, baseYArt: baseY - bottleGeom.baseOnH });
+      sp = bottleGeom;
     } else {
       sp = SHAPE_PROFILES[shapeIdx] || SHAPE_PROFILES[0];
     }
-    const bodyPath = jarOutlinePath(cx, shapeTopY, shapeBaseY, w, sp.points, sp.smooth);
+    const bodyPath = jarOutlinePath(cx, topY, baseY, w, sp.points, sp.smooth);
 
     // Патч "УР.4" (Векс): сетка — рабочий магнит для сгустков, не просто
     // ориентир, поэтому считается по ЗАФИКСИРОВАННОМУ на весь раунд
     // target.size, а не по текущему sizePct (тот может быть просто ползунком
     // игрока "Объём") — иначе нарисованные линии/узлы разъехались бы с
-    // реальными точками, куда магнитятся сгустки.
+    // реальными точками, куда магнитятся сгустки. У кастомной бутыли нижний
+    // ряд сетки не должен заезжать в сужающуюся (овальную) зону донышка —
+    // иначе узлы оказываются за пределами нарисованного стекла.
     let gridEls = '';
     if(showGrid && target){
-      const gGeom = computeJarGeom(target.size, target.customBottle);
-      const gy0v = target.customBottle ? gGeom.topY+18 : gGeom.topY+40;
-      const gx0 = gGeom.cx - gGeom.w/2, gx1 = gGeom.cx + gGeom.w/2, gy0 = gy0v, gy1 = gGeom.baseY;
+      const gGeom = computeJarGeom(target.size);
+      let gy1 = gGeom.baseY;
+      if(target.customBottle){
+        const bg = customBottleGeom(target.customBottle, gGeom.w, gGeom.h);
+        const safeLf = (target.customBottle.baseTaper.find(([,wf])=>wf<0.999) || [1])[0];
+        const span = gGeom.h - 18;
+        const safeT = 1 - bg.baseOnH*(1-safeLf)/span;
+        gy1 = gGeom.topY + 18 + safeT*span;
+      }
+      const gx0 = gGeom.cx - gGeom.w/2, gx1 = gGeom.cx + gGeom.w/2, gy0 = gGeom.topY+40;
       const cols = L4_VEX_GRID_COLS, rows = L4_VEX_GRID_ROWS;
       for(let i=1;i<cols;i++){
         const gx = (gx0 + (gx1-gx0)*i/cols).toFixed(1);
@@ -613,15 +598,15 @@
       // Патч (Двуликая жрица): "Сгустки Б" держат левую половину (как и
       // раньше), "Сгустки А" — только правую (раньше задевали обе)
       pts = [
-        ...packBubbles(bubbleCountB, bubbleR, w, shapeTopY, shapeBaseY, sp.points, seed+7331, 'left'),
-        ...packBubbles(bubbleCount, bubbleR, w, shapeTopY, shapeBaseY, sp.points, seed, 'right')
+        ...packBubbles(bubbleCountB, bubbleR, w, topY, baseY, sp.points, seed+7331, 'left'),
+        ...packBubbles(bubbleCount, bubbleR, w, topY, baseY, sp.points, seed, 'right')
       ];
     } else {
-      pts = packBubbles(bubbleCount, bubbleR, w, shapeTopY, shapeBaseY, sp.points, seed);
+      pts = packBubbles(bubbleCount, bubbleR, w, topY, baseY, sp.points, seed);
     }
     // перегородка посередине банки — видимая граница двух половин
     const splitDividerEl = splitHalves
-      ? `<line x1="${cx}" y1="${(shapeTopY+18).toFixed(1)}" x2="${cx}" y2="${shapeBaseY.toFixed(1)}" stroke="rgba(255,255,255,.55)" stroke-width="1.5" stroke-dasharray="3,3"/>`
+      ? `<line x1="${cx}" y1="${(topY+18).toFixed(1)}" x2="${cx}" y2="${baseY.toFixed(1)}" stroke="rgba(255,255,255,.55)" stroke-width="1.5" stroke-dasharray="3,3"/>`
       : '';
     // ectoplasm blobs: soft halo + irregular blob + bright core
     const bubbleEls = pts.map((p,i)=>{
@@ -662,12 +647,26 @@
     // "дальняя" часть уже сведена художником к ~30% альфы в самом PNG, чтобы
     // сквозь неё было видно содержимое банки, а "ближняя" стенка остаётся
     // непрозрачной поверх жидкости.
-    let bottleCapEl = '', bottleBodyEl = '', bottleBaseEl = '', bottleGlowEl = '';
+    let bottleCapEl = '', bottleBodyEl = '', bottleBaseEl = '', bottleGlowEl = '', bodyWallGradDef = '';
     if(customBottle){
       const { capOnH, baseOnH, bodyOnH, artX, artOnW, capY, bodyY, baseYArt } = bottleGeom;
       const img = (href, y, hh) => `<image href="${href}" x="${artX.toFixed(1)}" y="${y.toFixed(1)}" width="${artOnW.toFixed(1)}" height="${hh.toFixed(1)}" preserveAspectRatio="none"/>`;
       bottleCapEl = img(customBottle.cap, capY, capOnH);
-      bottleBodyEl = img(customBottle.body, bodyY, bodyOnH);
+      // Патч (векторные стенки): тело — не картинка, а горизонтальный
+      // градиент (замерен по пикселям исходника) на прямоугольнике той же
+      // ширины/позиции, что раньше занимала image — растр на сильном
+      // растяжении мылился, вектор чёткий на любом масштабе. gradientUnits
+      // по умолчанию objectBoundingBox — офсеты 0..1 сами лягут на ширину
+      // rect'а, независимо от текущего artOnW.
+      if(customBottle.bodyWallStops){
+        bodyWallGradDef = `<linearGradient id="${cBodyWallGrad}" x1="0" y1="0" x2="1" y2="0">
+          ${customBottle.bodyWallStops.map(([off,color,op]) =>
+            `<stop offset="${off}" stop-color="${color}" stop-opacity="${op}"/>`).join('')}
+        </linearGradient>`;
+        bottleBodyEl = `<rect x="${artX.toFixed(1)}" y="${bodyY.toFixed(1)}" width="${artOnW.toFixed(1)}" height="${bodyOnH.toFixed(1)}" fill="url(#${cBodyWallGrad})"/>`;
+      } else {
+        bottleBodyEl = img(customBottle.body, bodyY, bodyOnH);
+      }
       bottleBaseEl = img(customBottle.base, baseYArt, baseOnH);
       bottleGlowEl = [
         customBottle.glowCap ? img(customBottle.glowCap, capY, capOnH) : '',
@@ -680,6 +679,7 @@
       <defs>
         <clipPath id="${cJarClip}"><path d="${bodyPath}"/></clipPath>
         ${fillDef}
+        ${bodyWallGradDef}
         <!-- staggered halftone dot pattern, like printed manga raster -->
         <pattern id="${cInkDots}" width="7" height="7" patternUnits="userSpaceOnUse">
           <circle cx="1.8" cy="1.8" r="1.15" fill="rgba(0,0,0,.30)"/>
@@ -695,7 +695,7 @@
           <stop offset="100%" stop-color="rgba(159,242,255,.06)"/>
         </linearGradient>
       </defs>
-      ${customBottle ? bottleCapEl : `
+      ${customBottle ? '' : `
       <!-- tech cap: node + antenna, inked -->
       <line x1="${cx}" y1="${topY-22}" x2="${cx}" y2="${topY-6}" stroke="#0a0d18" stroke-width="5"/>
       <line x1="${cx}" y1="${topY-22}" x2="${cx}" y2="${topY-6}" stroke="#35e0ff" stroke-width="2"/>
@@ -723,7 +723,7 @@
         ${bubbleEls}
         ${splitDividerEl}
       </g>
-      ${customBottle ? `${bottleBodyEl}${bottleBaseEl}${bottleGlowEl}` : `
+      ${customBottle ? `${bottleCapEl}${bottleBodyEl}${bottleBaseEl}${bottleGlowEl}` : `
       <path d="${bodyPath}" fill="url(#${cGlassGrad})"/>
       <!-- thick manga ink outline with neon core -->
       <path d="${bodyPath}" fill="none" stroke="#0a0d18" stroke-width="5"/>
@@ -737,24 +737,40 @@
   function satFromIdx(idx){ return 30 + idx*(70/9); }
   function curveScore(raw){ return Math.pow(Math.max(0, Math.min(1, raw)), 1.6); }
 
-  // Патч (кастомные бутыли): customBottle сужает верх банки под реальную
-  // высоту крышки (та же поправка, что и в buildJarMarkup — иначе физика
-  // летающих сгустков считает "верх банки" по старой процедурной шейке
-  // (фиксные 18px) и пускает их в зону, которая на отрисовке уже закрыта
-  // крышкой — сгустки залетают туда и пропадают под клипом)
-  function computeJarGeom(sizePct, customBottle){
+  function computeJarGeom(sizePct){
     const w = 60 + (sizePct/100)*60;
     const h = 140 + (sizePct/100)*70;
     const baseY = 240, topY = baseY - h;
-    if(customBottle){
-      const artScale = w / customBottle.holeW;
-      const capOnH = customBottle.capH * artScale;
-      const adjTopY = topY + capOnH - 18;
-      return { w, h: baseY-adjTopY, topY: adjTopY, baseY, cx:100 };
-    }
     return { w, h, topY, baseY, cx:100 };
   }
-  const FLAT_BOTTLE_PROFILE = [[0,1],[1,1]];
+  // Патч (кастомные бутыли): единая геометрия/профиль кастомного сосуда —
+  // используется и в отрисовке (buildJarMarkup), и в физике летающих
+  // сгустков (Бармен), и в спавне "плохих" пузырей (дрон), и в сетке Векса,
+  // чтобы все они одинаково понимали, где верх/низ банки и как сужается
+  // донышко. Крышка НЕ вычитается из высоты — она рисуется ПОСЛЕ жидкости
+  // отдельным непрозрачным слоем и сама перекрывает всё, что за ней; верх
+  // banки для физики/clip — как у обычной процедурной банки (topY+18).
+  // Донышко, наоборот, нарисовано в перспективе (овал) — профиль сужается
+  // в самом низу по замеру CUSTOM_BOTTLES[].baseTaper, иначе жидкость/пузыри
+  // торчат прямоугольными углами за пределами овала.
+  function customBottleGeom(customBottle, w, h){
+    const artScale = w / customBottle.holeW;
+    const capOnH = customBottle.capH * artScale;
+    const baseOnH = customBottle.baseH * artScale;
+    const bodyOnH = Math.max(4, h - capOnH - baseOnH);
+    // соответствует внутренней высоте jarOutlinePath/packBubbles/stepPhysics
+    // (везде yTop = topY+18) — без этой поправки точки сужения донышка
+    // съезжают на фиксные 18 единиц от того, где реально нарисован овал
+    const span = h - 18;
+    const taperPts = (customBottle.baseTaper || [[0,1],[1,1]]).map(([lf,wf]) => {
+      const t = 1 - baseOnH*(1-lf)/span;
+      return [t, wf];
+    });
+    return {
+      artScale, capOnH, baseOnH, bodyOnH,
+      points: [[0,1], ...taperPts], smooth: true
+    };
+  }
   function stepPhysics(bubbles, geom, profile, r, dt){
     const yTop = geom.topY+18;
     const yMinAll = yTop + r + 4, yMaxAll = geom.baseY - r - 4;
@@ -804,9 +820,9 @@
   }
   function startMovingAnim(){
     stopMovingAnim();
-    const geom = computeJarGeom(target.size, target.customBottle);
+    const geom = computeJarGeom(target.size);
     const r = 3 + (target.bsize/100)*9;
-    const profile = target.customBottle ? FLAT_BOTTLE_PROFILE : SHAPE_PROFILES[target.shapeIdx||0].points;
+    const profile = target.customBottle ? customBottleGeom(target.customBottle, geom.w, geom.h).points : SHAPE_PROFILES[target.shapeIdx||0].points;
     movingBubbles = makePhysicsBubbles(target.count, r, geom, profile, target.seed, target.moveSpeed);
     movingGeom = geom; movingProfile = profile; movingR = r; movingLastT = 0;
     function frame(t){
@@ -874,8 +890,8 @@
     nextBadBubbleSpawnAt = badBubbleElapsed + rand(BAD_BUBBLE_CONFIG.minSpawnMs, BAD_BUBBLE_CONFIG.maxSpawnMs);
   }
   function spawnBadBubble(){
-    const geom = computeJarGeom(target.size, target.customBottle);
-    const profile = target.customBottle ? FLAT_BOTTLE_PROFILE : SHAPE_PROFILES[target.shapeIdx || 0].points;
+    const geom = computeJarGeom(target.size);
+    const profile = target.customBottle ? customBottleGeom(target.customBottle, geom.w, geom.h).points : SHAPE_PROFILES[target.shapeIdx || 0].points;
     const r0 = BAD_BUBBLE_CONFIG.startRadius;
     const yTop = geom.topY + 18, yMinAll = yTop + r0 + 6, yMaxAll = geom.baseY - r0 - 6;
     let x = geom.cx, y = (yMinAll + yMaxAll) / 2, tries = 0, placed = false;
@@ -1355,13 +1371,20 @@
   }
   // строит фиксированный список узлов сетки (% от windowFrame), один раз на раунд
   function l4VexBuildGrid(){
-    const geom = computeJarGeom(target.size, target.customBottle);
+    const geom = computeJarGeom(target.size);
     const gx0 = geom.cx - geom.w/2, gx1 = geom.cx + geom.w/2;
-    // Патч (кастомные бутыли): у обычной процедурной банки верх сетки — на
-    // фиксных +40 (под декоративную "шейку"). У кастомной бутыли geom.topY
-    // уже сдвинут computeJarGeom-ом так, что +18 даёт РЕАЛЬНЫЙ низ крышки —
-    // без этого узлы уезжали выше самой банки, в зону, где рисуется крышка.
-    const gy0 = target.customBottle ? geom.topY+18 : geom.topY+40, gy1 = geom.baseY;
+    const gy0 = geom.topY+40;
+    // Патч (кастомные бутыли): нижний ряд сетки не должен заезжать в
+    // сужающуюся (овальную) зону донышка — иначе узлы оказываются за
+    // пределами нарисованного стекла (см. baseTaper в CUSTOM_BOTTLES).
+    let gy1 = geom.baseY;
+    if(target.customBottle){
+      const bg = customBottleGeom(target.customBottle, geom.w, geom.h);
+      const safeLf = (target.customBottle.baseTaper.find(([,wf])=>wf<0.999) || [1])[0];
+      const span = geom.h - 18;
+      const safeT = 1 - bg.baseOnH*(1-safeLf)/span;
+      gy1 = geom.topY + 18 + safeT*span;
+    }
     const pts = [];
     for(let i=1;i<L4_VEX_GRID_COLS;i++){
       for(let j=1;j<L4_VEX_GRID_ROWS;j++){
@@ -2186,14 +2209,17 @@
   function l4BarStartMove(){
     l4BarStopMove();
     const cfg = target.cfg;
-    const profile = target.customBottle ? FLAT_BOTTLE_PROFILE : SHAPE_PROFILES[target.shapeIdx||0].points;
     function frame(t){
       if(!target || target.cfg.id !== 'plasma_bartender' || currentPhase !== 'craft'){ l4BarMoveRafId = null; return; }
       if(!l4BarMoveLastT) l4BarMoveLastT = t;
       const dt = Math.min(0.05, (t-l4BarMoveLastT)/1000); l4BarMoveLastT = t;
       const size = idxToVal(S.size.value, cfg.sizeSteps, 100);
       const bsize = idxToVal(S.bsize.value, cfg.bsizeSteps, 100);
-      const geom = computeJarGeom(size, target.customBottle);
+      const geom = computeJarGeom(size);
+      // Патч (кастомные бутыли): профиль зависит от текущей ширины/высоты
+      // (донышко сужается пропорционально им), поэтому пересчитывается
+      // каждый тик вместе с geom, а не один раз при старте механики
+      const profile = target.customBottle ? customBottleGeom(target.customBottle, geom.w, geom.h).points : SHAPE_PROFILES[target.shapeIdx||0].points;
       const r = 3 + (bsize/100)*9;
       const speed = Math.max(5, S.speed.value*10);
       const n = S.count.value;
