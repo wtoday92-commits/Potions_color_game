@@ -844,7 +844,7 @@
 
 /* фон всей игры — барный стол с пустым центром (под ним лежит UI по центру).
    Позже заменяется на видео так же, как сплэш. */
-body{ background: url('assets/bg/newselect.mp4') center/cover fixed; }
+body{ background: url('assets/bg/newselect_no_center.jpg') center/cover fixed; }
 
 .window-frame{ background: url('assets/ui/clockface1.png') center/cover; }
 
@@ -942,7 +942,9 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 .splash-fs-btn, #splashFsBtn{ min-width: 44px; font-size: 16px; line-height: 1; }
 
 /* ---- кнопка "на весь экран": мягко пульсирует, пока НЕ полноэкранно ---- */
-.fs-btn{ animation: fsGlow 2.4s ease-in-out infinite; }
+.fs-btn{ animation: fsGlow 2.4s ease-in-out infinite;
+  display: inline-flex; align-items: center; justify-content: center; }
+.fs-btn svg{ display: block; }
 body.fullscreen-on .fs-btn{ animation: none !important; box-shadow: none !important; }
 @keyframes fsGlow{
   0%,100%{ box-shadow: 0 0 0 0 rgba(53,224,255,0); }
