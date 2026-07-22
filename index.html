@@ -12,19 +12,24 @@
 
 
 <div id="splashScreen">
-  <!-- Видео-сплэш: играет, если в assets/bg/ лежит splash.mp4; иначе
-       показывается poster (splash.png), а под ним — градиент-фолбэк из CSS. -->
-  <video id="splashVideo" class="splash-video" autoplay muted loop playsinline
-         poster="assets/bg/splash.png">
-    <source src="assets/bg/splash.mp4" type="video/mp4">
-  </video>
-  <!-- Кнопки-вывески: сами прозрачные, «плашки» нарисованы в арте под
-       названием бара. Верхняя вывеска — Дейлик, нижняя — Пришвартоваться.
-       Позиция/наклон плашек настраиваются CSS-переменными (см. style.css). -->
-  <div class="splash-plaques">
-    <!-- Патч "Ежедневный заказ": отдельный сид-режим, см. game.js -->
-    <button class="plaque-btn plaque-daily" id="dailyDockBtn" data-i18n="DAILY_DOCK_BTN">Дейлик</button>
-    <button class="plaque-btn plaque-dock" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
+  <!-- Сцена 16:9: видео/арт и кнопки лежат в ней, поэтому кнопки-вывески
+       привязаны к КАДРУ арта, а не к вьюпорту — и не «уплывают» с плашек
+       на экранах не-16:9 (арт покрывает экран, сцена выходит за края). -->
+  <div class="splash-stage">
+    <!-- Видео-сплэш: играет, если в assets/bg/ лежит splash.mp4; иначе
+         показывается poster (splash.png), а под ним — градиент-фолбэк из CSS. -->
+    <video id="splashVideo" class="splash-video" autoplay muted loop playsinline
+           poster="assets/bg/splash.png">
+      <source src="assets/bg/splash.mp4" type="video/mp4">
+    </video>
+    <!-- Кнопки-вывески: сами прозрачные, «плашки» нарисованы в арте под
+         названием бара. Верхняя вывеска — Дейлик, нижняя — Пришвартоваться.
+         Позиция/размер настраиваются CSS-переменными (см. style.css). -->
+    <div class="splash-plaques">
+      <!-- Патч "Ежедневный заказ": отдельный сид-режим, см. game.js -->
+      <button class="plaque-btn plaque-daily" id="dailyDockBtn" data-i18n="DAILY_DOCK_BTN">Дейлик</button>
+      <button class="plaque-btn plaque-dock" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
+    </div>
   </div>
   <button class="splash-lang-btn" id="splashLangBtn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
 </div>

@@ -876,21 +876,30 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
   background: radial-gradient(ellipse at 50% 40%, #141a3f, var(--bg-void) 75%);
   background-color: var(--bg-void);
   padding: 0;
+  overflow: hidden; /* сцена выходит за края экрана — обрезаем */
 }
-/* Видео/картинка сплэша: покрывает весь экран, лежит ПОД кнопками.
+/* Сцена 16:9: раздувается до "cover" вьюпорта, сохраняя пропорции арта.
+   Кнопки внутри позиционируются в % ОТ СЦЕНЫ, поэтому держатся на плашках
+   при любом соотношении сторон экрана. container-type — чтобы шрифт кнопок
+   (cqw) масштабировался от ширины сцены, а не от вьюпорта. */
+.splash-stage{
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  aspect-ratio: 16 / 9; min-width: 100%; min-height: 100%;
+  container-type: size; z-index: 0;
+}
+/* Видео/картинка сплэша: заполняет сцену, лежит ПОД кнопками.
    <video> сам показывает poster=splash.png, если splash.mp4 не найден. */
 .splash-video{
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; z-index: 0; pointer-events: none;
-  background: url('assets/bg/splash.mp4') center/cover no-repeat;
+  background: url('assets/bg/splash.png') center/cover no-repeat;
 }
 
 /* ---- Кнопки-вывески ----
    Плашки нарисованы в арте (2 штуки под названием бара). Сами кнопки
-   ПРОЗРАЧНЫЕ — только текст поверх плашки. Каждая кнопка спозиционирована
-   на ЦЕНТР своей плашки (в % от экрана; замерено по splash.png на 16:9).
-   Наклон подвеса и перспектива — общие переменные --sign-tilt/--sign-skew.
-   Тонкая доводка: сдвинь --daily-x/y или --dock-x/y на пол-процента. */
+   ПРОЗРАЧНЫЕ — только текст поверх плашки. Каждая кнопка стоит на ЦЕНТРЕ
+   своей плашки (в % от СЦЕНЫ; замерено по кадру splash.mp4).
+   Тонкая доводка: сдвинь --daily-x/y или --dock-x/y / размер --*-fs. */
 .splash-plaques{
   position: absolute; inset: 0; z-index: 1; pointer-events: none;
   opacity: 0; animation: splashIn 1s ease .25s forwards;
@@ -898,24 +907,24 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 .plaque-btn{
   position: absolute; pointer-events: auto;
   transform: translate(-50%,-50%) rotate(var(--sign-tilt, 4deg))
-             perspective(600px) rotateY(var(--sign-skew, 14deg));
+             perspective(600px) rotateY(var(--sign-skew, 10deg));
   background: transparent; border: none; cursor: pointer;
   font-family: 'Russo One', sans-serif; font-weight: 400;
-  letter-spacing: .05em; text-transform: uppercase; line-height: 1; white-space: nowrap;
+  letter-spacing: .03em; text-transform: uppercase; line-height: 1; white-space: nowrap;
   color: #ffe27a;
   text-shadow: 0 0 7px rgba(255,180,60,.55), 0 1px 1px rgba(0,0,0,.6);
   transition: filter .12s ease;
 }
 .plaque-btn:hover{ filter: brightness(1.18) drop-shadow(0 0 6px rgba(255,200,90,.75)); }
-/* верхняя вывеска — Дейлик */
+/* верхняя вывеска — Дейлик (крупная, заполняет плашку) */
 .plaque-daily{
-  left: var(--daily-x, 21.4%); top: var(--daily-y, 49.3%);
-  font-size: clamp(12px, 1.7vw, 25px);
+  left: var(--daily-x, 20.5%); top: var(--daily-y, 49.2%);
+  font-size: var(--daily-fs, 3.37cqw);
 }
-/* нижняя вывеска — Пришвартоваться (длинное слово → чуть мельче) */
+/* нижняя вывеска — Пришвартоваться (длинное слово → мельче, тоже КАПСОМ) */
 .plaque-dock{
-  left: var(--dock-x, 22.4%); top: var(--dock-y, 60.4%);
-  font-size: clamp(9px, 1.32vw, 20px);
+  left: var(--dock-x, 19.9%); top: var(--dock-y, 59.3%);
+  font-size: var(--dock-fs, 1.42cqw);
 }
 
 #splashScreen .splash-lang-btn{
