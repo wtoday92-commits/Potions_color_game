@@ -906,8 +906,9 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 }
 .plaque-btn{
   position: absolute; pointer-events: auto;
-  transform: translate(-50%,-50%) rotate(var(--sign-tilt, 4deg))
-             perspective(600px) rotateY(var(--sign-skew, 10deg));
+  /* Плашки висят с наклоном ВВЕРХ-ВПРАВО (против часовой) и почти плоские —
+     поэтому только поворот, без 3D-перспективы, чтобы текст лёг ровно на них. */
+  transform: translate(-50%,-50%) rotate(var(--sign-tilt, -2.5deg));
   background: transparent; border: none; cursor: pointer;
   font-family: 'Russo One', sans-serif; font-weight: 400;
   letter-spacing: .03em; text-transform: uppercase; line-height: 1; white-space: nowrap;
@@ -916,15 +917,16 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
   transition: filter .12s ease;
 }
 .plaque-btn:hover{ filter: brightness(1.18) drop-shadow(0 0 6px rgba(255,200,90,.75)); }
-/* верхняя вывеска — Дейлик (крупная, заполняет плашку) */
-.plaque-daily{
-  left: var(--daily-x, 20.5%); top: var(--daily-y, 49.2%);
-  font-size: var(--daily-fs, 3.37cqw);
-}
-/* нижняя вывеска — Пришвартоваться (длинное слово → мельче, тоже КАПСОМ) */
+/* ВЕРХНЯЯ (более широкая) плашка — Пришвартоваться, длинное слово */
 .plaque-dock{
-  left: var(--dock-x, 19.9%); top: var(--dock-y, 59.3%);
-  font-size: var(--dock-fs, 1.42cqw);
+  left: var(--dock-x, 20.3%); top: var(--dock-y, 49%);
+  font-size: var(--dock-fs, 1.4cqw);
+}
+/* НИЖНЯЯ плашка — Дейлик (короткое слово, крупнее, но разрыв в размере
+   с верхней теперь небольшой) */
+.plaque-daily{
+  left: var(--daily-x, 20.8%); top: var(--daily-y, 60.1%);
+  font-size: var(--daily-fs, 2.36cqw);
 }
 
 #splashScreen .splash-lang-btn{

@@ -26,9 +26,11 @@
          названием бара. Верхняя вывеска — Дейлик, нижняя — Пришвартоваться.
          Позиция/размер настраиваются CSS-переменными (см. style.css). -->
     <div class="splash-plaques">
+      <!-- Верхняя (более широкая) плашка — Пришвартоваться; нижняя — Дейлик.
+           Порядок в DOM = сверху вниз. -->
+      <button class="plaque-btn plaque-dock" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
       <!-- Патч "Ежедневный заказ": отдельный сид-режим, см. game.js -->
       <button class="plaque-btn plaque-daily" id="dailyDockBtn" data-i18n="DAILY_DOCK_BTN">Дейлик</button>
-      <button class="plaque-btn plaque-dock" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
     </div>
   </div>
   <button class="splash-lang-btn" id="splashLangBtn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
