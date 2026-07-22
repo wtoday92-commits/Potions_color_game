@@ -882,7 +882,7 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 .splash-video{
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; z-index: 0; pointer-events: none;
-  background: url('assets/bg/splash.png') center/cover no-repeat;
+  background: url('assets/bg/splash.mp4') center/cover no-repeat;
 }
 
 /* ---- Кнопки-вывески ----
