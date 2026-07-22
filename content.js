@@ -36,6 +36,8 @@ const UI_TEXT = {
   DAILY_DIFF_CANCEL: { ru:'Назад', en:'Back' },
   BACK_TO_START_BTN: { ru:'← На стартовый экран', en:'← Back to start screen' },
   DAILY_YESTERDAY_TITLE: { ru:'🏆 Топ-3 вчерашнего дня', en:'🏆 Top 3 from yesterday' },
+  DAILY_TODAY_TITLE: { ru:'Рейтинг сегодня', en:'Today’s rating' },
+  FS_BTN_TITLE:      { ru:'На весь экран', en:'Fullscreen' },
   SUBTITLE:          { ru:'лавка смесей // сектор Ω // край вселенной', en:'mixture shop // sector Ω // edge of the universe' },
   DAY_LABEL:         { ru:'День', en:'Day' },
   RATING_LABEL:      { ru:'РЕЙТИНГ:', en:'RATING:' },

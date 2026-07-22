@@ -4489,15 +4489,26 @@
     const y = new Date(Date.now() - 86400000);
     return dailyBoardKey(dailyDifficulty, y);
   }
+  // Стадия 4: топ-3 вчерашнего дня больше НЕ висит рядом с заданиями —
+  // он переехал в окно рейтинга (см. renderYesterdayInOverlay + кнопка lbBtn).
+  // Функцию оставляем как no-op (её ещё дёргают из enterDailyMode и т.д.),
+  // на всякий случай гасим старый select-элемент, если он вдруг показан.
   async function loadDailyYesterdayTop(){
     const host = $('dailyYesterdayTop');
+    if(host){ host.classList.add('hidden'); host.innerHTML = ''; }
+  }
+  // Стадия 4: рендер топ-3 вчерашнего дня В ОКНЕ рейтинга (только в дейлике)
+  async function renderYesterdayInOverlay(){
+    const host = $('lbYesterday');
     if(!host) return;
+    if(!isDailyMode){ host.classList.add('hidden'); host.innerHTML = ''; return; }
     const list = await loadLeaderboard(yesterdayDailyBoardKey());
     const top3 = [...list].sort((a,b)=>b.score-a.score).slice(0,3);
     if(!top3.length){ host.classList.add('hidden'); host.innerHTML = ''; return; }
     host.classList.remove('hidden');
     host.innerHTML = `<div class="dyt-title">${LT(UI_TEXT.DAILY_YESTERDAY_TITLE)}</div>` +
-      top3.map((e,i)=>`<div class="dyt-row"><span><span class="dyt-rank">${i+1}.</span>${escapeHtml(e.name)}</span><span>${e.score}</span></div>`).join('');
+      top3.map((e,i)=>`<div class="dyt-row"><span><span class="dyt-rank">${i+1}.</span>${escapeHtml(e.name)}</span><span>${e.score}</span></div>`).join('') +
+      `<div class="dyt-today-label">${LT(UI_TEXT.DAILY_TODAY_TITLE)}</div>`;
   }
   // cached so a language switch can re-render the currently open leaderboard(s)
   const lastLb = {};
@@ -4517,6 +4528,7 @@
 
   $('lbBtn').addEventListener('click', async ()=>{
     SFX.uiClick();
+    await renderYesterdayInOverlay();           // Стадия 4: вчерашний топ сверху (дейлик)
     const list = await loadLeaderboard(isDailyMode ? currentDailyBoardKey() : undefined);
     renderLeaderboard(list, null, 'lbOverlayList');
     $('lbOverlay').classList.add('show');
@@ -5408,6 +5420,28 @@
   // Патч "Ежедневный заказ": та же кнопка языка, но прямо на сплэше
   const splashLangBtn = $('splashLangBtn');
   if(splashLangBtn) splashLangBtn.addEventListener('click', toggleLanguage);
+
+  // ---------- кнопка "на весь экран" (сплэш + основная игра) ----------
+  function fsElement(){ return document.fullscreenElement || document.webkitFullscreenElement || null; }
+  function toggleFullscreen(){
+    const el = document.documentElement;
+    if(!fsElement()){
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if(req) req.call(el);
+    } else {
+      const ex = document.exitFullscreen || document.webkitExitFullscreen;
+      if(ex) ex.call(document);
+    }
+  }
+  // пока НЕ на весь экран — кнопка мягко светится (CSS-класс на body)
+  function syncFsGlow(){ document.body.classList.toggle('fullscreen-on', !!fsElement()); }
+  ['fsBtn','splashFsBtn'].forEach(id=>{
+    const b = $(id);
+    if(b) b.addEventListener('click', ()=>{ SFX.uiClick(); toggleFullscreen(); });
+  });
+  document.addEventListener('fullscreenchange', syncFsGlow);
+  document.addEventListener('webkitfullscreenchange', syncFsGlow);
+  syncFsGlow();
 
   function dismissSplash(){
     const s = $('splashScreen');

@@ -33,7 +33,10 @@
       <button class="plaque-btn plaque-daily" id="dailyDockBtn" data-i18n="DAILY_DOCK_BTN">Дейлик</button>
     </div>
   </div>
-  <button class="splash-lang-btn" id="splashLangBtn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
+  <div class="splash-corner">
+    <button class="splash-lang-btn fs-btn" id="splashFsBtn" data-i18n-title="FS_BTN_TITLE" title="На весь экран">⛶</button>
+    <button class="splash-lang-btn" id="splashLangBtn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
+  </div>
 </div>
 
 <!-- Патч "Ежедневный заказ": выбор сложности дня (одинаковый набор персонажей у всех) -->
@@ -71,6 +74,7 @@
       <!-- Фаза I/J: отдельное меню персонажей (репутация/ачивки/пассивки) и быстрая панель пассивок -->
       <button id="charactersBtn" class="lang-btn characters-btn" data-i18n-title="CHARACTERS_BTN_TITLE" title="Персонажи">👥</button>
       <button id="passivesBtn" class="lang-btn passives-btn" data-i18n-title="PASSIVES_BTN_TITLE" title="Пассивки">⚡</button>
+      <button id="fsBtn" class="lang-btn fs-btn" data-i18n-title="FS_BTN_TITLE" title="На весь экран">⛶</button>
       <div class="settings-wrap" id="settingsWrap">
         <button id="settingsBtn" class="lang-btn settings-btn" data-i18n-title="SETTINGS_BTN_TITLE" title="Настройки (язык, громкость)">⚙</button>
         <div class="settings-menu" id="settingsMenu">
@@ -276,6 +280,9 @@
 <div class="week-overlay" id="lbOverlay">
   <div class="week-card">
     <h3 data-i18n="LB_TITLE">🏆 Глобальный рейтинг</h3>
+    <!-- Стадия 4: в дейлик-режиме сюда едет топ-3 вчерашнего дня (подписан,
+         выделен цветом), а обычный дневной рейтинг — ниже -->
+    <div class="daily-yesterday-top hidden" id="lbYesterday"></div>
     <div class="leaderboard-list" id="lbOverlayList"></div>
     <button class="next-btn" id="lbCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
   </div>
