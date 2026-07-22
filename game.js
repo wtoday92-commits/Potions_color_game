@@ -450,6 +450,21 @@
     return left + ' ' + rightRev + ' Z';
   }
 
+  // Патч (крышки): крышка — не отдельная нашлёпка, а продолжение ТОГО ЖЕ
+  // контура, что и тело — точки крышки (capT 0..1, 0=шов, 1=макушка)
+  // переводятся в тот же t, что использует jarOutlinePath (отрицательный —
+  // "выше шва"), а ширина в шве берётся МНОЖИТЕЛЕМ от фактической ширины
+  // тела в этой точке (shapeHalfWidthFrac при t=0), поэтому любая крышка
+  // из каталога садится без зазора на любую форму банки.
+  function capBodyProfile(bodyProfile, capStyle, w, spanH){
+    if(!capStyle) return bodyProfile;
+    const bodyTopWf = shapeHalfWidthFrac(0, bodyProfile);
+    const capH = w * capStyle.heightFrac; // высота крышки в тех же единицах, что и spanH
+    const capPts = [...capStyle.points].reverse().slice(0,-1).map(([ct,mult]) =>
+      [ -ct*capH/spanH, mult*bodyTopWf ]);
+    return [...capPts, ...bodyProfile];
+  }
+
   // ---------- ectoplasm blob path ----------
   function blobPath(cx, cy, r, seed){
     const rng = mulberry32((seed*7919+13)>>>0);
@@ -513,7 +528,7 @@
     // крышку/тело/донышко снаружи — clip-path/пузыри/жидкость внутри те же
     const { hue, hue2=null, sat=70, sizePct, heightPct=null, bubbleCount, bubbleR, seed, shapeIdx=0,
             overridePositions=null, badBubbles=[], rotationDeg=null,
-            splitHalves=false, bubbleCountB=0, showGrid=false, customBottle=null } = opts;
+            splitHalves=false, bubbleCountB=0, showGrid=false, customBottle=null, capIdx=0 } = opts;
     // несколько банок на экране одновременно (сетка Коллекционера) не должны
     // делить между собой id defs/clipPath — иначе все клипались бы по контуру первой
     const cJarClip = `${idPrefix}jarClip`, cInkDots = `${idPrefix}inkDots`,
@@ -541,6 +556,42 @@
       sp = SHAPE_PROFILES[shapeIdx] || SHAPE_PROFILES[0];
     }
     const bodyPath = jarOutlinePath(cx, topY, baseY, w, sp.points, sp.smooth);
+
+    // Патч (крышки): единый контур крышка+тело — крышка не рисуется
+    // отдельной нашлёпкой, а продолжает тот же bodyPath вверх, поэтому
+    // неоновый хало/чернильная обводка/стеклянный блик автоматически
+    // оборачивают их как одну фигуру, без шва. clip-path (жидкость/пузыри)
+    // по-прежнему строится только по bodyPath — крышка её не должна впускать.
+    const capStyle = customBottle ? null : (CAP_PROFILES[capIdx] || null);
+    const spanH = baseY - (topY+18);
+    const outlinePath = capStyle ? jarOutlinePath(cx, topY, baseY, w,
+      capBodyProfile(sp.points, capStyle, w, spanH), capStyle.smooth) : bodyPath;
+    // мелкие детали крышки (кольцо-хайлайт/спицы/антенна) — координаты
+    // считаются от того же шва (yTop) и той же ширины тела в шве, что и
+    // сам контур, поэтому садятся на крышку без рассинхрона
+    let capExtras = '';
+    if(capStyle){
+      const yTop = topY+18, capH = w*capStyle.heightFrac;
+      const bodyTopWf = shapeHalfWidthFrac(0, sp.points);
+      const hwAt = (ct) => (w/2)*shapeHalfWidthFrac(ct, capStyle.points)*bodyTopWf;
+      if(capStyle.ridgeAt != null){
+        const ry = yTop - capStyle.ridgeAt*capH, rhw = hwAt(capStyle.ridgeAt);
+        capExtras += `<ellipse cx="${cx}" cy="${ry.toFixed(1)}" rx="${rhw.toFixed(1)}" ry="2.2" fill="none" stroke="rgba(53,224,255,.6)" stroke-width="1.5"/>`;
+      }
+      if(capStyle.spokesAt != null){
+        const sy = yTop - capStyle.spokesAt*capH, shw = hwAt(capStyle.spokesAt);
+        for(let a=0;a<3;a++){
+          const dx = (a-1)*shw*0.62;
+          capExtras += `<line x1="${cx}" y1="${sy.toFixed(1)}" x2="${(cx+dx).toFixed(1)}" y2="${sy.toFixed(1)}" stroke="#0a0d18" stroke-width="2.6"/>`;
+        }
+      }
+      if(capStyle.antenna){
+        const topCapY = yTop - capH;
+        capExtras += `<line x1="${cx}" y1="${(topCapY-16).toFixed(1)}" x2="${cx}" y2="${topCapY.toFixed(1)}" stroke="#0a0d18" stroke-width="5"/>
+          <line x1="${cx}" y1="${(topCapY-16).toFixed(1)}" x2="${cx}" y2="${topCapY.toFixed(1)}" stroke="#35e0ff" stroke-width="2"/>
+          <circle cx="${cx}" cy="${(topCapY-18).toFixed(1)}" r="4.5" fill="#ff4dd2" stroke="#0a0d18" stroke-width="1.8"/>`;
+      }
+    }
 
     // Патч "УР.4" (Векс): сетка — рабочий магнит для сгустков, не просто
     // ориентир, поэтому считается по ЗАФИКСИРОВАННОМУ на весь раунд
@@ -697,17 +748,10 @@
         </linearGradient>
       </defs>
       ${customBottle ? '' : `
-      <!-- tech cap: node + antenna, inked -->
-      <line x1="${cx}" y1="${topY-22}" x2="${cx}" y2="${topY-6}" stroke="#0a0d18" stroke-width="5"/>
-      <line x1="${cx}" y1="${topY-22}" x2="${cx}" y2="${topY-6}" stroke="#35e0ff" stroke-width="2"/>
-      <circle cx="${cx}" cy="${topY-24}" r="4.5" fill="#ff4dd2" stroke="#0a0d18" stroke-width="1.8"/>
-      <rect x="${cx-16}" y="${topY-8}" width="32" height="24" rx="5" fill="#0d1430" stroke="#0a0d18" stroke-width="4.5"/>
-      <rect x="${cx-16}" y="${topY-8}" width="32" height="24" rx="5" fill="none" stroke="#35e0ff" stroke-width="1.6"/>
-      <line x1="${cx-9}" y1="${topY+2}" x2="${cx+9}" y2="${topY+2}" stroke="rgba(53,224,255,.6)" stroke-width="1.5"/>
       <!-- neon halo (drawn first, widest) -->
-      <path d="${bodyPath}" fill="none" stroke="rgba(53,224,255,.28)" stroke-width="8"/>
-      <!-- container body -->
-      <path d="${bodyPath}" fill="rgba(53,224,255,.05)"/>
+      <path d="${outlinePath}" fill="none" stroke="rgba(53,224,255,.28)" stroke-width="8"/>
+      <!-- container body + cap, one continuous outline -->
+      <path d="${outlinePath}" fill="rgba(53,224,255,.05)"/>
       `}
       <g clip-path="url(#${cJarClip})">
         <rect x="${cx-w/2-6}" y="${topY+40}" width="${w+12}" height="${h}" fill="${fillRef}"/>
@@ -725,10 +769,11 @@
         ${splitDividerEl}
       </g>
       ${customBottle ? `${bottleCapEl}${bottleBodyEl}${bottleBaseEl}${bottleGlowEl}` : `
-      <path d="${bodyPath}" fill="url(#${cGlassGrad})"/>
-      <!-- thick manga ink outline with neon core -->
-      <path d="${bodyPath}" fill="none" stroke="#0a0d18" stroke-width="5"/>
-      <path d="${bodyPath}" fill="none" stroke="#35e0ff" stroke-width="1.8"/>
+      <path d="${outlinePath}" fill="url(#${cGlassGrad})"/>
+      <!-- thick manga ink outline with neon core, cap+body as one shape -->
+      <path d="${outlinePath}" fill="none" stroke="#0a0d18" stroke-width="5"/>
+      <path d="${outlinePath}" fill="none" stroke="#35e0ff" stroke-width="1.8"/>
+      ${capExtras}
       `}
       ${badBubbleEls}
     `;
@@ -841,7 +886,7 @@
       stepPhysics(movingBubbles, movingGeom, movingProfile, movingR, dt);
       drawJar({ hue:target.hue, hue2:null, sat:target.sat, sizePct:target.size, bubbleCount:0, bubbleR:movingR,
         shapeIdx: target.shapeIdx||0, seed: target.seed, overridePositions: movingBubbles,
-        customBottle: target.customBottle });
+        customBottle: target.customBottle, capIdx: target.capIdx });
       movingRafId = requestAnimationFrame(frame);
     }
     movingRafId = requestAnimationFrame(frame);
@@ -2251,7 +2296,7 @@
       const hue = idxToVal(S.color.value, cfg.colorSteps, 360);
       drawJar({ hue, hue2:null, sat:70, sizePct:size, bubbleCount:0, bubbleR:r,
         shapeIdx: target.shapeIdx||0, seed: target.seed, overridePositions: l4BarMoveBubbles,
-        customBottle: target.customBottle });
+        customBottle: target.customBottle, capIdx: target.capIdx });
       l4BarMoveRafId = requestAnimationFrame(frame);
     }
     l4BarMoveRafId = requestAnimationFrame(frame);
@@ -3249,7 +3294,7 @@
     const customBottleExcluded = flags.hasShape
       || (cfg.id === 'collector_gz' && regLevel === 4)
       || (cfg.id === 'the_waiter' && regLevel === 4);
-    if(!customBottleExcluded && typeof CUSTOM_BOTTLES !== 'undefined' && CUSTOM_BOTTLES.length){
+    if(!customBottleExcluded && typeof CUSTOM_BOTTLES_ENABLED !== 'undefined' && CUSTOM_BOTTLES_ENABLED && CUSTOM_BOTTLES.length){
       target.customBottle = pick(CUSTOM_BOTTLES);
       target.shapeIdx = 1;
       // Патч (Сверхновая + кастомная бутыль): крышка+донышко тянутся от
@@ -3278,6 +3323,9 @@
       target.count = randInt(5, Math.max(5,cfg.countMax));
       target.moveSpeed = randInt(45, 95);
     }
+    // Патч (крышки): своя крышка на персонажа — фиксированная (не зависит
+    // от заказа), поэтому берётся из справочника по id, а не рандомится
+    target.capIdx = (typeof NPC_CAP_STYLE !== 'undefined' && NPC_CAP_STYLE[cfg.id]) || 0;
 
     // считаем доступные регуляторы уже сейчас (а не только в начале фазы
     // "воссоздай") — чтобы фаза показа тоже не рисовала сгустки, которых
@@ -3304,7 +3352,7 @@
         bubbleCount: (isFlySwarm || isVexDrag) ? 0 : (noBubblesPreview ? 0 : target.count),
         bubbleR:targetR, seed:target.seed, shapeIdx: target.shapeIdx ?? 0,
         splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? (target.countB||0) : 0,
-        showGrid: isVexDrag, customBottle: target.customBottle,
+        showGrid: isVexDrag, customBottle: target.customBottle, capIdx: target.capIdx,
         // Патч "УР.4" (Сверхновая): банку на фазе показа тоже нужно повернуть —
         // раньше поворот применялся только к банке игрока на фазе игры
         rotationDeg: (cfg.id === 'supernova_child' && regLevel === 4) ? target.rotation : null });
@@ -3621,7 +3669,7 @@
       rotationDeg,
       splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? S.countB.value : 0,
       seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles,
-      showGrid: isVexDrag, customBottle: target.customBottle });
+      showGrid: isVexDrag, customBottle: target.customBottle, capIdx: target.capIdx });
   }
 
   function hueDist(a,b){ const d = Math.abs(a-b)%360; return d>180 ? 360-d : d; }
