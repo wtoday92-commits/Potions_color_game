@@ -552,15 +552,16 @@
     let gridEls = '';
     if(showGrid && target){
       const gGeom = computeJarGeom(target.size);
-      let gy1 = gGeom.baseY;
+      let gy0 = gGeom.topY+40, gy1 = gGeom.baseY;
       if(target.customBottle){
         const bg = customBottleGeom(target.customBottle, gGeom.w, gGeom.h);
+        gy0 = gGeom.topY + bg.capOnH;
         const safeLf = (target.customBottle.baseTaper.find(([,wf])=>wf<0.999) || [1])[0];
         const span = gGeom.h - 18;
         const safeT = 1 - bg.baseOnH*(1-safeLf)/span;
         gy1 = gGeom.topY + 18 + safeT*span;
       }
-      const gx0 = gGeom.cx - gGeom.w/2, gx1 = gGeom.cx + gGeom.w/2, gy0 = gGeom.topY+40;
+      const gx0 = gGeom.cx - gGeom.w/2, gx1 = gGeom.cx + gGeom.w/2;
       const cols = L4_VEX_GRID_COLS, rows = L4_VEX_GRID_ROWS;
       for(let i=1;i<cols;i++){
         const gx = (gx0 + (gx1-gx0)*i/cols).toFixed(1);
@@ -759,16 +760,25 @@
     const baseOnH = customBottle.baseH * artScale;
     const bodyOnH = Math.max(4, h - capOnH - baseOnH);
     // соответствует внутренней высоте jarOutlinePath/packBubbles/stepPhysics
-    // (везде yTop = topY+18) — без этой поправки точки сужения донышка
-    // съезжают на фиксные 18 единиц от того, где реально нарисован овал
+    // (везде yTop = topY+18) — без этой поправки точки сужения крышки/донышка
+    // съезжают на фиксные 18 единиц от того, где реально нарисованы контуры
     const span = h - 18;
-    const taperPts = (customBottle.baseTaper || [[0,1],[1,1]]).map(([lf,wf]) => {
+    // crownTaper: крышка не прямоугольная — узкая макушка/шейка внутри
+    // непрямоугольного колпака, поэтому у неё СВОЙ профиль сужения сверху,
+    // не только плоская "wf=1" заглушка, как раньше. lf считается от НИЗА
+    // куска крышки (т.е. от верха банки), поэтому переводится в t иначе,
+    // чем донышко (которое считается от НИЗА банки)
+    const capPts = (customBottle.capTaper || [[0,0],[1,1]]).map(([lf,wf]) => {
+      const t = (lf*capOnH - 18) / span;
+      return [t, wf];
+    });
+    const basePts = (customBottle.baseTaper || [[0,1],[1,1]]).map(([lf,wf]) => {
       const t = 1 - baseOnH*(1-lf)/span;
       return [t, wf];
     });
     return {
       artScale, capOnH, baseOnH, bodyOnH,
-      points: [[0,1], ...taperPts], smooth: true
+      points: [...capPts, ...basePts], smooth: true
     };
   }
   function stepPhysics(bubbles, geom, profile, r, dt){
@@ -1373,13 +1383,14 @@
   function l4VexBuildGrid(){
     const geom = computeJarGeom(target.size);
     const gx0 = geom.cx - geom.w/2, gx1 = geom.cx + geom.w/2;
-    const gy0 = geom.topY+40;
-    // Патч (кастомные бутыли): нижний ряд сетки не должен заезжать в
-    // сужающуюся (овальную) зону донышка — иначе узлы оказываются за
-    // пределами нарисованного стекла (см. baseTaper в CUSTOM_BOTTLES).
-    let gy1 = geom.baseY;
+    // Патч (кастомные бутыли): верхний и нижний ряд сетки не должны
+    // заезжать в сужающиеся зоны крышки/донышка — узлы сетки рисуются
+    // отдельными HTML-элементами поверх экрана, БЕЗ какого-либо клипа, и
+    // ничем не перекрываются, в отличие от самой банки в SVG.
+    let gy0 = geom.topY+40, gy1 = geom.baseY;
     if(target.customBottle){
       const bg = customBottleGeom(target.customBottle, geom.w, geom.h);
+      gy0 = geom.topY + bg.capOnH;
       const safeLf = (target.customBottle.baseTaper.find(([,wf])=>wf<0.999) || [1])[0];
       const span = geom.h - 18;
       const safeT = 1 - bg.baseOnH*(1-safeLf)/span;
