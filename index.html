@@ -12,16 +12,21 @@
 
 
 <div id="splashScreen">
-  <div class="splash-inner">
-    <h2 data-i18n-html="SPLASH_TITLE">Добро пожаловать в место,<br>где зелья стали вашим домом</h2>
-    <div class="splash-sub" data-i18n="SPLASH_SUB">лавка пришвартована у самого края вселенной</div>
-    <div class="splash-btn-row">
-      <button class="dock-btn" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
-      <!-- Патч "Ежедневный заказ": отдельный сид-режим, см. game.js -->
-      <button class="dock-btn daily-dock-btn" id="dailyDockBtn" data-i18n="DAILY_DOCK_BTN">Ежедневный особый заказ</button>
-    </div>
-    <button class="splash-lang-btn" id="splashLangBtn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
+  <!-- Видео-сплэш: играет, если в assets/bg/ лежит splash.mp4; иначе
+       показывается poster (splash.png), а под ним — градиент-фолбэк из CSS. -->
+  <video id="splashVideo" class="splash-video" autoplay muted loop playsinline
+         poster="assets/bg/splash.png">
+    <source src="assets/bg/splash.mp4" type="video/mp4">
+  </video>
+  <!-- Кнопки-вывески: сами прозрачные, «плашки» нарисованы в арте под
+       названием бара. Верхняя вывеска — Дейлик, нижняя — Пришвартоваться.
+       Позиция/наклон плашек настраиваются CSS-переменными (см. style.css). -->
+  <div class="splash-plaques">
+    <!-- Патч "Ежедневный заказ": отдельный сид-режим, см. game.js -->
+    <button class="plaque-btn plaque-daily" id="dailyDockBtn" data-i18n="DAILY_DOCK_BTN">Дейлик</button>
+    <button class="plaque-btn plaque-dock" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
   </div>
+  <button class="splash-lang-btn" id="splashLangBtn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
 </div>
 
 <!-- Патч "Ежедневный заказ": выбор сложности дня (одинаковый набор персонажей у всех) -->

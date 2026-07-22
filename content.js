@@ -27,7 +27,7 @@ const UI_TEXT = {
   SPLASH_SUB:        { ru:'лавка пришвартована у самого края вселенной', en:'the shop is docked at the very edge of the universe' },
   DOCK_BTN:          { ru:'Пришвартоваться', en:'Dock' },
   // ---------- Патч "Ежедневный особый заказ" ----------
-  DAILY_DOCK_BTN:    { ru:'Ежедневный особый заказ', en:'Daily special order' },
+  DAILY_DOCK_BTN:    { ru:'Дейлик', en:'Daily' },
   DAILY_DIFF_TITLE:  { ru:'Особый заказ дня', en:'The daily special order' },
   DAILY_DIFF_SUB:    { ru:'Сегодня у всех один и тот же набор персонажей. Выбери сложность:', en:"Today everyone gets the same lineup of characters. Choose a difficulty:" },
   DAILY_DIFF_EASY:   { ru:'Серьёзно?', en:'Seriously?' },
