@@ -842,7 +842,7 @@
 .vslider-group{width:66px;}
 .vslider-label{width:66px;max-width:66px;}
 
-body{ background: url('assets/bg/space.png') center/cover fixed; }
+body{ background: url('assets/bg/space.webp') center/cover fixed; }
  
 .window-frame{ background: url('assets/ui/clockface1.png') center/cover; }
 
@@ -870,7 +870,7 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 
 /* сплэш: арт лавки + надпись в правом верхнем секторе */
 #splashScreen{
-  background: url('assets/bg/splash.png') center/cover no-repeat;
+  background: url('assets/bg/splash.webp') center/cover no-repeat;
   align-items: flex-start;
   justify-content: flex-end;
   padding: 8vh 6vw 0 0;
