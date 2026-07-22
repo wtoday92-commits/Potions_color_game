@@ -842,8 +842,10 @@
 .vslider-group{width:66px;}
 .vslider-label{width:66px;max-width:66px;}
 
-body{ background: url('assets/bg/space.png') center/cover fixed; }
- 
+/* фон всей игры — барный стол с пустым центром (под ним лежит UI по центру).
+   Позже заменяется на видео так же, как сплэш. */
+body{ background: url('assets/bg/newselect_no_center.jpg') center/cover fixed; }
+
 .window-frame{ background: url('assets/ui/clockface1.png') center/cover; }
 
 /* крупнее иконки-стикеры в счётчике под заголовком */
@@ -919,14 +921,14 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 .plaque-btn:hover{ filter: brightness(1.18) drop-shadow(0 0 6px rgba(255,200,90,.75)); }
 /* ВЕРХНЯЯ (более широкая) плашка — Пришвартоваться, длинное слово */
 .plaque-dock{
-  left: var(--dock-x, 21.0%); top: var(--dock-y, 50%);
+  left: var(--dock-x, 20.3%); top: var(--dock-y, 49%);
   font-size: var(--dock-fs, 1.4cqw);
 }
 /* НИЖНЯЯ плашка — Дейлик (короткое слово, крупнее, но разрыв в размере
    с верхней теперь небольшой) */
 .plaque-daily{
   left: var(--daily-x, 20.8%); top: var(--daily-y, 60.1%);
-  font-size: var(--daily-fs, 2.16cqw);
+  font-size: var(--daily-fs, 2.36cqw);
 }
 
 #splashScreen .splash-lang-btn{
@@ -1841,3 +1843,35 @@ body::after{
 .album-cell.special.locked{border-color:rgba(255,217,138,.4);}
 .album-cell.special.locked .album-lock{color:rgba(255,217,138,.75);text-shadow:0 0 6px rgba(255,217,138,.4);}
 .album-cell.special.unlocked{box-shadow:0 0 8px -2px rgba(255,217,138,.5);}
+
+/* =====================================================================
+   СТАДИЯ 2: барный стол (пустой центр) как фон + читаемые подложки.
+   UI остаётся ПО ЦЕНТРУ, как и был (ничего не двигаем). Стол —
+   newselect_no_center.jpg на body. Подложки под топбар/заголовок/аватар/
+   текст — ПЛАШКИ-ЗАГЛУШКИ через CSS-переменные, чтобы потом заменить их
+   картинками, например:  .topbar{ --topbar-plate:url('assets/ui/topbar.png'); }
+   ===================================================================== */
+/* кодовое звёздное поле больше не нужно — фон теперь рисованный стол */
+body:before, body:after{ display:none !important; }
+
+/* --- подложка топбара (рейтинг / дни / кнопки) --- */
+.topbar{
+  background: var(--topbar-plate, linear-gradient(180deg, rgba(8,10,24,.82), rgba(8,10,24,.6)));
+  background-size:100% 100%; background-repeat:no-repeat; background-position:center;
+  border:1px solid rgba(53,224,255,.18); border-radius:14px;
+  padding:8px 16px; box-shadow:0 4px 18px rgba(0,0,0,.5);
+}
+/* --- подложка художественного заголовка (Sector Seven Saloon + стикеры) --- */
+.game-header{
+  background: var(--title-plate, radial-gradient(ellipse at 50% 42%, rgba(8,10,24,.8), rgba(8,10,24,0) 70%));
+  background-size:100% 100%; background-repeat:no-repeat; background-position:center;
+  padding:10px 18px 12px; border-radius:16px;
+}
+/* --- аватар-плашка (круг под иконкой) — image-swappable --- */
+.icon-glow{
+  background: var(--avatar-plate, radial-gradient(circle at 35% 30%, #171c38, #0a0d20 72%));
+}
+/* --- текст-плашка (панель под репликой) — image-swappable --- */
+.plaque-quote{
+  background: var(--text-plate, linear-gradient(180deg,#101530,#0a0d20));
+}
