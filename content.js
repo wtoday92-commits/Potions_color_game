@@ -982,7 +982,7 @@ const NPC_STAT_EXPLAIN = {
   const NPC_DECOR = {
     // тестовая крышка (Cap_1.png) — временно на Дальнобойщике Хроме, чтобы
     // сразу увидеть на первом же персонаже в списке
-    trucker_chrome: { capImg: 'assets/Potions/Cap_1.png', capImgAspect: 0.556, capImgWidthMult: 1.3 }
+    trucker_chrome: { capImg: 'assets/Potions/Cap_1.png', capImgAspect: 0.556, capImgWidthMult: 0.7 }
   };
 
   // Патч (кастомные рисованные бутыли): каждая запись — один и тот же сосуд,

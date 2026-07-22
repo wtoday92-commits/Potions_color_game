@@ -593,9 +593,15 @@
     // процедурная), наклейка — чисто декоративный слой поверх пузырей.
     let capImgEl = '', stickerEl = '';
     if(decor && decor.capImg){
-      const seamY = topY + 18;
-      const cw = w * (decor.capImgWidthMult ?? 1.15);
+      // по умолчанию крышка ~на 30% уже банки (см. референсы бутылей —
+      // крышка у них всегда заметно уже тела, не вровень с ним)
+      const cw = w * (decor.capImgWidthMult ?? 0.7);
       const ch = cw * (decor.capImgAspect ?? 1);
+      // нахлёст на тело банки — та же логика, что и у процедурных крышек:
+      // без него крышка просто "висит" над банкой с видимым зазором
+      // (особенно заметно у художественно неровного/волнистого нижнего края)
+      const overlap = decor.capImgOverlap ?? Math.min(16, ch*0.3);
+      const seamY = topY + 18 + overlap;
       capImgEl = `<image href="${decor.capImg}" x="${(cx-cw/2).toFixed(1)}" y="${(seamY-ch).toFixed(1)}" width="${cw.toFixed(1)}" height="${ch.toFixed(1)}" preserveAspectRatio="none"/>`;
     }
     if(decor && decor.stickerImg){
