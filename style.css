@@ -919,14 +919,14 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 .plaque-btn:hover{ filter: brightness(1.18) drop-shadow(0 0 6px rgba(255,200,90,.75)); }
 /* ВЕРХНЯЯ (более широкая) плашка — Пришвартоваться, длинное слово */
 .plaque-dock{
-  left: var(--dock-x, 20.6%); top: var(--dock-y, 50%);
+  left: var(--dock-x, 21.0%); top: var(--dock-y, 50%);
   font-size: var(--dock-fs, 1.4cqw);
 }
 /* НИЖНЯЯ плашка — Дейлик (короткое слово, крупнее, но разрыв в размере
    с верхней теперь небольшой) */
 .plaque-daily{
   left: var(--daily-x, 20.8%); top: var(--daily-y, 60.1%);
-  font-size: var(--daily-fs, 2.36cqw);
+  font-size: var(--daily-fs, 2.16cqw);
 }
 
 #splashScreen .splash-lang-btn{
