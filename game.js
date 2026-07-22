@@ -591,18 +591,41 @@
     // участвуют в физике пузырей — крышка сидит НАД зоной жидкости (сажается
     // нижним краем ровно на шов y=topY+18, ширина "дышит" вместе с w, как и
     // процедурная), наклейка — чисто декоративный слой поверх пузырей.
-    let capImgEl = '', stickerEl = '';
+    let capImgEl = '', stickerEl = '', capImgFilterDef = '';
     if(decor && decor.capImg){
       // по умолчанию крышка ~на 30% уже банки (см. референсы бутылей —
       // крышка у них всегда заметно уже тела, не вровень с ним)
       const cw = w * (decor.capImgWidthMult ?? 0.7);
       const ch = cw * (decor.capImgAspect ?? 1);
-      // нахлёст на тело банки — та же логика, что и у процедурных крышек:
-      // без него крышка просто "висит" над банкой с видимым зазором
-      // (особенно заметно у художественно неровного/волнистого нижнего края)
-      const overlap = decor.capImgOverlap ?? Math.min(16, ch*0.3);
+      // нахлёст на тело банки — та же логика, что и у процедурных крышек,
+      // но заметно скромнее (крышка не должна казаться утопленной в горлышко)
+      const overlap = decor.capImgOverlap ?? Math.min(8, ch*0.15);
       const seamY = topY + 18 + overlap;
-      capImgEl = `<image href="${decor.capImg}" x="${(cx-cw/2).toFixed(1)}" y="${(seamY-ch).toFixed(1)}" width="${cw.toFixed(1)}" height="${ch.toFixed(1)}" preserveAspectRatio="none"/>`;
+      // Патч (дуотон): растровая крышка рисовалась в своём "фотографичном"
+      // металлическом стиле (штриховка, градиенты) — визуально не сочетался
+      // с плоской векторной банкой (одна линия, заливка цветом). Вместо
+      // перегенерации арта — перекрашиваем его SVG-фильтром в ту же
+      // чернильно-неоновую пару цветов, что и сама банка, плюс добавляем
+      // такой же неоновый glow по силуэту — тогда оба читаются одним стилем.
+      const cFilter = `${idPrefix}capDuotone`;
+      if(!customBottle){
+        capImgFilterDef = `<filter id="${cFilter}" x="-40%" y="-40%" width="180%" height="180%">
+          <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0.208  0 0 0 0 0.878  0 0 0 0 1  0 0 0 1 0" result="glowColor"/>
+          <feGaussianBlur in="glowColor" stdDeviation="4" result="glowBlur"/>
+          <feColorMatrix in="SourceGraphic" type="matrix" values="0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0.33 0.33 0.33 0 0  0 0 0 1 0" result="gray"/>
+          <feComponentTransfer in="gray" result="duotone">
+            <feFuncR type="table" tableValues="0.039 0.208"/>
+            <feFuncG type="table" tableValues="0.051 0.878"/>
+            <feFuncB type="table" tableValues="0.094 1"/>
+          </feComponentTransfer>
+          <feMerge>
+            <feMergeNode in="glowBlur"/>
+            <feMergeNode in="duotone"/>
+          </feMerge>
+        </filter>`;
+      }
+      const filterAttr = customBottle ? '' : ` filter="url(#${cFilter})"`;
+      capImgEl = `<image href="${decor.capImg}" x="${(cx-cw/2).toFixed(1)}" y="${(seamY-ch).toFixed(1)}" width="${cw.toFixed(1)}" height="${ch.toFixed(1)}" preserveAspectRatio="none"${filterAttr}/>`;
     }
     if(decor && decor.stickerImg){
       const yTopBody = topY+18;
@@ -751,6 +774,7 @@
         <clipPath id="${cJarClip}"><path d="${bodyPath}"/></clipPath>
         ${fillDef}
         ${bodyWallGradDef}
+        ${capImgFilterDef}
         <!-- staggered halftone dot pattern, like printed manga raster -->
         <pattern id="${cInkDots}" width="7" height="7" patternUnits="userSpaceOnUse">
           <circle cx="1.8" cy="1.8" r="1.15" fill="rgba(0,0,0,.30)"/>
