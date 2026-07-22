@@ -844,7 +844,7 @@
 
 /* фон всей игры — барный стол с пустым центром (под ним лежит UI по центру).
    Позже заменяется на видео так же, как сплэш. */
-body{ background: url('assets/bg/newselect.mp4') center/cover fixed; }
+body{ background: url('assets/bg/bg.mp4') center/cover fixed; }
 
 .window-frame{ background: url('assets/ui/clockface1.png') center/cover; }
 
