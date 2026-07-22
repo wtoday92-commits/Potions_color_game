@@ -919,7 +919,7 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 .plaque-btn:hover{ filter: brightness(1.18) drop-shadow(0 0 6px rgba(255,200,90,.75)); }
 /* ВЕРХНЯЯ (более широкая) плашка — Пришвартоваться, длинное слово */
 .plaque-dock{
-  left: var(--dock-x, 20.3%); top: var(--dock-y, 49%);
+  left: var(--dock-x, 20.6%); top: var(--dock-y, 50%);
   font-size: var(--dock-fs, 1.4cqw);
 }
 /* НИЖНЯЯ плашка — Дейлик (короткое слово, крупнее, но разрыв в размере
