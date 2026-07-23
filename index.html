@@ -10,6 +10,14 @@
 </head>
 <body>
 
+<!-- Фон-видео основной игры. Играет, если в assets/bg/ лежит
+     newselect_no_center.mp4; иначе показывается poster (jpg), а под ним —
+     body-фон. НЕ вставляй видео в CSS background — CSS так mp4 не умеет
+     (будет белый экран); просто положи файл с этим именем. -->
+<video id="bgVideo" class="bg-video" autoplay muted loop playsinline
+       poster="assets/bg/newselect_no_center.jpg">
+  <source src="assets/bg/newselect_no_center.mp4" type="video/mp4">
+</video>
 
 <div id="splashScreen">
   <!-- Сцена 16:9: видео/арт и кнопки лежат в ней, поэтому кнопки-вывески

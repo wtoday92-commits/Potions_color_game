@@ -842,9 +842,14 @@
 .vslider-group{width:66px;}
 .vslider-label{width:66px;max-width:66px;}
 
-/* фон всей игры — барный стол с пустым центром (под ним лежит UI по центру).
-   Позже заменяется на видео так же, как сплэш. */
-body{ background: url('assets/bg/bg.mp4') center/cover fixed; }
+/* фон всей игры — барный стол с пустым центром (под ним лежит UI по центру). */
+body{ background: url('assets/bg/newselect_no_center.jpg') center/cover fixed; }
+/* фон-видео игры: заполняет экран, лежит ПОД всем UI (.stage z-index:1),
+   но НАД body-фоном. Если newselect_no_center.mp4 нет — виден poster/jpg. */
+.bg-video{
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; z-index: -1; pointer-events: none;
+}
 
 .window-frame{ background: url('assets/ui/clockface1.png') center/cover; }
 
@@ -942,7 +947,9 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 .splash-fs-btn, #splashFsBtn{ min-width: 44px; font-size: 16px; line-height: 1; }
 
 /* ---- кнопка "на весь экран": мягко пульсирует, пока НЕ полноэкранно ---- */
-.fs-btn{ animation: fsGlow 2.4s ease-in-out infinite;
+/* opacity:1 обязателен: fsGlow заменяет splashIn у .splash-lang-btn, а тот
+   держал кнопку на opacity:0 до фейд-ина — без этого кнопка на сплэше невидима */
+.fs-btn{ animation: fsGlow 2.4s ease-in-out infinite; opacity: 1;
   display: inline-flex; align-items: center; justify-content: center; }
 .fs-btn svg{ display: block; }
 body.fullscreen-on .fs-btn{ animation: none !important; box-shadow: none !important; }
