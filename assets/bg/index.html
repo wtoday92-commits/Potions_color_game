@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Зельеварня — лавка на краю вселенной</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Jura:wght@500;700&family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Фон-видео основной игры. Играет, если в assets/bg/ лежит
+     newselect_no_center.mp4; иначе показывается poster (jpg), а под ним —
+     body-фон. НЕ вставляй видео в CSS background — CSS так mp4 не умеет
+     (будет белый экран); просто положи файл с этим именем. -->
+<video id="bgVideo" class="bg-video" autoplay muted loop playsinline
+       poster="assets/bg/newselect_no_center.jpg">
+  <source src="assets/bg/newselect_no_center.mp4" type="video/mp4">
+</video>
+
+<div id="splashScreen">
+  <!-- Сцена 16:9: видео/арт и кнопки лежат в ней, поэтому кнопки-вывески
+       привязаны к КАДРУ арта, а не к вьюпорту — и не «уплывают» с плашек
+       на экранах не-16:9 (арт покрывает экран, сцена выходит за края). -->
+  <div class="splash-stage">
+    <!-- Видео-сплэш: играет, если в assets/bg/ лежит splash.mp4; иначе
+         показывается poster (splash.png), а под ним — градиент-фолбэк из CSS. -->
+    <video id="splashVideo" class="splash-video" autoplay muted loop playsinline
+           poster="assets/bg/splash.png">
+      <source src="assets/bg/splash.mp4" type="video/mp4">
+    </video>
+    <!-- Кнопки-вывески: сами прозрачные, «плашки» нарисованы в арте под
+         названием бара. Верхняя вывеска — Дейлик, нижняя — Пришвартоваться.
+         Позиция/размер настраиваются CSS-переменными (см. style.css). -->
+    <div class="splash-plaques">
+      <!-- Верхняя (более широкая) плашка — Пришвартоваться; нижняя — Дейлик.
+           Порядок в DOM = сверху вниз. -->
+      <button class="plaque-btn plaque-dock" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
+      <!-- Патч "Ежедневный заказ": отдельный сид-режим, см. game.js -->
+      <button class="plaque-btn plaque-daily" id="dailyDockBtn" data-i18n="DAILY_DOCK_BTN">Дейлик</button>
+    </div>
+  </div>
+  <div class="splash-corner">
+    <button class="splash-lang-btn fs-btn" id="splashFsBtn" data-i18n-title="FS_BTN_TITLE" title="На весь экран" aria-label="Fullscreen"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    <button class="splash-lang-btn" id="splashLangBtn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
+  </div>
+</div>
+
+<!-- Патч "Ежедневный заказ": выбор сложности дня (одинаковый набор персонажей у всех) -->
+<div class="week-overlay" id="dailyDifficultyOverlay">
+  <div class="week-card daily-difficulty-card">
+    <h3 data-i18n="DAILY_DIFF_TITLE">Особый заказ дня</h3>
+    <p class="daily-diff-sub" data-i18n="DAILY_DIFF_SUB">Сегодня у всех один и тот же набор персонажей. Выбери сложность:</p>
+    <button class="next-btn daily-diff-btn diff-easy" id="dailyDiffEasyBtn" data-i18n="DAILY_DIFF_EASY">Серьёзно?</button>
+    <button class="next-btn daily-diff-btn diff-mid" id="dailyDiffMidBtn" data-i18n="DAILY_DIFF_MID">Ок</button>
+    <button class="next-btn daily-diff-btn diff-hard" id="dailyDiffHardBtn" data-i18n="DAILY_DIFF_HARD">Так и было задумано</button>
+    <button class="next-btn daily-diff-cancel" id="dailyDiffCancelBtn" data-i18n="DAILY_DIFF_CANCEL">Назад</button>
+  </div>
+</div>
+
+<!-- ЭМБИЕНТ: положи трек в assets/audio/ и укажи путь в src ниже (например assets/audio/ambient.mp3) -->
+<audio id="ambientAudio" loop preload="auto">
+  <source src="assets/karin.mp3" type="audio/mpeg">
+</audio>
+
+<div class="stage">
+  <!-- UI-патч 2: топбар разложен на три зоны — слева день, по центру
+       стрик, справа рейтинг и кнопки. Редкие настройки (язык, громкость)
+       спрятаны в мини-меню ⚙, чтобы правая группа не была перегружена. -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="day-counter"><span data-i18n="DAY_LABEL">День</span> <b id="dayVal">1</b>/10</div>
+    </div>
+    <div class="topbar-center">
+      <div class="streak"><img src="assets/ui/streak.png" class="streak-img" alt=""><span id="streakVal">0</span></div>
+    </div>
+    <div class="topbar-right">
+      <div class="score"><span data-i18n="RATING_LABEL">РЕЙТИНГ:</span> <span id="scoreVal">0</span></div>
+      <button id="lbBtn" class="lb-open-btn" data-i18n-title="LB_BTN_TITLE" title="Глобальный рейтинг"><img src="assets/ui/lb-open-btn.png" class="rating-img" alt=""></button>
+      <button id="collectionBtn" class="lang-btn collection-btn" data-i18n-title="COLLECTION_BTN_TITLE" title="Коллекция">📖</button>
+      <!-- Фаза I/J: отдельное меню персонажей (репутация/ачивки/пассивки) и быстрая панель пассивок -->
+      <button id="charactersBtn" class="lang-btn characters-btn" data-i18n-title="CHARACTERS_BTN_TITLE" title="Персонажи">👥</button>
+      <button id="passivesBtn" class="lang-btn passives-btn" data-i18n-title="PASSIVES_BTN_TITLE" title="Пассивки">⚡</button>
+      <button id="fsBtn" class="lang-btn fs-btn" data-i18n-title="FS_BTN_TITLE" title="На весь экран" aria-label="Fullscreen"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <div class="settings-wrap" id="settingsWrap">
+        <button id="settingsBtn" class="lang-btn settings-btn" data-i18n-title="SETTINGS_BTN_TITLE" title="Настройки (язык, громкость)">⚙</button>
+        <div class="settings-menu" id="settingsMenu">
+          <button id="langBtn" class="lang-btn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
+          <div class="volume-control" data-i18n-title="VOLUME_TITLE" title="Громкость эмбиента">
+            <span class="volume-icon" id="volumeIcon">🔊</span>
+            <input type="range" id="volumeSlider" min="0" max="100" value="60" step="1">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- UI-патч: шапка собрана в один блок, чтобы заголовок/подзаголовок/стикеры
+       не висели в воздухе отдельными строками -->
+  <div class="game-header">
+    <h1 class="title">Sector Seven Saloon</h1>
+    <p class="subtitle" data-i18n="SUBTITLE">лавка смесей // сектор Ω // край вселенной</p>
+    <div class="sticker-tally" id="stickerTally"></div>
+  </div>
+
+  <div class="select-screen" id="selectScreen">
+    <div class="select-title" data-i18n="SELECT_TITLE">Кто пришвартовался к лавке?</div>
+    <!-- Патч "Ежедневный заказ": топ-3 прошлого дня, видно весь текущий день -->
+    <div class="daily-yesterday-top hidden" id="dailyYesterdayTop"></div>
+    <!-- Патч: баннеры активных эффектов — дар/тень Ир, печати Хранителя -->
+    <div class="select-banners" id="selectBanners"></div>
+    <div class="customer-cards" id="customerCards"></div>
+  </div>
+
+  <div class="round-screen" id="roundScreen">
+    <div class="order-bubble" id="orderBubble">
+      <div class="order-label">
+        <span><span data-i18n="ORDER_LABEL">Заявка №</span><span id="orderNum">1</span></span>
+        <span class="order-tags">
+          <span class="order-focus-tag" id="orderFocusTag"></span>
+          <!-- Патч: фишки активных эффектов заказа (эффект Ир / печать Хранителя) -->
+          <span class="order-fx-tag" id="orderFxTag"></span>
+          <span class="order-level-tag" id="orderLevelTag"></span>
+        </span>
+      </div>
+      <div class="order-text"><span class="av" id="orderAvatar">🛰</span><span id="orderText">...</span></div>
+    </div>
+
+    <div class="phase-label" id="phaseLabel" data-i18n="PHASE_SCAN">сканируй образец...</div>
+
+    <!-- Патч (Тот-Кто-Ждёт): без таймера показа — игрок сам решает, когда воссоздавать -->
+    <div class="panel" id="waiterReadyWrap">
+      <button class="brew-btn" id="waiterReadyBtn" data-i18n="WAITER_READY_BTN">Готово, воссоздаю</button>
+    </div>
+
+    <div class="control-row">
+      <div class="side-col left-col" id="leftCol">
+        <div class="vslider-group" id="colorGroupA">
+          <div class="vslider-label" id="colorLabelA" data-i18n="LABEL_SPECTRUM">Спектр</div>
+          <div id="mColor"></div>
+          <div class="vslider-value" id="lblColor"></div>
+        </div>
+        <div class="vslider-group hidden" id="colorGroupB">
+          <div class="vslider-label" data-i18n="LABEL_SPECTRUM_B">Спектр Б</div>
+          <div id="mColorB"></div>
+          <div class="vslider-value" id="lblColorB"></div>
+        </div>
+        <div class="vslider-group hidden" id="satGroup">
+          <div class="vslider-label" data-i18n="LABEL_SATURATION">Накал</div>
+          <div id="mSat"></div>
+          <div class="vslider-value" id="lblSat"></div>
+        </div>
+      </div>
+
+      <div class="window-wrap">
+        <div class="window-frame" id="windowFrame">
+          <svg class="ring-svg" id="ringSvg" viewBox="0 0 460 460"></svg>
+          <svg id="jarSvg" viewBox="0 0 200 260"></svg>
+          <div class="fog" id="fog"><div><div class="qmark">?</div></div></div>
+        </div>
+      </div>
+
+      <div class="side-col right-col" id="rightCol">
+        <div class="vslider-group">
+          <!-- Патч (Сверхновая): у неё эта подпись меняется на "Ширина" -->
+          <div class="vslider-label" id="sizeLabel" data-i18n="LABEL_VOLUME">Объём</div>
+          <div id="mSize"></div>
+          <div class="vslider-value" id="lblSize"></div>
+        </div>
+        <!-- Патч (Сверхновая): второй габарит — высота банки -->
+        <div class="vslider-group hidden" id="size2Group">
+          <div class="vslider-label" data-i18n="LABEL_HEIGHT">Высота</div>
+          <div id="mSize2"></div>
+          <div class="vslider-value" id="lblSize2"></div>
+        </div>
+        <!-- Патч "УР.4" (Сверхновая): эксклюзивный поворот банки -->
+        <div class="vslider-group hidden" id="rotationGroup">
+          <div class="vslider-label" data-i18n="LABEL_ROTATION">Поворот</div>
+          <div id="mRotation"></div>
+          <div class="vslider-value" id="lblRotation"></div>
+        </div>
+        <!-- Патч "УР.4" (Бармен): эксклюзивная скорость тряски -->
+        <div class="vslider-group hidden" id="speedGroup">
+          <div class="vslider-label" data-i18n="LABEL_SPEED">Скорость</div>
+          <div id="mSpeed"></div>
+          <div class="vslider-value" id="lblSpeed"></div>
+        </div>
+        <div class="vslider-group">
+          <div class="vslider-label" id="countLabel" data-i18n="LABEL_COUNT">Сгустки</div>
+          <div id="mCount"></div>
+          <div class="vslider-value" id="lblCount"></div>
+        </div>
+        <!-- Патч "УР.4" (Двуликая жрица): банка разделена на 2 половины —
+             у каждой свой независимый счётчик сгустков (макс. 7) -->
+        <div class="vslider-group hidden" id="countBGroup">
+          <div class="vslider-label" data-i18n="LABEL_COUNT_B">Сгустки Б</div>
+          <div id="mCountB"></div>
+          <div class="vslider-value" id="lblCountB"></div>
+        </div>
+        <div class="vslider-group">
+          <div class="vslider-label" data-i18n="LABEL_BSIZE">Разм. сгуст.</div>
+          <div id="mBsize"></div>
+          <div class="vslider-value" id="lblBsize"></div>
+        </div>
+        <div class="vslider-group hidden" id="shapeGroup">
+          <div class="vslider-label" data-i18n="LABEL_SHAPE">Форма</div>
+          <div id="mShape"></div>
+          <div class="vslider-value" id="lblShape"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="ingredient-counter" id="ingCounter"></div>
+      <button class="brew-btn" id="brewBtn" data-i18n="BREW_BTN">Готово!</button>
+    </div>
+
+    <!-- Патч "УР.4" (Коллекционер): 16 баночек вместо регуляторов и циферблата -->
+    <div class="collector-grid-wrap hidden" id="collectorGridWrap">
+      <div class="collector-grid" id="collectorGrid"></div>
+      <div class="collector-timer-track"><div class="collector-timer-fill" id="collectorTimerFill"></div></div>
+    </div>
+  </div>
+
+  <!-- Патч (флоу ежедневного заказа): выход из текущего режима (аркада
+       или ежедневный) обратно на стартовый экран — снизу, всегда доступна -->
+  <button class="back-to-start-btn" id="backToStartBtn" data-i18n="BACK_TO_START_BTN">← На стартовый экран</button>
+</div>
+
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-card">
+    <div class="sticker" id="stickerEmoji">🐱</div>
+    <div class="result-title" id="resultTitle">Идеальная смесь!</div>
+    <div class="delta" id="deltaVal">+0</div>
+    <div class="speed-note" id="speedNote"></div>
+    <div class="overall-score" id="overallScore">0%</div>
+    <div class="score-breakdown" id="breakdown"></div>
+    <!-- Патч: реплика НПС (Ир / Хранитель Архива) -->
+    <div class="npc-note" id="npcNote" style="display:none"></div>
+    <!-- Патч (Ир): переигровка — дар "Второй рассвет" или испытание "Дважды безупречно" -->
+    <button class="next-btn replay-btn" id="replayBtn" style="display:none"></button>
+    <button class="next-btn" id="nextBtn" data-i18n="NEXT_BTN">К шлюзу →</button>
+  </div>
+</div>
+
+<!-- Патч (Последний из Ир): меню доверия при выборе УР.1/2 -->
+<div class="week-overlay ir-trust-overlay" id="irTrustOverlay">
+  <div class="week-card ir-trust-card">
+    <div class="ir-trust-portrait" id="irTrustPortrait"></div>
+    <div class="week-title" data-i18n="IR_TRUST_TITLE">Последний из Ир смотрит на тебя</div>
+    <div class="ir-trust-phrase" id="irTrustPhrase"></div>
+    <div class="ir-trust-btns">
+      <button class="next-btn ir-keep-btn" id="irTrustKeepBtn">Всё же играть</button>
+      <button class="next-btn ir-accept-btn" id="irTrustAcceptBtn">Довериться — УР.3</button>
+    </div>
+  </div>
+</div>
+
+<!-- Патч "УР.4" (Инспектор Гильдии): полноэкранный канцелярский текст "Допусков" -->
+<div class="week-overlay inspector-tol-overlay" id="inspectorTolOverlay">
+  <div class="week-card inspector-tol-card">
+    <h3 data-i18n="INSPECTOR_TOL_BTN">Допуски</h3>
+    <div class="inspector-tol-text" id="inspectorTolText"></div>
+    <button class="next-btn" id="inspectorTolCloseBtn" data-i18n="INSPECTOR_TOL_CLOSE">Ознакомлен</button>
+  </div>
+</div>
+
+<!-- Патч "УР.4" (Стажёр Бип): окно "вспомни % трёх предыдущих визитов" -->
+<div class="week-overlay beep-guess-overlay" id="beepGuessOverlay">
+  <div class="week-card beep-guess-card">
+    <h3 data-i18n="BEEP_GUESS_TITLE">Кто заходил до тебя?</h3>
+    <div class="beep-guess-rows" id="beepGuessRows"></div>
+    <button class="next-btn" id="beepGuessCloseBtn" data-i18n="BEEP_GUESS_CLOSE">Готово</button>
+  </div>
+</div>
+
+<div class="week-overlay" id="weekOverlay">
+  <div class="week-card">
+    <h3 data-i18n="WEEK_TITLE">Цикл завершён!</h3>
+    <div class="final-score" id="finalScoreVal">0</div>
+    <input type="text" id="nameInput" data-i18n-placeholder="NAME_PLACEHOLDER" placeholder="Впиши свой позывной...">
+    <button class="next-btn" id="saveScoreBtn" data-i18n="SAVE_SCORE_BTN" style="border-color:var(--good);color:var(--good);">Сохранить результат</button>
+    <div class="leaderboard-list" id="leaderboardList"></div>
+    <button class="next-btn" id="newWeekBtn" data-i18n="NEW_WEEK_BTN">Начать новый цикл →</button>
+  </div>
+</div>
+
+<div class="week-overlay" id="lbOverlay">
+  <div class="week-card">
+    <h3 data-i18n="LB_TITLE">🏆 Глобальный рейтинг</h3>
+    <!-- Стадия 4: в дейлик-режиме сюда едет топ-3 вчерашнего дня (подписан,
+         выделен цветом), а обычный дневной рейтинг — ниже -->
+    <div class="daily-yesterday-top hidden" id="lbYesterday"></div>
+    <div class="leaderboard-list" id="lbOverlayList"></div>
+    <button class="next-btn" id="lbCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
+  </div>
+</div>
+
+<!-- Фаза G: коллекция игрока.
+     UI-патч 2: длинная простыня из секций разложена на вкладки
+     (Статистика / Лента / Стикеры / Ачивки) — переключение в game.js. -->
+<div class="week-overlay" id="collectionOverlay">
+  <div class="week-card collection-card">
+    <h3 data-i18n="COLLECTION_TITLE">🗂 Коллекция</h3>
+
+    <div class="collection-tabs" id="collectionTabs">
+      <button class="ctab active" data-tab="stats" data-i18n="TAB_STATS">Статистика</button>
+      <button class="ctab" data-tab="ribbon" data-i18n="TAB_RIBBON">Лента</button>
+      <button class="ctab" data-tab="stickers" data-i18n="TAB_STICKERS">Стикеры</button>
+      <button class="ctab" data-tab="ach" data-i18n="TAB_ACH">Ачивки</button>
+    </div>
+
+    <div class="ctab-page show" data-page="stats">
+      <div class="collection-stats" id="collectionStats"></div>
+    </div>
+
+    <div class="ctab-page" data-page="ribbon">
+      <div class="collection-section">
+        <div class="collection-section-title" data-i18n="RIBBON_SECTION_TITLE">Лента идеальных</div>
+        <div class="ribbon-showcase">
+          <span class="ribbon-sparkle s1">✦</span><span class="ribbon-sparkle s2">✧</span>
+          <span class="ribbon-sparkle s3">✦</span><span class="ribbon-sparkle s4">✧</span>
+          <div class="perfect-ribbon" id="perfectRibbon"></div>
+          <div class="ribbon-caption" id="perfectRibbonCaption"></div>
+          <div class="platinum-block" id="platinumBlock">
+            <div class="ribbon-subtitle" data-i18n="PLATINUM_RIBBON_TITLE">Платиновая лента</div>
+            <div class="platinum-ribbon" id="platinumRibbon"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ctab-page" data-page="stickers">
+      <div class="collection-section">
+        <div class="collection-section-title" data-i18n="STICKERS_SECTION_TITLE">Альбом стикеров</div>
+        <div class="sticker-album" id="stickerAlbum"></div>
+      </div>
+    </div>
+
+    <div class="ctab-page" data-page="ach">
+      <div class="collection-section">
+        <div class="collection-section-title ach-section-title-row">
+          <span data-i18n="ACH_SECTION_TITLE">Ачивки</span>
+          <span class="ach-progress" id="achProgressLabel"></span>
+        </div>
+        <div class="ach-grid" id="achievementsGrid"></div>
+      </div>
+    </div>
+
+    <button class="next-btn" id="collectionCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
+  </div>
+</div>
+
+<!-- Фаза I/J: меню "Персонажи" — репутация, досье, пассивки, ачивки каждого НПС.
+     Список НПС ↔ вкладка персонажа рендерятся в game.js:renderCharacters() -->
+<div class="week-overlay" id="charactersOverlay">
+  <div class="week-card characters-card">
+    <h3 data-i18n="CHARACTERS_TITLE">Персонажи</h3>
+    <div id="charactersContent"></div>
+    <button class="next-btn" id="charactersCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
+  </div>
+</div>
+
+<!-- Фаза J: быстрая панель активации пассивок (до 3 на цикл) -->
+<div class="week-overlay" id="passivesOverlay">
+  <div class="week-card passives-card">
+    <h3 data-i18n="PASSIVES_TITLE">Пассивки</h3>
+    <div id="passivesContent"></div>
+    <button class="next-btn" id="passivesCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
+  </div>
+</div>
+<!-- порядок важен: сначала профиль (Фаза F), потом контент, потом логика -->
+<script src="profile.js"></script>
+<script src="content.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
