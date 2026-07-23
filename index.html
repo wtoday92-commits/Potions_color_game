@@ -34,11 +34,18 @@
          названием бара. Верхняя вывеска — Дейлик, нижняя — Пришвартоваться.
          Позиция/размер настраиваются CSS-переменными (см. style.css). -->
     <div class="splash-plaques">
-      <!-- Верхняя (более широкая) плашка — Пришвартоваться; нижняя — Дейлик.
-           Порядок в DOM = сверху вниз. -->
-      <button class="plaque-btn plaque-dock" id="dockBtn" data-i18n="DOCK_BTN">Пришвартоваться</button>
+      <!-- Кнопки-картинки: полноэкранные слои 16:9, текст нарисован РОВНО на
+           плашке (лежат в той же сцене, что и видео → садятся на место).
+           Видны по языку, кросс-фейд при переключении (game.js). Появляются
+           плавно через ~1с (чтобы не опережать загрузку видео). -->
+      <img class="plaque-img lang-ru" src="assets/ui/1ru_dock.png" alt="">
+      <img class="plaque-img lang-en" src="assets/ui/1en_dock.png" alt="">
+      <img class="plaque-img lang-ru" src="assets/ui/2ru_daily.png" alt="">
+      <img class="plaque-img lang-en" src="assets/ui/2en_daily.png" alt="">
+      <!-- прозрачные кликабельные зоны поверх плашек -->
+      <button class="plaque-hotspot plaque-dock" id="dockBtn" aria-label="Dock"></button>
       <!-- Патч "Ежедневный заказ": отдельный сид-режим, см. game.js -->
-      <button class="plaque-btn plaque-daily" id="dailyDockBtn" data-i18n="DAILY_DOCK_BTN">Дейлик</button>
+      <button class="plaque-hotspot plaque-daily" id="dailyDockBtn" aria-label="Daily"></button>
     </div>
   </div>
   <div class="splash-corner">

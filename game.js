@@ -5408,13 +5408,27 @@
     if($('charactersOverlay') && $('charactersOverlay').classList.contains('show')) renderCharacters();
     if($('passivesOverlay') && $('passivesOverlay').classList.contains('show')) renderPassivesPanel();
   }
+  // ---------- кнопки-картинки сплэша (Пришвартоваться / Дейлик) ----------
+  // показываем картинку под текущий язык; кросс-фейд — последовательный:
+  // старая уходит в прозрачность, затем проявляется новая.
+  function revealSplashButtons(){
+    document.querySelectorAll('.plaque-img.lang-' + LANG).forEach(im => im.classList.add('show'));
+  }
+  function swapSplashButtons(){
+    document.querySelectorAll('.plaque-img').forEach(im => im.classList.remove('show'));
+    setTimeout(revealSplashButtons, 500); // после фейд-аута предыдущей (см. .plaque-img transition)
+  }
+
   function toggleLanguage(){
     SFX.uiClick();
     LANG = LANG === 'ru' ? 'en' : 'ru';
     localStorage.setItem(LANG_KEY, LANG);
     applyI18n();
     refreshVisibleScreen();
+    swapSplashButtons();          // сменить картинку кнопок под новый язык
   }
+  // первое появление — плавно, ~через 1с от старта (чтобы не опередить видео)
+  setTimeout(revealSplashButtons, 1000);
   const langBtn = $('langBtn');
   if(langBtn) langBtn.addEventListener('click', toggleLanguage);
   // Патч "Ежедневный заказ": та же кнопка языка, но прямо на сплэше
