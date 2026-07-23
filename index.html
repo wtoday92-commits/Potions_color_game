@@ -105,9 +105,14 @@
   <!-- UI-патч: шапка собрана в один блок, чтобы заголовок/подзаголовок/стикеры
        не висели в воздухе отдельными строками -->
   <div class="game-header">
-    <h1 class="title">Sector Seven Saloon</h1>
-    <p class="subtitle" data-i18n="SUBTITLE">лавка смесей // сектор Ω // край вселенной</p>
-    <div class="sticker-tally" id="stickerTally"></div>
+    <!-- плашка-картинка: показывается в СВОИХ пропорциях (width:100%, height:auto),
+         не тянется. Размер задаётся шириной .game-header (--plate-w). -->
+    <img class="title-plate-img" src="assets/ui/title_plate.png" alt="">
+    <div class="game-header-inner">
+      <h1 class="title">Sector Seven Saloon</h1>
+      <p class="subtitle" data-i18n="SUBTITLE">лавка смесей // сектор Ω // край вселенной</p>
+      <div class="sticker-tally" id="stickerTally"></div>
+    </div>
   </div>
 
   <div class="select-screen" id="selectScreen">

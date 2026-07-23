@@ -1883,16 +1883,27 @@ body:before, body:after{ display:none !important; }
   border:1px solid rgba(53,224,255,.18); border-radius:14px;
   padding:8px 16px; box-shadow:0 4px 18px rgba(0,0,0,.5);
 }
-/* --- подложка художественного заголовка (Sector Seven Saloon + стикеры) --- */
+/* --- художественный заголовок: плашка-КАРТИНКА (img) + текст поверх ---
+   Плашка показывается в своих пропорциях (img width:100%/height:auto), НЕ
+   тянется и НЕ подгоняется под ширину других панелей. Ширина всей плашки —
+   --plate-w (крути её, чтобы плашка была крупнее/мельче). */
 .game-header{
- --title-plate: url('assets/ui/title_plate.png');   /* ← картинка-плашка */
-  background: var(--title-plate, radial-gradient(ellipse at 50% 42%, rgba(8,10,24,.8), rgba(8,10,24,0) 70%));
-  /* cover — плашка заполняет блок без искажений (100% 100% сплющивал её в 5 раз).
-     Хочешь ВСЮ плашку целиком — регенери её широкой полосой (напр. 1920x420)
-     под пропорции заголовка, либо поставь contain и задай блоку min-height. */
-  background-size:cover; background-repeat:no-repeat; background-position:center;
-  padding:10px 18px 12px; border-radius:16px;
+  position: relative;
+  width: min(var(--plate-w, 560px), 92vw);
+  margin: 0 auto; padding: 0; background: none; border-radius: 0;
+  container-type: inline-size;   /* чтобы текст масштабировался от ширины плашки */
 }
+.title-plate-img{ display: block; width: 100%; height: auto; pointer-events: none; }
+/* текст/подзаголовок/стикеры — по центру плашки, в её «деревянной» зоне */
+.game-header-inner{
+  position: absolute; inset: 0;
+  padding: 8% 7%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1.5%; text-align: center;
+}
+.game-header-inner .title{ font-size: var(--title-fs, 4.6cqw); margin: 0; line-height: 1.05; white-space: nowrap; }
+.game-header-inner .subtitle{ font-size: var(--subtitle-fs, 2cqw); margin: 0; }
+.game-header-inner .sticker-tally{ margin-top: 1%; }
 /* --- аватар-плашка (круг под иконкой) — image-swappable --- */
 .icon-glow{
   background: var(--avatar-plate, radial-gradient(circle at 35% 30%, #171c38, #0a0d20 72%));
