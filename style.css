@@ -1911,3 +1911,57 @@ body:before, body:after{ display:none !important; }
 .plaque-quote{
   background: var(--text-plate, linear-gradient(180deg,#101530,#0a0d20));
 }
+
+/* ============================================================
+   🔧 ПРОСТОЙ HOTFIX для style.css — вставить В САМЫЙ КОНЕЦ
+   ============================================================ */
+
+/* 1. Топбар всегда кликабелен */
+.topbar{
+  position: relative;
+  z-index: 100;
+}
+
+/* 2. Шапка — не схлопывается */
+.game-header{
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+/* 3. Убираем absolute-выпадание текста */
+.game-header-inner{
+  position: static;
+  padding: 0;
+}
+
+/* 4. Картинка-плашка — отдельно, не мешает */
+.title-plate-img{
+  display: none; /* скрываем сломанную плашку, пока не почините путь */
+}
+
+/* 5. Текст заголовка — компактный и читаемый */
+.game-header-inner .title{
+  font-size: clamp(20px, 5vw, 32px);
+  margin: 0;
+}
+
+.game-header-inner .subtitle{
+  font-size: 11px;
+  margin: 4px 0 0;
+}
+
+/* 6. Стикеры под заголовком — компактнее */
+.game-header-inner .sticker-tally{
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+/* 7. Старые псевдоэлементы фона — точечно отключаем */
+body::before,
+body::after{
+  display: none !important;
+}
