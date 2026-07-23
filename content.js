@@ -1131,7 +1131,7 @@ const NPC_STAT_EXPLAIN = {
   // (по подсказке на каждый порог); открываются из game.js вызовом
   // unlockManualAchievement(id, номерПорога) в нужный момент.
   const GENERAL_ACHIEVEMENTS = [
-    { id:'total_score', icon:'💎', img:'assets/ach/1.png',
+    { id:'total_score', img:'assets/ach/1.png',
       name:{ ru:'Казна лавки', en:'Shop treasury' },
       desc:{ ru:'Суммарный рейтинг, заработанный за всю историю лавки.', en:'Total rating earned across the shop\'s entire history.' },
       value:p => (p.stats.totalScoreEarned||0),
