@@ -1887,7 +1887,10 @@ body:before, body:after{ display:none !important; }
 .game-header{
  --title-plate: url('assets/ui/title_plate.png');   /* ← картинка-плашка */
   background: var(--title-plate, radial-gradient(ellipse at 50% 42%, rgba(8,10,24,.8), rgba(8,10,24,0) 70%));
-  background-size:100% 100%; background-repeat:no-repeat; background-position:center;
+  /* cover — плашка заполняет блок без искажений (100% 100% сплющивал её в 5 раз).
+     Хочешь ВСЮ плашку целиком — регенери её широкой полосой (напр. 1920x420)
+     под пропорции заголовка, либо поставь contain и задай блоку min-height. */
+  background-size:cover; background-repeat:no-repeat; background-position:center;
   padding:10px 18px 12px; border-radius:16px;
 }
 /* --- аватар-плашка (круг под иконкой) — image-swappable --- */
