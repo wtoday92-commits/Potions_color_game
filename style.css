@@ -843,7 +843,7 @@
 .vslider-label{width:66px;max-width:66px;}
 
 /* фон всей игры — барный стол с пустым центром (под ним лежит UI по центру). */
-body{ background: url('assets/bg/newselect_no_center.jpg') center/cover fixed; }
+body{ background: url('assets/bg/bg.mp4') center/cover fixed; }
 /* фон-видео игры: заполняет экран, лежит ПОД всем UI (.stage z-index:1),
    но НАД body-фоном. Если newselect_no_center.mp4 нет — виден poster/jpg. */
 .bg-video{
