@@ -1131,63 +1131,63 @@ const NPC_STAT_EXPLAIN = {
   // (по подсказке на каждый порог); открываются из game.js вызовом
   // unlockManualAchievement(id, номерПорога) в нужный момент.
   const GENERAL_ACHIEVEMENTS = [
-    { id:'total_score', icon:'💎', img:null,
+    { id:'total_score', icon:'💎', img:'assets/ach/1.png',
       name:{ ru:'Казна лавки', en:'Shop treasury' },
       desc:{ ru:'Суммарный рейтинг, заработанный за всю историю лавки.', en:'Total rating earned across the shop\'s entire history.' },
       value:p => (p.stats.totalScoreEarned||0),
       t:[1000, 5000, 20000, 50000, 100000, 200000, 350000, 600000, 1000000] },
 
-    { id:'cycle_score', icon:'📈', img:null,
+    { id:'cycle_score', icon:'📈', img:'assets/ach/2.png',
       name:{ ru:'Рекордный цикл', en:'Record cycle' },
       desc:{ ru:'Лучший рейтинг, набранный за один цикл.', en:'Best rating earned in a single cycle.' },
       value:p => (p.stats.bestCycleScore||0),
       t:[800, 1500, 2500, 4000, 6000, 8500, 12000] },
 
-    { id:'progress', icon:'🧪', img:null,
+    { id:'progress', icon:'🧪', img:'assets/ach/3.png',
       name:{ ru:'Мастер смесей', en:'Mixture mastery' },
       desc:{ ru:'Взвешенный прогресс: годные и идеальные смеси, помноженные на сложность.', en:'Weighted progress: decent and perfect mixtures multiplied by difficulty.' },
       value:p => (p.stats.weightedProgress||0),
       t:[50, 150, 300, 600, 1000, 2500, 5000, 10000] },
 
-    { id:'perfect_streak', icon:'✨', img:null,
+    { id:'perfect_streak', icon:'✨', img:'assets/ach/4.png',
       name:{ ru:'Безупречность', en:'Flawlessness' },
       desc:{ ru:'Лучшая серия идеальных зелий подряд.', en:'Best streak of perfect mixtures in a row.' },
       value:p => (p.streaks.perfectBest||0),
       t:[3, 5, 10, 15, 20, 30, 50] },
 
-    { id:'goodplus_streak', icon:'⚙️', img:null,
+    { id:'goodplus_streak', icon:'⚙️', img:'assets/ach/5.png',
       name:{ ru:'Конвейер', en:'Assembly line' },
       desc:{ ru:'Лучшая серия смесей подряд без единого брака.', en:'Best streak of mixtures without a single reject.' },
       value:p => (p.streaks.goodPlusBest||0),
       t:[10, 25, 50, 100, 200, 400] },
 
-    { id:'bad_streak', icon:'💩', img:null,
+    { id:'bad_streak', icon:'💩', img:'assets/ach/6.png',
       name:{ ru:'Чёрная полоса', en:'Rough patch' },
       desc:{ ru:'Серия браков подряд. Бывает. Носи с гордостью.', en:'Rejects in a row. It happens. Wear it proudly.' },
       value:p => (p.streaks.badBest||0),
       t:[3, 5, 10] },
 
-    { id:'cycles', icon:'🔁', img:null,
+    { id:'cycles', icon:'🔁', img:'assets/ach/7.png',
       name:{ ru:'Ветеран лавки', en:'Shop veteran' },
       desc:{ ru:'Завершено полных циклов.', en:'Full cycles completed.' },
       value:p => (p.stats.cyclesCompleted||0),
       t:[5, 20, 50, 100, 250] },
 
-    { id:'orders', icon:'📦', img:null,
+    { id:'orders', icon:'📦', img:'assets/ach/8.png',
       name:{ ru:'Поток заказов', en:'Order flow' },
       desc:{ ru:'Всего выполнено заказов.', en:'Total orders completed.' },
       value:p => (p.stats.totalOrders||0),
       t:[50, 200, 500, 1500, 4000, 10000] },
 
     // ---- ручные (открываются game.js в конкретный момент) ----
-    { id:'speedrun', icon:'⚡', img:null, manual:true,
+    { id:'speedrun', icon:'⚡', img:'assets/ach/9.png', manual:true,
       name:{ ru:'Молния на пределе', en:'Lightning at the limit' },
       desc:{ ru:'Идеальное зелье тира 5 на максимальной сложности регуляторов, уложившись в первую треть таймера.', en:'A perfect tier-5 mixture at max regulator difficulty, finished within the first third of the timer.' },
       tiers:[
         { hint:{ ru:'Идеал тира 5 на макс. сложности в первую треть таймера', en:'Perfect tier-5 at max difficulty within the first third of the timer' } }
       ] },
 
-    { id:'leaderboard', icon:'🏆', img:null, manual:true,
+    { id:'leaderboard', icon:'🏆', img:'assets/ach/11.png', manual:true,
       name:{ ru:'Слава галактики', en:'Galactic fame' },
       desc:{ ru:'Твоё место в глобальном рейтинге.', en:'Your place on the global leaderboard.' },
       tiers:[
