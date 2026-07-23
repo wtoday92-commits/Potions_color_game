@@ -1888,10 +1888,9 @@ body:before, body:after{ display:none !important; }
    тянется и НЕ подгоняется под ширину других панелей. Ширина всей плашки —
    --plate-w (крути её, чтобы плашка была крупнее/мельче). */
 .game-header{
-  position: relative;
-  width: min(var(--plate-w, 560px), 92vw);
-  margin: 0 auto; padding: 0; background: none; border-radius: 0;
-  container-type: inline-size;   /* чтобы текст масштабировался от ширины плашки */
+   background: var(--title-plate, radial-gradient(ellipse at 50% 42%, rgba(8,10,24,.8), rgba(8,10,24,0) 70%));
+  background-size:100% 100%; background-repeat:no-repeat; background-position:center;
+  padding:10px 18px 12px; border-radius:16px;
 }
 .title-plate-img{ display: block; width: 100%; height: auto; pointer-events: none; }
 /* текст/подзаголовок/стикеры — по центру плашки, в её «деревянной» зоне */
