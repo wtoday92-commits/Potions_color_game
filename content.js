@@ -84,6 +84,37 @@ const UI_TEXT = {
   LB_EMPTY:          { ru:'Пока пусто — будь первым!', en:"It's empty — be the first!" },
   ANONYMOUS:         { ru:'Аноним', en:'Anonymous' },
 
+  // ---------- Фаза 3: прогрессия ----------
+  PROG_NPC_UNLOCK_TOAST:  { ru:'Новый посетитель на горизонте', en:'A new visitor on the horizon' },
+  PROG_LEVEL_UP_TOAST:    { ru:'Лавка выросла — уровень', en:'The shop grew — level' },
+  PROG_MECH_UNLOCK_TOAST: { ru:'Открыто', en:'Unlocked' },
+  PROG_BAR_LEVEL:         { ru:'Лавка ур.', en:'Shop lv.' },
+  PROG_BAR_MAX:           { ru:'Лавка развита полностью', en:'Shop fully grown' },
+  PROG_MARK_LOCKED_NPC:   { ru:'Скоро: новый посетитель', en:'Soon: a new visitor' },
+  PROG_MARK_UNLOCKED_NPC: { ru:'Открыт посетитель', en:'Visitor unlocked' },
+  PROG_FINAL_HINT_PREFIX: { ru:'Завершив шкалу, откроешь:', en:'Complete the bar to unlock:' },
+  PROG_GRANT_CYCLE_DAYS:  { ru:'цикл до {n} дней', en:'cycle up to {n} days' },
+  PROG_GRANT_POOL_SIZE:   { ru:'{n} заказа в дне', en:'{n} orders per day' },
+  // Человекочитаемые названия открываемых механик (для подсказки на финале шкалы)
+  PROG_MECH_LABELS: {
+    collection:    { ru:'Коллекция', en:'Collection' },
+    characters:    { ru:'Вкладка персонажей', en:'Characters tab' },
+    skill_1:       { ru:'Умение игрока', en:'Player skill' },
+    skill_2:       { ru:'2-е умение', en:'2nd skill' },
+    skill_3:       { ru:'3-е умение', en:'3rd skill' },
+    skill_4:       { ru:'4-е умение', en:'4th skill' },
+    modifiers:     { ru:'Модификаторы заказов', en:'Order modifiers' },
+    modifiers_new3:{ ru:'Новые модификаторы', en:'New modifiers' },
+    modifiers_multi:{ ru:'Несколько модификаторов', en:'Multiple modifiers' },
+    tips:          { ru:'Чаевые', en:'Tips' },
+    shop:          { ru:'Магазин', en:'Shop' },
+    shop_grade_1:  { ru:'Предметы (1-й грейд)', en:'Items (grade 1)' },
+    shop_grade_2:  { ru:'Предметы (2-й грейд)', en:'Items (grade 2)' },
+    shop_grade_3:  { ru:'Предметы (3-й грейд)', en:'Items (grade 3)' },
+    unique_items:  { ru:'Уникальные предметы', en:'Unique items' },
+    relations:     { ru:'Взаимоотношения НПС', en:'NPC relations' }
+  },
+
   // ---------- Фаза G: коллекция (статистика/альбом/лента/репутация) ----------
   COLLECTION_BTN_TITLE:   { ru:'Коллекция', en:'Collection' },
   COLLECTION_TITLE:       { ru:'🗂 Коллекция', en:'🗂 Collection' },
@@ -120,6 +151,7 @@ const UI_TEXT = {
   CHARACTERS_BTN_TITLE: { ru:'Персонажи', en:'Characters' },
   CHARACTERS_TITLE:     { ru:'Персонажи', en:'Characters' },
   CHAR_OPEN_HINT:       { ru:'нажми на персонажа, чтобы открыть его страницу', en:'tap a character to open their page' },
+  CHAR_EMPTY_HINT:      { ru:'ты ещё никого не встретил. Персонажи появятся здесь после первого визита в лавку.', en:'you haven’t met anyone yet. Characters appear here after their first visit to the shop.' },
   CHAR_BACK_HINT:       { ru:'нажми на портрет, чтобы вернуться к списку', en:'tap the portrait to go back to the list' },
   CHAR_LORE_TITLE:      { ru:'Досье', en:'Dossier' },
   CHAR_ACH_TITLE:       { ru:'Ачивки', en:'Achievements' },
@@ -1114,6 +1146,84 @@ const NPC_STAT_EXPLAIN = {
 
   const STAGE_TABLE = [ [1,1,1],[2,2,3],[3,4,4],[4,4,4] ];
   const MAX_STAGE = STAGE_TABLE.length - 1;
+
+  // ============================================================
+  // Фаза 3: СИСТЕМА ПРОГРЕССИИ (костяк нового игрового цикла)
+  // ------------------------------------------------------------
+  // XP прогрессии = накопленная сумма рейтингов ЗАВЕРШЁННЫХ циклов (аркада).
+  // Каждый элемент levels[] — одна ШКАЛА (бар). Завершив бар i (xp достигло
+  // суммы xp баров 0..i), игрок получает УРОВЕНЬ i+1 и его grants:
+  //   cycleDays  — цикл дорастает до N дней (монотонно; не задан → как было);
+  //   poolSize   — сколько персонажей в пуле дня (монотонно);
+  //   mechanics  — какие механики открываются (строки-флаги, читает game.js).
+  // npcMarks открываются ПО ХОДУ заполнения этого бара: at = доля 0..1 бара.
+  // Тиры: t1 зелёные, t2 жёлтые, t3 оранжевые, t4 красные, t5 фиолетовые.
+  // Числа xp — стартовая прикидка, легко тюнить (см. ROADMAP «Математика»).
+  // Логика (уровень/дни/пул/открытые НПС из xp) — в game.js (PROG_* хелперы),
+  // profile.js хранит только сырой xp + список встреченных НПС (metNpcs).
+  // Стартовый ростер: все зелёные + Коллекционер Гз + Инспектор Гильдии.
+  // ============================================================
+  const PROGRESSION = {
+    startCycleDays: 5,
+    startPoolSize: 2,
+    startNpcs: ['drone', 'janitor', 'intern_beep', 'trucker_chrome', 'collector_gz', 'guild_inspector'],
+    levels: [
+      // Ур.1 — шкала 1: жёлтые (Коллекционер уже открыт со старта)
+      { xp: 600,  cycleDays: 6, mechanics: ['collection'],
+        npcMarks: [ {at:0.33, id:'tentacloid'}, {at:0.66, id:'fashionista'}, {at:0.9, id:'dj_pulsar'} ] },
+      // Ур.2 — шкала 2: 1-я половина оранжевых (Инспектор уже открыт со старта)
+      { xp: 1200, mechanics: ['characters'],
+        npcMarks: [ {at:0.4, id:'gourmet_vega'}, {at:0.85, id:'perfumer'} ] },
+      // Ур.3 — шкала 3: 2-я половина оранжевых
+      { xp: 2000, cycleDays: 7, mechanics: ['skill_1', 'modifiers'],
+        npcMarks: [ {at:0.6, id:'apothecary_mo'} ] },
+      // Ур.4 — шкала 4: 1-я половина красных
+      { xp: 3200, mechanics: ['tips', 'shop', 'shop_grade_1', 'skill_2', 'modifiers_new3'],
+        npcMarks: [ {at:0.4, id:'logic9'}, {at:0.85, id:'swarm_navigator'} ] },
+      // Ур.5 — шкала 5: 2-я половина красных
+      { xp: 4800, cycleDays: 8, poolSize: 3, mechanics: ['shop_grade_2'],
+        npcMarks: [ {at:0.4, id:'vex'}, {at:0.85, id:'racer_kai'} ] },
+      // Ур.6 — шкала 6: 1-я половина фиолетовых
+      { xp: 7000, mechanics: ['skill_3', 'relations'],
+        npcMarks: [ {at:0.25, id:'last_of_ir'}, {at:0.5, id:'archivist'}, {at:0.72, id:'supernova_child'}, {at:0.92, id:'the_waiter'} ] },
+      // Ур.7 — шкала 7: 2-я половина фиолетовых
+      { xp: 9500, cycleDays: 10, mechanics: ['modifiers_multi'],
+        npcMarks: [ {at:0.35, id:'nebula_chef'}, {at:0.65, id:'twofaced_priestess'}, {at:0.9, id:'plasma_bartender'} ] },
+      // Ур.8 — персонажи больше не открываются
+      { xp: 13000, mechanics: ['skill_4', 'shop_grade_3', 'unique_items'], npcMarks: [] },
+      // Ур.9 — пул дорастает до 4
+      { xp: 17000, poolSize: 4, mechanics: [], npcMarks: [] }
+    ]
+  };
+
+  // Фаза 3 (3C): приветственные фразы — показываются РОВНО ОДИН РАЗ, при первой
+  // встрече персонажа (см. markNpcMet/startOrder в game.js). Кратко и художественно
+  // намекают на уникальную механику НПС. После показа больше не всплывают.
+  const NPC_GREETINGS = {
+    drone:            { ru:'Служебный протокол: приветствую. Внимание — в смеси всплывают бракованные пузыри. Лопай их, пока не рванули.', en:'Service protocol: greetings. Note — defective bubbles surface in the mix. Pop them before they burst.' },
+    janitor:          { ru:'О, покупатель! Извини за грязь на стекле — придётся протирать прямо на ходу.', en:'Oh, a customer! Sorry about the grime on the glass — you’ll be wiping as you work.' },
+    intern_beep:      { ru:'Бип-бип! Я стажёр, только учусь. Давай с чего попроще, лады?', en:'Beep-beep! I’m an intern, still learning. Let’s start simple, okay?' },
+    trucker_chrome:   { ru:'Здоро́во! У меня регуляторы — как коробка передач. По прямой не выйдет, привыкай.', en:'Howdy! My sliders run like a gearbox. No straight line here — get used to it.' },
+    tentacloid:       { ru:'Мои щупальца ценят в смеси лишь одно... а вот что именно — угадывай сам.', en:'My tentacles care about only one thing in the mix... which one, you’ll have to guess.' },
+    fashionista:      { ru:'Дорогуша! Я занимаюсь всем строго по очереди — один регулятор за раз, не части.', en:'Darling! I do everything strictly in turn — one slider at a time, don’t rush.' },
+    collector_gz:     { ru:'Коллекционер к услугам. Я не кручу ручки — я выбираю нужную баночку из целой сетки.', en:'Collector at your service. I don’t twist knobs — I pick the right jar from a whole grid.' },
+    dj_pulsar:        { ru:'Йоу! Чувствуешь бит? Весь интерфейс качает в такт — лови ритм.', en:'Yo! Feel the beat? The whole interface pulses in time — catch the rhythm.' },
+    gourmet_vega:     { ru:'Гурман пробует, прежде чем принять. Одну неудачную пробу прощу — доделаешь.', en:'A gourmet tastes before accepting. I’ll forgive one bad sip — you can fix it.' },
+    perfumer:         { ru:'Парфюмер приветствует. Цвет и накал я свожу в одну точку — это пэд, а не два ползунка.', en:'The perfumer greets you. I merge hue and intensity into one point — a pad, not two sliders.' },
+    guild_inspector:  { ru:'Инспекция Гильдии. Образца не будет — все допуски прописаны в бумагах. Читай внимательно.', en:'Guild inspection. No sample — all tolerances are written in the papers. Read carefully.' },
+    apothecary_mo:    { ru:'Аптекарь Мо. Пациент ждать не может — чем быстрее сваришь, тем выше рейтинг.', en:'Apothecary Mo. The patient can’t wait — the faster you brew, the higher the rating.' },
+    logic9:           { ru:'ЛОГИК-9. ВВОД — ТОЛЬКО ПОШАГОВО. СТЕППЕР. ДЕЛЕНИЕ ЗА ДЕЛЕНИЕМ.', en:'LOGIC-9. INPUT — STEP BY STEP ONLY. STEPPER. NOTCH BY NOTCH.' },
+    swarm_navigator:  { ru:'Навигатор Роя. Детали разлетятся по циферблату — верни их на места руками.', en:'Swarm Navigator. The parts scatter across the dial — drag them back by hand.' },
+    vex:              { ru:'Векс, механик-хирург. Сгустки садятся строго в узлы сетки — перетащи точно.', en:'Vex, mechanic-surgeon. Blobs snap only to grid nodes — place them precisely.' },
+    racer_kai:        { ru:'Гонщица Кай! Банку потряхивает, отсчёт бежит по кольцу — держи темп до финиша.', en:'Racer Kai! The jar shakes, the countdown runs along the ring — keep pace to the finish.' },
+    last_of_ir:       { ru:'Я — последний из Ир. Доверься мне... или нет. От этого зависит следующая смесь.', en:'I am the last of the Ir. Trust me... or don’t. Your next mix depends on it.' },
+    archivist:        { ru:'Хранитель Архива. Один регулятор я впечатаю сам — по одному, раз в несколько секунд.', en:'Keeper of the Archive. I’ll type one slider myself — one at a time, every few seconds.' },
+    supernova_child:  { ru:'Дитя Сверхновой. Мне важны и ширина, и высота сосуда — и его поворот.', en:'Child of the Supernova. Width and height of the vessel both matter to me — and its rotation.' },
+    the_waiter:       { ru:'Я ждал тебя. Спешить некуда — таймера нет. Но рейтинг дам лишь за почти идеал.', en:'I have waited for you. No rush — there is no timer. But I reward only near-perfection.' },
+    nebula_chef:      { ru:'Шеф туманности. Цвет мне безразличен. Важна форма сосуда — угадай её.', en:'Nebula Chef. Color means nothing to me. The vessel’s shape is what matters — guess it.' },
+    twofaced_priestess:{ ru:'Двуликая жрица приветствует... и приветствует. Два спектра, две половины банки.', en:'The Two-Faced Priestess greets you... and greets you. Two spectra, two halves of the jar.' },
+    plasma_bartender: { ru:'Бармен плазма-бара! Сгустки летают внутри — и скорость их полёта тоже настраивается.', en:'Plasma-bar bartender! The blobs fly around inside — and their speed is tunable too.' }
+  };
 
   // ---------- Фаза G: черновой шаг уровня репутации ----------
   // Используется ТОЛЬКО для прогресс-бара в Коллекции (визуализация "на

@@ -77,7 +77,7 @@
        спрятаны в мини-меню ⚙, чтобы правая группа не была перегружена. -->
   <div class="topbar">
     <div class="topbar-left">
-      <div class="day-counter"><span data-i18n="DAY_LABEL">День</span> <b id="dayVal">1</b>/10</div>
+      <div class="day-counter"><span data-i18n="DAY_LABEL">День</span> <b id="dayVal">1</b>/<span id="cycleLenVal">10</span></div>
     </div>
     <div class="topbar-center">
       <div class="streak"><img src="assets/ui/streak.png" class="streak-img" alt=""><span id="streakVal">0</span></div>
@@ -112,6 +112,19 @@
       <h1 class="title">Sector Seven Saloon</h1>
       <p class="subtitle" data-i18n="SUBTITLE">лавка смесей // сектор Ω // край вселенной</p>
       <div class="sticker-tally" id="stickerTally"></div>
+    </div>
+  </div>
+
+  <!-- Фаза 3 (3B): шкала прогрессии лавки — между шапкой и игровой зоной.
+       Заполняется рейтингом циклов; отметки открывают персонажей; финал шкалы
+       открывает механику. В дейлике/коопе скрыта (прогрессии там нет). -->
+  <div class="prog-bar" id="progBar">
+    <div class="prog-bar-head">
+      <span class="prog-bar-level" id="progBarLevel"></span>
+      <span class="prog-bar-xp" id="progBarXp"></span>
+    </div>
+    <div class="prog-bar-track" id="progBarTrack">
+      <div class="prog-bar-fill" id="progBarFill"></div>
     </div>
   </div>
 

@@ -2737,6 +2737,121 @@
     };
   }
 
+  // ============================================================
+  // Фаза 3: ЛОГИКА ПРОГРЕССИИ (конфиг — PROGRESSION в content.js)
+  // Всё производное вычисляется из накопленного xp; хранилище (profile.js)
+  // держит только сырой xp + metNpcs. Если конфига нет — легаси-поведение
+  // (всё открыто, цикл 10, пул 3), чтобы ничего не сломать.
+  // ============================================================
+  const PROG = (typeof PROGRESSION !== 'undefined') ? PROGRESSION : null;
+  const PROG_CUM = (()=>{ const cum=[]; let s=0; if(PROG) PROG.levels.forEach(l=>{ s+=l.xp; cum.push(s); }); return cum; })();
+  function progXp(){ return window.PotionProfile ? window.PotionProfile.getProgressionXp() : 0; }
+  function progLevel(xp){
+    if(xp == null) xp = progXp();
+    let lvl = 0;
+    for(let i=0;i<PROG_CUM.length;i++){ if(xp >= PROG_CUM[i]) lvl = i+1; else break; }
+    return lvl; // число завершённых баров (0..9)
+  }
+  function progCycleDays(){
+    if(!PROG) return 10;
+    let d = PROG.startCycleDays; const lvl = progLevel();
+    for(let i=0;i<lvl;i++){ if(PROG.levels[i].cycleDays != null) d = PROG.levels[i].cycleDays; }
+    return d;
+  }
+  function progPoolSize(){
+    if(!PROG) return 3;
+    let p = PROG.startPoolSize; const lvl = progLevel();
+    for(let i=0;i<lvl;i++){ if(PROG.levels[i].poolSize != null) p = PROG.levels[i].poolSize; }
+    return p;
+  }
+  function progMechUnlocked(name){
+    if(!PROG) return true; // без конфига — всё открыто (легаси)
+    const lvl = progLevel();
+    for(let i=0;i<lvl;i++){ if((PROG.levels[i].mechanics||[]).includes(name)) return true; }
+    return false;
+  }
+  function progUnlockedNpcSet(xp){
+    if(!PROG) return null; // null == «все открыты» (легаси)
+    if(xp == null) xp = progXp();
+    const set = new Set(PROG.startNpcs);
+    PROG.levels.forEach((l,i)=>{
+      const barStart = i > 0 ? PROG_CUM[i-1] : 0;
+      (l.npcMarks||[]).forEach(m=>{ if(xp >= barStart + m.at * l.xp) set.add(m.id); });
+    });
+    return set;
+  }
+  function isNpcUnlocked(id){
+    const set = progUnlockedNpcSet();
+    return set ? set.has(id) : true;
+  }
+  // Начисление xp по итогам цикла + сбор событий (новые НПС / новый уровень)
+  // для тостов. Возвращает { levelsGained:[n,...], newNpcs:[id,...] }.
+  function progApplyCycleScore(cycleScore){
+    if(!PROG || !window.PotionProfile) return { levelsGained:[], newNpcs:[] };
+    const before = { lvl: progLevel(), npcs: progUnlockedNpcSet() };
+    window.PotionProfile.addProgressionXp(cycleScore);
+    const after = { lvl: progLevel(), npcs: progUnlockedNpcSet() };
+    const levelsGained = [];
+    for(let l = before.lvl + 1; l <= after.lvl; l++) levelsGained.push(l);
+    const newNpcs = [...after.npcs].filter(id => !before.npcs.has(id));
+    return { levelsGained, newNpcs };
+  }
+  // Фаза 3 (3D): скрываем кнопки/UI существующих систем, пока они не открыты
+  // прогрессией. В дейлике прогрессия не действует — показываем как раньше.
+  function updateProgressionGates(){
+    const setVis = (id, on)=>{ const el = $(id); if(el) el.style.display = on ? '' : 'none'; };
+    setVis('collectionBtn', isDailyMode || progMechUnlocked('collection'));
+    setVis('charactersBtn', isDailyMode || progMechUnlocked('characters'));
+    const cl = $('cycleLenVal'); if(cl) cl.textContent = isDailyMode ? 10 : progCycleDays();
+    renderProgressionBar();
+  }
+  // Фаза 3 (3B): подсказка на финале шкалы — что откроется по её завершении
+  function progFinalHint(bar){
+    const parts = [];
+    (bar.mechanics || []).forEach(m => { const lbl = UI_TEXT.PROG_MECH_LABELS[m]; if(lbl) parts.push(LT(lbl)); });
+    if(bar.cycleDays != null) parts.push(LT(UI_TEXT.PROG_GRANT_CYCLE_DAYS).replace('{n}', bar.cycleDays));
+    if(bar.poolSize != null) parts.push(LT(UI_TEXT.PROG_GRANT_POOL_SIZE).replace('{n}', bar.poolSize));
+    return LT(UI_TEXT.PROG_FINAL_HINT_PREFIX) + ' ' + (parts.join(', ') || '—');
+  }
+  function renderProgressionBar(){
+    const wrap = $('progBar'); if(!wrap) return;
+    if(isDailyMode || !PROG){ wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    const xp = progXp(), level = progLevel();
+    const track = $('progBarTrack'), fill = $('progBarFill');
+    track.querySelectorAll('.prog-mark').forEach(m => m.remove());
+    if(level >= PROG.levels.length){ // всё развито
+      $('progBarLevel').textContent = LT(UI_TEXT.PROG_BAR_LEVEL) + ' ' + level;
+      $('progBarXp').textContent = LT(UI_TEXT.PROG_BAR_MAX);
+      fill.style.width = '100%';
+      return;
+    }
+    const barStart = level > 0 ? PROG_CUM[level-1] : 0;
+    const bar = PROG.levels[level];
+    const inBar = Math.max(0, xp - barStart);
+    const frac = Math.max(0, Math.min(1, inBar / bar.xp));
+    fill.style.width = (frac * 100).toFixed(1) + '%';
+    $('progBarLevel').textContent = LT(UI_TEXT.PROG_BAR_LEVEL) + ' ' + level;
+    $('progBarXp').textContent = Math.round(inBar) + ' / ' + bar.xp;
+    (bar.npcMarks || []).forEach(m => {
+      const el = document.createElement('div');
+      const unlocked = xp >= barStart + m.at * bar.xp;
+      el.className = 'prog-mark npc' + (unlocked ? ' unlocked' : '');
+      el.style.left = (m.at * 100).toFixed(1) + '%';
+      // локед-отметку НЕ спойлим (какой именно НПС) — только «скоро новый»
+      const npc = unlocked ? npcById(m.id) : null;
+      el.title = unlocked
+        ? LT(UI_TEXT.PROG_MARK_UNLOCKED_NPC) + (npc ? ': ' + LT(npc.name) : '')
+        : LT(UI_TEXT.PROG_MARK_LOCKED_NPC);
+      track.appendChild(el);
+    });
+    const fin = document.createElement('div');
+    fin.className = 'prog-mark final' + (frac >= 1 ? ' reached' : '');
+    fin.style.left = '100%';
+    fin.title = progFinalHint(bar);
+    track.appendChild(fin);
+  }
+
   function getCardTiers(){
     let tiers = [...STAGE_TABLE[stage]];
     if(stage === MAX_STAGE){
@@ -2780,6 +2895,9 @@
     return 3;
   }
   function relationUnlockedFor(npcId){
+    // Фаза 3: вся система взаимоотношений открывается прогрессией с Ур.6
+    // (поверх порога репутации по тиру). В дейлике связи и так выключены.
+    if(!progMechUnlocked('relations')) return false;
     const npc = npcById(npcId);
     if(!npc) return false;
     return npcRepLevel(npcId) >= relationRepNeed(npc.tier);
@@ -2887,7 +3005,16 @@
   }
 
   function pickConfigForTier(tierNum, usedNames){
-    const pool = tierNum < 5 ? tierPool(tierNum) : [...tierPool(5), ...SPECIAL_ORDERS];
+    const tierPoolFor = t => t < 5 ? tierPool(t) : [...tierPool(5), ...SPECIAL_ORDERS];
+    let pool = tierPoolFor(tierNum);
+    // Фаза 3: в аркаде доступны только открытые прогрессией НПС. Если на этом
+    // тире ещё никого не открыли — спускаемся к ближайшему нижнему тиру, где
+    // есть открытые (STAGE_TABLE может требовать тир выше текущей прогрессии).
+    if(!isDailyMode && progUnlockedNpcSet()){
+      let t = tierNum, unlocked = pool.filter(c => isNpcUnlocked(c.id));
+      while(unlocked.length === 0 && t > 1){ t--; unlocked = tierPoolFor(t).filter(c => isNpcUnlocked(c.id)); }
+      if(unlocked.length) pool = unlocked;
+    }
     // Патч "Взаимоотношения": НПС, который "ушёл" из-за обиды, не выпадает
     // до конца цикла — если это оставит пул пустым, лучше не блокировать
     // генерацию тройки вовсе, чем сломать раунд
@@ -2904,9 +3031,14 @@
   // (вместо обычных случайных 40%) — см. вызов ниже в showSelectScreen
   function buildOrderDescriptor(cfg, forceFocus){
     let focus = null;
+    // Фаза 3 (3E): модификаторы (фокус-заказы) в аркаде открываются только с
+    // Ур.3 прогрессии; в дейлике — как раньше (там прогрессии нет). Новые
+    // модификаторы (Ур.4) и мультимодификаторы (Ур.7) — отдельная система,
+    // флаги progMechUnlocked('modifiers_new3'|'modifiers_multi') уже считаются.
+    const modifiersOn = isDailyMode || progMechUnlocked('modifiers');
     // Патч (Тентаклоид): у него никогда не бывает обычных модификаторов —
     // его собственная механика (один скрытый решающий параметр) их заменяет
-    const focusEligible = cfg.type === 'normal' && cfg.tier >= 2 && cfg.id !== 'tentacloid';
+    const focusEligible = modifiersOn && cfg.type === 'normal' && cfg.tier >= 2 && cfg.id !== 'tentacloid';
     if(focusEligible && (forceFocus || Math.random() < 0.4)){
       focus = pick(['bubbles','color','size']);
     }
@@ -3165,6 +3297,7 @@
     $('roundScreen').classList.remove('show');
     $('selectScreen').classList.add('show');
     $('resultOverlay').classList.remove('show');
+    updateProgressionGates(); // Фаза 3: актуализируем видимость кнопок/длину цикла
     $('dayVal').textContent = dayNum;
 
     // Патч "Ежедневный заказ": пул на день — фиксированная (по сиду дня)
@@ -3186,7 +3319,12 @@
       return;
     }
 
-    const tiers = getCardTiers();
+    // Фаза 3: размер пула дня задаётся прогрессией (2 → 3 → 4). STAGE_TABLE даёт
+    // ряд из 3 тиров — подрезаем/добираем до нужного числа карточек.
+    let tiers = getCardTiers();
+    const poolSize = progPoolSize();
+    if(tiers.length > poolSize) tiers = tiers.slice(0, poolSize);
+    else while(tiers.length < poolSize) tiers.push(tiers[tiers.length - 1]);
     const usedNames = new Set();
     currentOrders = tiers.map(t=> buildOrderDescriptor(pickConfigForTier(t, usedNames)));
 
@@ -3254,6 +3392,11 @@
     currentOrd = ord;
     currentOrd.regLevel = regLevel;
     orderNum++;
+    // Фаза 3: отмечаем первую встречу персонажа. markNpcMet вернёт true ровно
+    // один раз — тогда вместо обычной фразы показываем приветствие с намёком
+    // на механику (3C). В коллекции персонаж тоже появляется только после встречи.
+    const firstMeet = (!isDailyMode && window.PotionProfile) ? window.PotionProfile.markNpcMet(cfg.id) : false;
+    const greeting = (firstMeet && typeof NPC_GREETINGS !== 'undefined') ? NPC_GREETINGS[cfg.id] : null;
     // Патч (Диджей Пульсар): на время его заказа общий эмбиент приглушаем до
     // нуля (не мешать его собственному ритму) — на любом другом заказе звук
     // возвращается
@@ -3267,9 +3410,10 @@
     $('roundScreen').classList.add('show');
     $('orderNum').textContent = orderNum;
     $('orderAvatar').innerHTML = visualHTML(avatar,'npc-img');
-    $('orderText').textContent = LT(flavor);
-    $('orderText').classList.toggle('lore', !!ord.isLore); // Фаза I: лор — другим цветом
-    $('orderText').classList.toggle('keeper', !!ord.isKeeper); // Патч: фраза Хранителя — золотом
+    $('orderText').textContent = LT(greeting || flavor); // Фаза 3: первая встреча → приветствие
+    $('orderText').classList.toggle('greeting', !!greeting);
+    $('orderText').classList.toggle('lore', !greeting && !!ord.isLore); // Фаза I: лор — другим цветом
+    $('orderText').classList.toggle('keeper', !greeting && !!ord.isKeeper); // Патч: фраза Хранителя — золотом
     $('orderBubble').style.borderLeftColor = TIER_COLORS[cfg.tier];
     $('orderFocusTag').innerHTML = focus ? `${visualHTML(FOCUS_ICONS[focus],'focus-img')} ${LT(UI_TEXT.FOCUS_PREFIX)} ${LT(FOCUS_NAMES[focus])}` : '';
     const levelTag = $('orderLevelTag');
@@ -4444,7 +4588,9 @@
     irReplayActive = false; // Патч (Ир): принял результат — переигровки на этом заказе больше нет
     // Фаза F: 1 день = 1 выполненный заказ, см. profile.js
     if(window.PotionProfile) window.PotionProfile.recordDayPlayed();
-    if(dayNum >= 10){
+    // Фаза 3: длина цикла в аркаде растёт по прогрессии (5→…→10); дейлик — 10.
+    const cycleLen = isDailyMode ? 10 : progCycleDays();
+    if(dayNum >= cycleLen){
       showWeekOverlay();
     } else {
       dayNum++;
@@ -4691,6 +4837,9 @@
   // владелец её прописал в content.js, иначе эмодзи.
   const ACH_ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
   function showAchievementToast(ach, tier){
+    // Фаза 3 (3D): до открытия коллекции игрок не получает уведомлений об
+    // ачивках (прогресс копится молча — тосты появятся после разблокировки).
+    if(!progMechUnlocked('collection')) return;
     const total = generalAchTierCount(ach);
     let nm = LT(ach.name);
     if(total > 1 && tier) nm += ' ' + (ACH_ROMAN[tier-1] || tier);
@@ -4948,11 +5097,24 @@
     const host = $('charactersContent');
     if(!host) return;
     const p = window.PotionProfile.data;
-    const npcs = (typeof ALL_NPCS !== 'undefined') ? ALL_NPCS : [];
+    const allNpcs = (typeof ALL_NPCS !== 'undefined') ? ALL_NPCS : [];
+    // Фаза 3 (3C): в коллекции персонаж появляется только ПОСЛЕ первой встречи.
+    // Старые профили (до 3A) — показываем тех, с кем уже была история
+    // (репутация/заказы), чтобы ничего не «пропало». Без конфига прогрессии —
+    // легаси: показываем всех.
+    const metInCollection = n => {
+      if(!PROG || !window.PotionProfile) return true;
+      if(window.PotionProfile.isNpcMet(n.id)) return true;
+      const rep = p.npcReputation && p.npcReputation[n.id];
+      const ns = p.npcStats && p.npcStats[n.id];
+      return !!(rep && rep.value > 0) || !!(ns && ns.orders > 0);
+    };
+    const npcs = allNpcs.filter(metInCollection);
     if(charDetailId && !npcs.some(n=>n.id===charDetailId)) charDetailId = null;
 
     if(!charDetailId){
       // ---------- режим списка ----------
+      if(!npcs.length){ host.innerHTML = `<div class="char-hint">${LT(UI_TEXT.CHAR_EMPTY_HINT)}</div>`; return; }
       host.innerHTML = `<div class="char-hint">${LT(UI_TEXT.CHAR_OPEN_HINT)}</div>
         <div class="char-list">` + npcs.map(n=>{
           const rep = (p.npcReputation && p.npcReputation[n.id]) || { value:0 };
@@ -5326,6 +5488,17 @@
     // и свой рейтинг вместо общего аркадного
     if(!isDailyMode){
       if(window.PotionProfile) window.PotionProfile.recordCycleEnd(score);
+      // Фаза 3: рейтинг цикла идёт в xp прогрессии; тостим новых персонажей и
+      // новые уровни лавки (открытые механики применяются автоматически —
+      // производны от уровня).
+      const progEvents = progApplyCycleScore(score);
+      progEvents.newNpcs.forEach(id=>{
+        const npc = npcById(id);
+        if(npc) showToast({ icon: npc.img || npc.emoji || '🧪', prefix: UI_TEXT.PROG_NPC_UNLOCK_TOAST, name: npc.name });
+      });
+      progEvents.levelsGained.forEach(l=>{
+        showToast({ icon:'⭐', prefix: UI_TEXT.PROG_LEVEL_UP_TOAST, name: String(l) });
+      });
       checkGeneralAchievements();
     }
     $('resultOverlay').classList.remove('show');

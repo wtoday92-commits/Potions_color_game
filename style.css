@@ -981,6 +981,12 @@ body.fullscreen-on .fs-btn{ animation: none !important; box-shadow: none !import
   color: var(--t5, #b866ff);
   text-shadow: 0 0 8px rgba(184,102,255,.3);
 }
+/* Фаза 3 (3C): приветственная фраза при первой встрече — тёплый акцент */
+#orderText.greeting{
+  color: var(--neon-light, #9ff2ff);
+  text-shadow: 0 0 8px rgba(159,242,255,.4);
+  font-style: italic;
+}
 
 /* ---------- меню "Персонажи" ---------- */
 .characters-card{
@@ -1455,6 +1461,19 @@ body::after{
 
 /* иконка-картинка в тосте об ачивке (когда владелец задал img) */
 .ach-toast-icon img.ach-toast-img{width:30px;height:30px;object-fit:contain;display:block;}
+
+/* ---------- Фаза 3: шкала прогрессии лавки ---------- */
+.prog-bar{ max-width:var(--plate-w, 640px); margin:8px auto 4px; padding:0 12px; box-sizing:border-box; }
+.prog-bar-head{ display:flex; justify-content:space-between; align-items:baseline; font-family:'IBM Plex Mono',monospace; font-size:11px; margin-bottom:4px; }
+.prog-bar-level{ color:var(--neon-light); letter-spacing:.04em; font-weight:600; }
+.prog-bar-xp{ color:var(--ink-dim); }
+.prog-bar-track{ position:relative; height:12px; border-radius:7px; background:rgba(255,255,255,.06); border:1px solid rgba(159,242,255,.2); }
+.prog-bar-fill{ position:absolute; left:0; top:0; bottom:0; border-radius:7px; width:0%; background:linear-gradient(90deg,#35e0ff,#b866ff); box-shadow:0 0 10px rgba(93,255,176,.35); transition:width .5s ease; }
+.prog-mark{ position:absolute; top:50%; width:12px; height:12px; border-radius:50%; transform:translate(-50%,-50%); border:2px solid rgba(10,12,26,.92); z-index:2; cursor:help; }
+.prog-mark.npc{ background:var(--ink-dim); }
+.prog-mark.npc.unlocked{ background:var(--good); box-shadow:0 0 8px rgba(93,255,176,.75); }
+.prog-mark.final{ width:16px; height:16px; background:linear-gradient(135deg,#ffd98a,#ff8fa8); }
+.prog-mark.final.reached{ box-shadow:0 0 11px rgba(255,217,138,.85); }
 
 /* ============================================================
    ПАТЧ "УНИКАЛЬНЫЕ МЕХАНИКИ ТИР-5": стили.
