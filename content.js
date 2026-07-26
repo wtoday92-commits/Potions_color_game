@@ -88,6 +88,9 @@ const UI_TEXT = {
   PROG_NPC_UNLOCK_TOAST:  { ru:'Новый посетитель на горизонте', en:'A new visitor on the horizon' },
   PROG_LEVEL_UP_TOAST:    { ru:'Лавка выросла — уровень', en:'The shop grew — level' },
   PROG_MECH_UNLOCK_TOAST: { ru:'Открыто', en:'Unlocked' },
+  // ---------- Фаза 5: чаевые ----------
+  TIPS_TITLE:             { ru:'Чаевые', en:'Tips' },
+  TIPS_EARNED_TOAST:      { ru:'Чаевые за цикл', en:'Tips for the cycle' },
   PROG_BAR_LEVEL:         { ru:'Лавка ур.', en:'Shop lv.' },
   PROG_BAR_MAX:           { ru:'Лавка развита полностью', en:'Shop fully grown' },
   PROG_MARK_LOCKED_NPC:   { ru:'Скоро: новый посетитель', en:'Soon: a new visitor' },
@@ -273,6 +276,8 @@ const STICKERS = {
     '⚙️',   // 4: 8+ смесей подряд без брака
     '🐢',   // 5: годнота в последние 10% таймера
     '🌤',   // 6: годнота, прервавшая серию из 2+ браков
+    '💰',   // 7: Фаза 5 — накоплено 1000+ чаевых за всю историю
+    '🤑',   // 8: Фаза 5 — накоплено 10000+ чаевых за всю историю
   ],
   // Фаза 2 (П7): «Пойло» — грейд между браком и годнотой (малый ±рейтинг).
   // Базовые варианты — эмодзи-заглушки; заменить на картинки можно так же,
@@ -344,7 +349,12 @@ const STICKER_SPECIALS = {
     { idx:5, check:c => c.timeFrac >= 0.9,
       hint:{ ru:'на последних секундах', en:'in the final seconds' } },
     { idx:6, check:c => c.badRunBefore >= 2,
-      hint:{ ru:'выход из чёрной полосы', en:'out of the rough patch' } }
+      hint:{ ru:'выход из чёрной полосы', en:'out of the rough patch' } },
+    // Фаза 5: стикеры на чаевые (порог по суммарным чаевым)
+    { idx:7, check:c => (c.tipsLifetime||0) >= 1000,
+      hint:{ ru:'звенящая касса', en:'a ringing till' } },
+    { idx:8, check:c => (c.tipsLifetime||0) >= 10000,
+      hint:{ ru:'богатство лавки', en:'shop riches' } }
   ],
   bad: [
     { idx:3, check:c => c.overall < 0.3,
@@ -1303,6 +1313,13 @@ const NPC_STAT_EXPLAIN = {
       desc:{ ru:'Сколько всего «пойла» ты налил за всю историю лавки. Не идеал, но и не брак.', en:'How much "swill" you have poured across the shop\'s history. Not perfect, not a reject.' },
       value:p => ((p.stats.stickersLifetime && p.stats.stickersLifetime.swill) || 0),
       t:[10, 40, 120, 300, 700] },
+
+    // Фаза 5 (П4): ачивка на суммарные чаевые за всю историю лавки
+    { id:'tips_total', icon:'🪙', img:null,
+      name:{ ru:'Звонкая касса', en:'Ringing till' },
+      desc:{ ru:'Всего чаевых заработано за всю историю лавки.', en:'Total tips earned across the shop\'s history.' },
+      value:p => ((p.tips && p.tips.lifetime) || 0),
+      t:[100, 500, 2000, 6000, 15000, 40000] },
 
     { id:'cycles', icon:'🔁', img:null,
       name:{ ru:'Ветеран лавки', en:'Shop veteran' },

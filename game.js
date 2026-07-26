@@ -2802,7 +2802,17 @@
     const setVis = (id, on)=>{ const el = $(id); if(el) el.style.display = on ? '' : 'none'; };
     setVis('collectionBtn', isDailyMode || progMechUnlocked('collection'));
     setVis('charactersBtn', isDailyMode || progMechUnlocked('characters'));
+    // Пассивки — часть системы персонажей: открываются вместе с вкладкой
+    // персонажей (Ур.2). До этого кнопка ⚡ скрыта.
+    setVis('passivesBtn', isDailyMode || progMechUnlocked('characters'));
     const cl = $('cycleLenVal'); if(cl) cl.textContent = isDailyMode ? 10 : progCycleDays();
+    // Фаза 5: счётчик чаевых виден после открытия (Ур.4), в дейлике — нет
+    const tipsC = $('tipsCounter');
+    if(tipsC){
+      const tipsOn = !isDailyMode && progMechUnlocked('tips');
+      tipsC.style.display = tipsOn ? '' : 'none';
+      if(tipsOn){ const tv = $('tipsVal'); if(tv && window.PotionProfile) tv.textContent = window.PotionProfile.getTips(); }
+    }
     renderProgressionBar();
   }
   // Фаза 3 (3B): подсказка на финале шкалы — что откроется по её завершении
@@ -4339,7 +4349,8 @@
         autoFinish: !!target.autoFinish,
         scoreAfter: score, dayNum,
         perfectRun: perfectRunNow, goodRun: goodRunNow, badRunBefore,
-        perfectThreshold, goodThreshold, novaExact
+        perfectThreshold, goodThreshold, novaExact,
+        tipsLifetime: window.PotionProfile ? window.PotionProfile.getTipsLifetime() : 0 // Фаза 5
       };
       const eligible = specials.filter(sp => { try { return !!sp.check(stickCtx); } catch(e){ return false; } });
       if(eligible.length){
@@ -5499,6 +5510,14 @@
       progEvents.levelsGained.forEach(l=>{
         showToast({ icon:'⭐', prefix: UI_TEXT.PROG_LEVEL_UP_TOAST, name: String(l) });
       });
+      // Фаза 5: чаевые — 5% от рейтинга цикла (после открытия на Ур.4)
+      if(progMechUnlocked('tips') && window.PotionProfile){
+        const tip = Math.round(score * 0.05);
+        if(tip > 0){
+          window.PotionProfile.addTips(tip);
+          showToast({ icon:'🪙', prefix: UI_TEXT.TIPS_EARNED_TOAST, name: '+' + tip });
+        }
+      }
       checkGeneralAchievements();
     }
     $('resultOverlay').classList.remove('show');

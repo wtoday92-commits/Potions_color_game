@@ -63,8 +63,14 @@
    ============================================================ */
 
 (function(){
-  const PROFILE_KEY = 'potionshop_profile_v1';
-  const SCHEMA_VERSION = 2;
+  // Фаза 3: ключ поднят до v2 — это ОБНУЛЯЕТ прогресс у ВСЕХ игроков (старые
+  // профили под ключом _v1 больше не читаются). Понадобилось, потому что до
+  // системы прогрессии игроки уже накопили репутацию/пассивки персонажей,
+  // которых по новой прогрессии ещё не должны были открыть — данные
+  // рассинхронизированы. Чистый старт для всех. Менять ключ снова — только при
+  // очередном несовместимом сбросе.
+  const PROFILE_KEY = 'potionshop_profile_v2';
+  const SCHEMA_VERSION = 3;
 
   function uuid(){
     try{ if(window.crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(e){}
@@ -138,7 +144,10 @@
       // (аркада). metNpcs — id персонажей, которых игрок УЖЕ встречал (для показа
       // в коллекции только после первой встречи + одноразовой приветственной
       // фразы). Уровень/дни/пул/открытые НПС ВЫЧИСЛЯЮТСЯ из xp в game.js.
-      progression: { xp: 0, metNpcs: [] }
+      progression: { xp: 0, metNpcs: [] },
+      // Фаза 5: чаевые — внутриигровая валюта (для магазина). balance тратится,
+      // lifetime только растёт (для ачивок/стикеров). Начисляются в конце цикла.
+      tips: { balance: 0, lifetime: 0 }
     };
   }
 
@@ -531,6 +540,33 @@
       pr.metNpcs.push(id);
       save();
       return true; // true — встретили ВПЕРВЫЕ (для приветственной фразы)
+    },
+
+    // ---------- Фаза 5: чаевые (валюта) ----------
+    _ensureTips(){
+      if(!profile.tips) profile.tips = { balance: 0, lifetime: 0 };
+      if(typeof profile.tips.balance !== 'number') profile.tips.balance = 0;
+      if(typeof profile.tips.lifetime !== 'number') profile.tips.lifetime = 0;
+      return profile.tips;
+    },
+    getTips(){ load(); return this._ensureTips().balance; },
+    getTipsLifetime(){ load(); return this._ensureTips().lifetime; },
+    addTips(amount){
+      load();
+      const t = this._ensureTips();
+      const a = Math.max(0, Math.round(amount || 0));
+      t.balance += a; t.lifetime += a;
+      save();
+      return t.balance;
+    },
+    spendTips(amount){
+      load();
+      const t = this._ensureTips();
+      const a = Math.max(0, Math.round(amount || 0));
+      if(t.balance < a) return false; // недостаточно средств
+      t.balance -= a;
+      save();
+      return true;
     }
   };
 
