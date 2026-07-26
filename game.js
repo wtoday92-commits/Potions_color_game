@@ -1136,11 +1136,14 @@
       target.tentacloidKey = keys.length ? pick(keys) : null;
     },
     craftStart(){
-      const wf = $('windowFrame');
-      if(!wf) return;
+      // Патч (Фаза 0): баннер переехал из-под зелья (bottom:4%, перекрывал банку)
+      // в статичную плашку НАД циферблатом и зельем — вставляем перед .control-row.
+      const row = document.querySelector('.control-row');
+      if(!row || !row.parentNode) return;
       let el = document.getElementById('l4TentaBanner');
-      if(!el){ el = document.createElement('div'); el.id = 'l4TentaBanner'; el.className = 'l4-tenta-banner'; wf.appendChild(el); }
+      if(!el){ el = document.createElement('div'); el.id = 'l4TentaBanner'; el.className = 'l4-tenta-banner'; }
       el.textContent = LT(UI_TEXT.TENTACLOID_UNDECIDED_BANNER);
+      row.parentNode.insertBefore(el, row);
     },
     stop(){
       const el = document.getElementById('l4TentaBanner'); if(el) el.remove();
@@ -1556,12 +1559,9 @@
       l4VexIsCraft = false;
       l4VexItems = (target.vexPositions||[]).map(p=>({ x:p.x, y:p.y, gridIdx:p.idx, dragging:false, el:null }));
       l4VexItems.forEach(item=>l4VexCreateEl(item));
-      const wf = $('windowFrame');
-      if(wf){
-        let el = document.getElementById('l4VexLine');
-        if(!el){ el = document.createElement('div'); el.id = 'l4VexLine'; el.className = 'l4-vex-line'; wf.appendChild(el); }
-        el.textContent = LT(UI_TEXT.VEX_MEMORIZE_LINE);
-      }
+      // Патч (Фаза 0): убрали нижнюю реплику Векса (l4VexLine) — она была
+      // нечитаема на фоне циферблата и перекрывала зелье. Механика подсказки
+      // не требует. Удаление в craftStart/stop оставлено (безвредно).
     },
     craftStart(){
       l4VexIsCraft = true;
@@ -1911,6 +1911,12 @@
   LEVEL4_FX.dj_pulsar = {
     setup(){
       l4DjBeatCount = 0;
+      // Патч (Фаза 0): непрерывная пульсация циферблата на ВЕСЬ заказ DJ (и показ,
+      // и игра). Раньше пульс держался только на классе-биту через setInterval и
+      // на фазе запоминания мог «затухать». Теперь само кольцо-циферблат крутит
+      // бесконечную CSS-анимацию (в композиторе, не зависит от JS-таймеров) —
+      // гарантированно пульсирует всю фазу; бит-«кик» ниже добавляется поверх.
+      const ring = $('ringSvg'); if(ring) ring.classList.add('dj-ring-pulse');
       l4DjBeatTimer = setInterval(()=>{
         l4DjBeatCount++;
         l4DjKick();
@@ -1923,6 +1929,7 @@
     },
     stop(){
       if(l4DjBeatTimer){ clearInterval(l4DjBeatTimer); l4DjBeatTimer = null; }
+      const ring = $('ringSvg'); if(ring) ring.classList.remove('dj-ring-pulse');
       l4DjPulseTargets().forEach(el=> el.classList.remove('l4-dj-beat'));
     }
   };
@@ -1976,7 +1983,8 @@
     },
     craftStart(){
       if(orderAccuracyHistory.slice(-3).length >= 3){
-        l4BeepShowBanner();
+        // Патч (Фаза 0): убрали надпись-баннер Бипа (персонаж будет переделан
+        // целиком). Кнопка "Готово!" по-прежнему открывает мини-игру.
         const btn = $('brewBtn');
         if(btn) btn.textContent = LT(UI_TEXT.BEEP_MAIN_BTN);
       }
@@ -2387,7 +2395,12 @@
   const L4_FLY_ZONE = { xMin:35, xMax:65, yMin:38, yMax:82 }; // % от #windowFrame — грубая зона "банки"
   // Патч: мухи → разные механические детали (у каждой свой символ)
   const L4_SWARM_PARTS = ['⚙️','🔩','🔧','🔗','🧲','🪛','🔋','⛓️'];
-  let l4FlyItems = [], l4FlySpawnTimeouts = [], l4FlyWalkTimer = null, l4FlyIsCraft = false;
+  // ART-SWAP (Навигатор Роя): чтобы заменить эмодзи-детали на картинки — впиши
+  // сюда пути к изображениям в том же порядке (или на нужные индексы). Пустой/
+  // отсутствующий слот => используется эмодзи из L4_SWARM_PARTS.
+  // Напр.: const L4_SWARM_PARTS_IMG = ['assets/npc/part1.png','assets/npc/part2.png', ...];
+  const L4_SWARM_PARTS_IMG = [];
+  let l4FlyItems = [], l4FlySpawnTimeouts = [], l4FlyWalkTimer = null, l4FlyDriftTimer = null, l4FlyIsCraft = false;
   function l4FlyInZone(xPct, yPct){
     return xPct >= L4_FLY_ZONE.xMin && xPct <= L4_FLY_ZONE.xMax && yPct >= L4_FLY_ZONE.yMin && yPct <= L4_FLY_ZONE.yMax;
   }
@@ -2401,7 +2414,14 @@
     if(!wf) return;
     const el = document.createElement('div');
     el.className = 'l4-fly';
-    el.textContent = fly.symbol || '⚙️';
+    // ART-SWAP: если для этого индекса задана картинка — рисуем её вместо эмодзи
+    const imgSrc = L4_SWARM_PARTS_IMG[fly.id % L4_SWARM_PARTS.length];
+    if(imgSrc){
+      el.classList.add('l4-fly-img');
+      el.style.backgroundImage = `url("${imgSrc}")`;
+    } else {
+      el.textContent = fly.symbol || '⚙️';
+    }
     el.style.left = fly.x+'%'; el.style.top = fly.y+'%';
     wf.appendChild(el);
     fly.el = el;
@@ -2482,6 +2502,19 @@
       if(l4FlyWalkTimer){ clearInterval(l4FlyWalkTimer); l4FlyWalkTimer = null; }
       // детали уже разлетелись во время запоминания — просто разрешаем перетаскивание
       l4FlyItems.forEach(fly=>{ fly.dragging = false; });
+      // Патч (Фаза 0): лёгкий дрейф деталей во время игры — их чуть сложнее
+      // поймать и вернуть. Дрейфуют только НЕ перетаскиваемые и ещё НЕ
+      // возвращённые в банку детали; шаг маленький, движение плавное (CSS
+      // transition left/top на .l4-fly).
+      if(l4FlyDriftTimer){ clearInterval(l4FlyDriftTimer); }
+      l4FlyDriftTimer = setInterval(()=>{
+        l4FlyItems.forEach(f=>{
+          if(f.dragging || f.inside) return;
+          f.x = Math.max(4, Math.min(96, f.x + rand(-2.2, 2.2)));
+          f.y = Math.max(6, Math.min(94, f.y + rand(-2.2, 2.2)));
+          if(f.el){ f.el.style.left = f.x+'%'; f.el.style.top = f.y+'%'; }
+        });
+      }, 650);
       l4FlyUpdateCount();
       l4SwarmShowHint();
       updatePlayerJar();
@@ -2500,6 +2533,7 @@
     stop(){
       l4FlySpawnTimeouts.forEach(clearTimeout); l4FlySpawnTimeouts = [];
       if(l4FlyWalkTimer){ clearInterval(l4FlyWalkTimer); l4FlyWalkTimer = null; }
+      if(l4FlyDriftTimer){ clearInterval(l4FlyDriftTimer); l4FlyDriftTimer = null; }
       l4FlyItems.forEach(f=>{ if(f.el) f.el.remove(); });
       l4FlyItems = [];
       l4FlyIsCraft = false;
@@ -3272,14 +3306,20 @@
       seed: randInt(1,99999)
     };
     if(flags.hasGradient){
-      // Патч (Двуликая жрица): оба оттенка очень редко совпадают —
-      // при совпадении переигрываем второй спектр (кроме редких ~5%)
-      let hue2Idx = randInt(0, cfg.colorSteps-1);
-      if(cfg.colorSteps > 1 && hue2Idx === hueIdx && Math.random() > 0.05){
-        let guard = 12;
-        while(hue2Idx === hueIdx && guard-- > 0) hue2Idx = randInt(0, cfg.colorSteps-1);
+      // Патч (Двуликая жрица, Фаза 0): разброс между половинами теперь ПОЧТИ
+      // гарантирован. Раньше переигрывали лишь точное совпадение, из-за чего
+      // часто выпадали соседние (едва различимые) оттенки. Теперь требуем
+      // заметную дистанцию по ЦВЕТОВОМУ КРУГУ (с учётом заворота 0↔max), сильно
+      // давя соседние цвета. ~6% оставляем полный рандом ради разнообразия.
+      const steps = cfg.colorSteps;
+      const circDist = (a,b)=>{ const d = Math.abs(a-b); return Math.min(d, steps-d); };
+      const minSep = Math.max(1, Math.round(steps * 0.30));
+      let hue2Idx = randInt(0, steps-1);
+      if(steps > 2 && Math.random() > 0.06){
+        let guard = 24;
+        while(circDist(hue2Idx, hueIdx) < minSep && guard-- > 0) hue2Idx = randInt(0, steps-1);
       }
-      target.hue2 = idxToVal(hue2Idx, cfg.colorSteps, 360);
+      target.hue2 = idxToVal(hue2Idx, steps, 360);
       target.hue2Idx = hue2Idx;
     }
     // Патч (Сверхновая): второй габарит — высота ('size' здесь = ширина).
@@ -5462,14 +5502,44 @@
     s.classList.add('fade-out');
     s.addEventListener('transitionend', ()=>{ s.style.display='none'; }, {once:true});
   }
+  // Патч (Фаза 0): возврат на стартовый экран БЕЗ перезагрузки страницы.
+  // location.reload() всегда сбрасывал полноэкранный режим — поэтому в
+  // fullscreen делаем чистый сброс состояния на месте (аналог "нового цикла"
+  // из newWeekBtn) и заново показываем сплэш. Так выйти из полного экрана можно
+  // только кнопкой fullscreen.
+  function returnToSplash(){
+    cancelAnimationFrame(rafId);
+    level4Stop();
+    stopBadBubbles();
+    stopMovingAnim();
+    stopMatrixRain();
+    setDjAmbientDuck(false);
+    isDailyMode = false;
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0;
+    cycleStarted = false;
+    if(window.PotionProfile) window.PotionProfile.startCycle();
+    $('scoreVal').textContent = score;
+    $('streakVal').textContent = streak;
+    $('dayVal').textContent = dayNum;
+    ['resultOverlay','weekOverlay','dailyDifficultyOverlay'].forEach(id=>{
+      const o = $(id); if(o) o.classList.remove('show');
+    });
+    showSelectScreen();
+    const s = $('splashScreen');
+    if(s){ s.style.display = ''; s.classList.remove('fade-out'); }
+  }
   // ---------- стартовый экран: кнопка "Пришвартоваться" (обычная аркада) ----------
   const dockBtn = $('dockBtn');
   if(dockBtn){
+    // Патч (Фаза 0): убрали {once:true} — после возврата на стартовый экран
+    // (returnToSplash, без перезагрузки) сплэш показывается снова и его нужно
+    // уметь пришвартовать повторно. Защита от повторного клика — по видимости.
     dockBtn.addEventListener('click', ()=>{
+      if($('splashScreen').style.display === 'none') return;
       SFX.dock();
       ambientTryPlay();
       dismissSplash();
-    }, {once:true});
+    });
   }
 
   // ---------- стартовый экран: "Ежедневный особый заказ" ----------
@@ -5511,7 +5581,10 @@
   if(backToStartBtn){
     backToStartBtn.addEventListener('click', ()=>{
       SFX.uiClick();
-      location.reload();
+      // В полном экране не перезагружаем страницу (иначе fullscreen слетает) —
+      // сбрасываем состояние на месте. Вне fullscreen оставляем надёжный reload.
+      if(fsElement()) returnToSplash();
+      else location.reload();
     });
   }
 

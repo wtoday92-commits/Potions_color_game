@@ -675,20 +675,25 @@
   }
 
   /* ---- альбом стикеров ---- */
-  .album-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  /* Патч (Фаза 0): ячейки крупнее ~×2 и переносятся на несколько строк
+     (flex-wrap) — раньше стикеры шли одной строкой и уезжали за экран, требуя
+     горизонтального скролла. Новые стикеры теперь сами добавляют строки. */
+  .album-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;}
   .album-row:last-child{margin-bottom:0;}
   .album-row-label{
-    width:70px;flex:0 0 auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-dim);
+    width:70px;flex:0 0 auto;padding-top:6px;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-dim);
   }
-  .album-row-cells{display:flex;gap:8px;}
+  .album-row-cells{display:flex;flex-wrap:wrap;gap:10px;flex:1 1 auto;min-width:0;}
   .album-cell{
-    width:46px;height:46px;border-radius:9px;flex:0 0 auto;
+    width:90px;height:90px;border-radius:14px;flex:0 0 auto;
     display:flex;align-items:center;justify-content:center;overflow:hidden;
+    font-size:52px;line-height:1;
   }
   .album-cell.unlocked{background:rgba(53,224,255,.08);border:1px solid rgba(53,224,255,.4);}
   .album-cell.locked{background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.15);}
-  .album-cell img.album-img{width:36px;height:36px;object-fit:contain;}
-  .album-lock{color:var(--ink-dim);font-family:'IBM Plex Mono',monospace;font-size:16px;opacity:.5;}
+  .album-cell img.album-img{width:70px;height:70px;object-fit:contain;}
+  .album-lock{color:var(--ink-dim);font-family:'IBM Plex Mono',monospace;font-size:28px;opacity:.5;}
 
   /* ---- Фаза H: общие ачивки ---- */
   .ach-section-title-row{display:flex;justify-content:space-between;align-items:baseline;}
@@ -1602,6 +1607,16 @@ body::after{
   0%{ transform:scale(1.05); filter:brightness(1.35) saturate(1.2); }
   100%{ transform:scale(1); filter:brightness(1) saturate(1); }
 }
+/* Патч (Фаза 0): непрерывный пульс кольца-циферблата на весь заказ Диджея —
+   бесконечная композиторная анимация, не зависит от JS-таймеров. */
+#ringSvg.dj-ring-pulse{
+  transform-box:fill-box;transform-origin:center;
+  animation:l4DjRingPulse .5s ease-in-out infinite;
+}
+@keyframes l4DjRingPulse{
+  0%,100%{ transform:scale(1); filter:brightness(1); }
+  50%{ transform:scale(1.045); filter:brightness(1.4) saturate(1.25); }
+}
 
 /* ---------- Логика-9: степпер поверх шкалы (не вместо неё) ----------
    Раньше сам ползунок (шкала + горящий индикатор) прятался целиком —
@@ -1678,12 +1693,13 @@ body::after{
 /* Патч: убрана белая обводка текста (выглядела неряшливо на нескольких
    строках) — текст сам стал белым; шрифт чуть плотнее (жирнее + меньше
    межстрочный интервал), плашка менее прозрачна */
+/* Патч (Фаза 0): плашка Тентаклоида теперь НАД циферблатом и зельем
+   (в потоке, перед .control-row), а не поверх банки внизу. Меньше и компактнее. */
 .l4-tenta-banner{
-  position:absolute;bottom:4%;left:50%;transform:translateX(-50%);
-  max-width:90%;padding:8px 14px;text-align:center;z-index:7;
+  margin:4px auto 6px;max-width:min(92%,420px);padding:6px 12px;text-align:center;
   border:1.5px solid var(--danger);border-radius:10px;
   background:rgba(8,10,26,.96);
-  font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;line-height:1.15;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;line-height:1.25;
   color:#fff;
 }
 
@@ -1717,13 +1733,16 @@ body::after{
 .beep-guess-val{ width:44px; flex:0 0 auto; text-align:right; font-family:'IBM Plex Mono',monospace; color:var(--neon-light); }
 
 /* ---------- Инспектор Гильдии: кнопка/полноэкранный текст "Допусков" ---------- */
+/* Патч (Фаза 0): кнопка "Допуск" крупнее и с плотной (непрозрачной) тёмной
+   подложкой — раньше полупрозрачный светлый фон плохо читался поверх текста. */
 .l4-inspector-tol-btn{
   position:absolute;bottom:5%;left:50%;transform:translateX(-50%);
-  padding:8px 20px;border-radius:20px;border:1px solid rgba(255,217,138,.6);
-  background:rgba(255,217,138,.14);color:var(--ink);font-family:'Russo One',sans-serif;
-  font-size:12px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;z-index:7;
+  padding:13px 30px;border-radius:22px;border:1.5px solid rgba(255,217,138,.9);
+  background:rgba(28,22,8,.94);color:#ffe6ab;font-family:'Russo One',sans-serif;
+  font-size:15px;letter-spacing:.07em;text-transform:uppercase;cursor:pointer;z-index:7;
+  box-shadow:0 4px 16px -4px rgba(0,0,0,.7), 0 0 12px -2px rgba(255,217,138,.4);
 }
-.l4-inspector-tol-btn:hover{background:rgba(255,217,138,.26);}
+.l4-inspector-tol-btn:hover{background:rgba(48,38,14,.97);border-color:rgba(255,217,138,1);}
 .l4-inspector-tol-btn:active{transform:translateX(-50%) scale(.95);}
 .inspector-tol-card{ width:520px; text-align:left; }
 
@@ -1771,6 +1790,11 @@ body::after{
 .l4-fly.flying-out{transition:left .6s ease, top .6s ease;}
 .l4-fly.dragging{cursor:grabbing;transition:none;z-index:9;}
 .l4-fly.inside{filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px rgba(125,255,106,.85));}
+/* ART-SWAP: детали-картинки Навигатора (когда задан L4_SWARM_PARTS_IMG) */
+.l4-fly.l4-fly-img{
+  width:30px;height:30px;font-size:0;
+  background-size:contain;background-repeat:no-repeat;background-position:center;
+}
 .l4-fly-hidden{visibility:hidden;}
 /* Патч: крупная реплика Хозяина Роя внизу циферблата на фазе запоминания —
    плюс белая обводка, иначе красный текст теряется на фоне циферблата */
