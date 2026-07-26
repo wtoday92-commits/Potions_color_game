@@ -66,6 +66,37 @@
   </div>
 </div>
 
+<!-- Фаза 6: магазин. Список предметов рендерится в #shopList из game.js.
+     Панель-подложка вынесена в отдельный div (ART-SWAP: можно заменить на картинку). -->
+<div class="week-overlay shop-overlay" id="shopOverlay">
+  <div class="week-card shop-card">
+    <div class="shop-panel-bg" aria-hidden="true"></div>
+    <div class="shop-head">
+      <h3 data-i18n="SHOP_TITLE">Лавка припасов</h3>
+      <div class="shop-balance"><span data-i18n="SHOP_BALANCE">Чаевые:</span> <span class="tips-coin">🪙</span> <b id="shopBalanceVal">0</b></div>
+    </div>
+    <div class="shop-list" id="shopList"></div>
+    <button class="next-btn shop-close-btn" id="shopCloseBtn" data-i18n="SHOP_CLOSE">Закрыть</button>
+  </div>
+</div>
+
+<!-- Фаза 6: инвентарь. Предметы рендерятся в #inventoryList из game.js. -->
+<div class="week-overlay inventory-overlay" id="inventoryOverlay">
+  <div class="week-card shop-card inventory-card">
+    <div class="shop-panel-bg" aria-hidden="true"></div>
+    <div class="shop-head">
+      <h3 data-i18n="INV_TITLE">Инвентарь</h3>
+    </div>
+    <div class="shop-list" id="inventoryList"></div>
+    <button class="next-btn shop-close-btn" id="inventoryCloseBtn" data-i18n="SHOP_CLOSE">Закрыть</button>
+  </div>
+</div>
+
+<!-- Режим разработчика (тест): маленькая кнопка внизу справа. Вкл — много
+     чаевых, вся прогрессия и максимум репутации; выкл — возврат реального
+     профиля игрока (см. toggleDevMode в game.js). -->
+<button id="devModeBtn" class="dev-mode-btn" title="Режим разработчика (тест)">🛠</button>
+
 <!-- ЭМБИЕНТ: положи трек в assets/audio/ и укажи путь в src ниже (например assets/audio/ambient.mp3) -->
 <audio id="ambientAudio" loop preload="auto">
   <source src="assets/karin.mp3" type="audio/mpeg">
@@ -104,6 +135,14 @@
       </div>
     </div>
   </div>
+  <!-- Фаза 6: док магазина/инвентаря — справа, между тонким топбаром и шапкой.
+       Умения (Фаза 7) позже встанут аналогичным доком слева. Скрыт до Ур.4
+       прогрессии и в дейлике (см. updateProgressionGates). -->
+  <div class="shop-dock" id="shopDock" style="display:none">
+    <button id="shopBtn" class="shop-dock-btn" data-i18n-title="SHOP_BTN_TITLE" title="Магазин">🛒</button>
+    <button id="inventoryBtn" class="shop-dock-btn" data-i18n-title="INV_BTN_TITLE" title="Инвентарь">🎒</button>
+  </div>
+
   <!-- UI-патч: шапка собрана в один блок, чтобы заголовок/подзаголовок/стикеры
        не висели в воздухе отдельными строками -->
   <div class="game-header">

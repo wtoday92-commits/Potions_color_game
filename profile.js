@@ -70,6 +70,9 @@
   // рассинхронизированы. Чистый старт для всех. Менять ключ снова — только при
   // очередном несовместимом сбросе.
   const PROFILE_KEY = 'potionshop_profile_v2';
+  // Режим разработчика: флаг активности + бэкап реального профиля игрока.
+  const DEV_FLAG_KEY = 'potionshop_devmode';
+  const DEV_BACKUP_KEY = 'potionshop_profile_v2__backup';
   const SCHEMA_VERSION = 3;
 
   function uuid(){
@@ -147,7 +150,11 @@
       progression: { xp: 0, metNpcs: [] },
       // Фаза 5: чаевые — внутриигровая валюта (для магазина). balance тратится,
       // lifetime только растёт (для ачивок/стикеров). Начисляются в конце цикла.
-      tips: { balance: 0, lifetime: 0 }
+      tips: { balance: 0, lifetime: 0 },
+      // Фаза 6: магазин. inventory — счётчики купленных расходников по грейдам
+      // ({ itemId: [qtyG0, qtyG1, qtyG2] }). useTotals — суммарные применения
+      // (для будущих ачивок открытия грейдов). Грейды сейчас гейтятся прогрессией.
+      shop: { inventory: {}, useTotals: {} }
     };
   }
 
@@ -432,6 +439,14 @@
       save();
       return rep;
     },
+    // прямая установка значения репутации (для режима разработчика)
+    setReputation(npcId, value){
+      load();
+      const rep = ensureNpc(npcId);
+      rep.value = Math.max(0, value | 0);
+      save();
+      return rep;
+    },
     unlockReward(npcId, key, value){
       load();
       ensureNpc(npcId);
@@ -567,6 +582,78 @@
       t.balance -= a;
       save();
       return true;
+    },
+
+    // ---------- Фаза 6: магазин / инвентарь ----------
+    _ensureShop(){
+      if(!profile.shop) profile.shop = { inventory: {}, useTotals: {} };
+      if(!profile.shop.inventory) profile.shop.inventory = {};
+      if(!profile.shop.useTotals) profile.shop.useTotals = {};
+      return profile.shop;
+    },
+    // количество предмета конкретного грейда в сумке
+    itemQty(itemId, grade){
+      load();
+      const inv = this._ensureShop().inventory[itemId];
+      return (inv && inv[grade]) ? inv[grade] : 0;
+    },
+    // весь инвентарь в удобном виде: [{ id, grade, qty }]
+    inventoryList(){
+      load();
+      const inv = this._ensureShop().inventory;
+      const out = [];
+      Object.keys(inv).forEach(id=>{
+        (inv[id]||[]).forEach((qty, g)=>{ if(qty>0) out.push({ id, grade:g, qty }); });
+      });
+      return out;
+    },
+    addItem(itemId, grade, qty){
+      load();
+      const shop = this._ensureShop();
+      if(!shop.inventory[itemId]) shop.inventory[itemId] = [];
+      const arr = shop.inventory[itemId];
+      arr[grade] = (arr[grade] || 0) + (qty || 1);
+      save();
+      return arr[grade];
+    },
+    // тратит один предмет; возвращает false, если такого в сумке нет
+    consumeItem(itemId, grade){
+      load();
+      const shop = this._ensureShop();
+      const arr = shop.inventory[itemId];
+      if(!arr || !arr[grade]) return false;
+      arr[grade]--;
+      shop.useTotals[itemId] = (shop.useTotals[itemId] || 0) + 1;
+      save();
+      return true;
+    },
+    getItemUseTotal(itemId){ load(); return this._ensureShop().useTotals[itemId] || 0; },
+
+    // ---------- Режим разработчика (тестовый) ----------
+    // Вход: реальный профиль игрока сохраняется в отдельный ключ-бэкап, ставится
+    // флаг. Накат dev-значений (xp/чаевые/репутация) делает game.js (ему нужен
+    // список NPC). Выход: реальный профиль восстанавливается из бэкапа, флаг снят.
+    // Это гарантирует, что статистика/прогрессия игрока не теряются.
+    isDevMode(){ try{ return localStorage.getItem(DEV_FLAG_KEY) === '1'; }catch(e){ return false; } },
+    enterDevMode(){
+      load();
+      if(this.isDevMode()) return;
+      try{ localStorage.setItem(DEV_BACKUP_KEY, JSON.stringify(profile)); }catch(e){}
+      try{ localStorage.setItem(DEV_FLAG_KEY, '1'); }catch(e){}
+      // сам накат dev-значений — снаружи (game.js), затем save()
+    },
+    exitDevMode(){
+      if(!this.isDevMode()) return;
+      let restored = null;
+      try{ const raw = localStorage.getItem(DEV_BACKUP_KEY); if(raw) restored = JSON.parse(raw); }catch(e){}
+      try{ localStorage.removeItem(DEV_FLAG_KEY); }catch(e){}
+      try{ localStorage.removeItem(DEV_BACKUP_KEY); }catch(e){}
+      if(restored){
+        // в память кладём реальный профиль и сразу пишем его в основной ключ,
+        // чтобы beforeunload-сейв при перезагрузке не затёр восстановление
+        profile = deepMerge(emptyProfile(), restored);
+        try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); }catch(e){}
+      }
     }
   };
 

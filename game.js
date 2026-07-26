@@ -2813,7 +2813,294 @@
       tipsC.style.display = tipsOn ? '' : 'none';
       if(tipsOn){ const tv = $('tipsVal'); if(tv && window.PotionProfile) tv.textContent = window.PotionProfile.getTips(); }
     }
+    refreshShopDockState(); // Фаза 6: видимость/доступность кнопок магазина/инвентаря
     renderProgressionBar();
+  }
+
+  // ============================================================
+  // Фаза 6: магазин / инвентарь
+  // ============================================================
+  const SHOP_BY_ID = {};
+  if(typeof SHOP_ITEMS !== 'undefined') SHOP_ITEMS.forEach(it=> SHOP_BY_ID[it.id] = it);
+  const shopSelGrade = {}; // выбранный в карточке магазина грейд (itemId → 0..2)
+
+  // грейд i (0..2) открыт по прогрессии: Ур.4/5/8 → shop_grade_1..3
+  function shopGradeUnlocked(i){ return progMechUnlocked('shop_grade_' + (i+1)); }
+  function defaultSelGrade(item){
+    let g = 0;
+    for(let i=0;i<item.grades.length;i++){ if(shopGradeUnlocked(i)) g = i; }
+    return g;
+  }
+
+  // видимость дока и доступность кнопок: магазин — только 1-й день цикла и вне
+  // заказа; инвентарь — всегда, кроме фазы запоминания; оба скрыты в дейлике и
+  // до открытия по прогрессии (Ур.4)
+  function refreshShopDockState(){
+    const dock = $('shopDock');
+    const on = !isDailyMode && progMechUnlocked('shop');
+    if(dock) dock.style.display = on ? '' : 'none';
+    if(!on) return;
+    const roundActive = $('roundScreen').classList.contains('show');
+    const shopBtn = $('shopBtn'), invBtn = $('inventoryBtn');
+    if(shopBtn) shopBtn.disabled = !(dayNum === 1 && !roundActive);
+    if(invBtn) invBtn.disabled = (roundActive && currentPhase === 'scan');
+  }
+
+  // можно ли применить предмет прямо сейчас (зависит от usePhase)
+  function itemUsableNow(item){
+    const roundActive = $('roundScreen').classList.contains('show');
+    if(item.usePhase === 'craft') return roundActive && currentPhase === 'craft' && !!target && !craftLocked;
+    return $('selectScreen').classList.contains('show'); // 'select'
+  }
+
+  function regKeyLabel(key){
+    const m = { color:UI_TEXT.LABEL_SPECTRUM, colorB:UI_TEXT.LABEL_SPECTRUM, sat:UI_TEXT.LABEL_SATURATION,
+      size:UI_TEXT.LABEL_VOLUME, size2:UI_TEXT.LABEL_HEIGHT, count:UI_TEXT.LABEL_COUNT_QTY,
+      bsize:UI_TEXT.LABEL_COUNT_SIZE, shape:UI_TEXT.LABEL_SHAPE, rotation:UI_TEXT.LABEL_ROTATION,
+      speed:UI_TEXT.LABEL_SPEED, countB:UI_TEXT.LABEL_COUNT_B };
+    return m[key] || { ru:key, en:key };
+  }
+  // какие регуляторы можно указать предмету (паприка — только основные, где
+  // зелёная зона осмысленна; джиггер — любой активный засчитываемый)
+  function pickableKeysForItem(item){
+    const keys = [...(target && target.activeKeys ? target.activeKeys : [])].filter(k => S[k]);
+    if(item.effect === 'paprika' || item.effect === 'mark') return keys.filter(k => ['color','size','bsize','count'].includes(k));
+    return keys;
+  }
+
+  function renderShop(){
+    const host = $('shopList'); if(!host) return;
+    const PP = window.PotionProfile;
+    $('shopBalanceVal').textContent = PP ? PP.getTips() : 0;
+    host.innerHTML = '';
+    SHOP_ITEMS.forEach(item=>{
+      if(shopSelGrade[item.id] == null) shopSelGrade[item.id] = defaultSelGrade(item);
+      const g = shopSelGrade[item.id];
+      const grade = item.grades[g];
+      const canAfford = PP && PP.getTips() >= grade.price;
+      const buyable = shopGradeUnlocked(g) && canAfford;
+      const owned = PP ? PP.itemQty(item.id, g) : 0;
+      const gradesHTML = item.grades.map((gr,i)=>{
+        const unl = shopGradeUnlocked(i);
+        return `<div class="grade-pip ${i===g?'selected':''} ${unl?'':'locked'}" data-grade="${i}" title="${unl?LT(gr.label):LT(UI_TEXT.SHOP_LOCKED_GRADE)}">${i+1}</div>`;
+      }).join('');
+      const card = document.createElement('div');
+      card.className = 'item-card';
+      card.innerHTML = `
+        <div class="item-icon">${visualHTML(item.icon,'item-img')}</div>
+        <div class="item-body">
+          <div class="item-name">${LT(item.name)} <span class="item-grade-note">· ${LT(UI_TEXT.ITEM_GRADE_LABEL)} ${g+1} (${LT(grade.label)})</span></div>
+          <div class="item-desc">${LT(item.desc)}</div>
+          <div class="item-action">
+            <button class="item-buy-btn" ${buyable?'':'disabled'}>${LT(UI_TEXT.SHOP_BUY)}</button>
+            <span class="item-price">🪙 ${grade.price}</span>
+            <span class="item-owned">${LT(UI_TEXT.SHOP_OWNED)} ${owned}</span>
+            ${shopGradeUnlocked(g)?'':`<span class="item-grade-note">(${LT(UI_TEXT.SHOP_LOCKED_GRADE)})</span>`}
+          </div>
+        </div>
+        <div class="item-grades">${gradesHTML}</div>`;
+      card.querySelectorAll('.grade-pip').forEach(pip=>{
+        pip.addEventListener('click', ()=>{
+          const gi = parseInt(pip.dataset.grade,10);
+          if(!shopGradeUnlocked(gi)){ SFX.badPop(); return; }
+          shopSelGrade[item.id] = gi; SFX.uiClick(); renderShop();
+        });
+      });
+      const buyBtn = card.querySelector('.item-buy-btn');
+      if(buyBtn) buyBtn.addEventListener('click', ()=> buyItem(item, g));
+      host.appendChild(card);
+    });
+  }
+
+  function buyItem(item, g){
+    const PP = window.PotionProfile; if(!PP) return;
+    if(!shopGradeUnlocked(g)){ SFX.badPop(); return; }
+    if(!PP.spendTips(item.grades[g].price)){
+      SFX.badPop(); showToast({ icon:'🪙', prefix:UI_TEXT.SHOP_NEED_TIPS, name:'' }); return;
+    }
+    PP.addItem(item.id, g, 1);
+    SFX.cardPick();
+    showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_BOUGHT_TOAST, name:item.name });
+    updateProgressionGates(); // обновить счётчик чаевых в топбаре
+    renderShop();
+  }
+
+  function renderInventory(){
+    const host = $('inventoryList'); if(!host) return;
+    const PP = window.PotionProfile;
+    host.innerHTML = '';
+    const list = PP ? PP.inventoryList() : [];
+    if(!list.length){ host.innerHTML = `<div class="shop-empty">${LT(UI_TEXT.INV_EMPTY)}</div>`; return; }
+    list.forEach(entry=>{
+      const item = SHOP_BY_ID[entry.id]; if(!item) return;
+      const grade = item.grades[entry.grade];
+      const usable = itemUsableNow(item);
+      const hint = item.usePhase === 'craft' ? UI_TEXT.INV_USE_CRAFT_ONLY : UI_TEXT.INV_USE_SELECT_ONLY;
+      const card = document.createElement('div');
+      card.className = 'item-card';
+      card.innerHTML = `
+        <div class="item-icon">${visualHTML(item.icon,'item-img')}</div>
+        <div class="item-body">
+          <div class="item-name">${LT(item.name)} <span class="item-grade-note">· ${LT(UI_TEXT.ITEM_GRADE_LABEL)} ${entry.grade+1} (${LT(grade.label)})</span></div>
+          <div class="item-desc">${LT(item.desc)}</div>
+          <div class="item-action">
+            <button class="item-use-btn" ${usable?'':'disabled'}>${LT(UI_TEXT.INV_USE)}</button>
+            <span class="item-owned">×${entry.qty}</span>
+            ${usable?'':`<span class="item-grade-note">(${LT(hint)})</span>`}
+          </div>
+          <div class="reg-pick-host"></div>
+        </div>`;
+      const useBtn = card.querySelector('.item-use-btn');
+      if(useBtn) useBtn.addEventListener('click', ()=> useItem(item, entry.grade, card));
+      host.appendChild(card);
+    });
+  }
+
+  function useItem(item, grade, card){
+    if(!itemUsableNow(item)){ SFX.badPop(); return; }
+    const needsPick = (item.effect === 'paprika') || (item.effect === 'mark') ||
+                      (item.effect === 'jigger' && item.grades[grade].mode !== 'random');
+    if(needsPick){ showRegPicker(item, grade, card); return; }
+    applyItemEffect(item, grade, null);
+  }
+
+  function showRegPicker(item, grade, card){
+    const host = card.querySelector('.reg-pick-host'); if(!host) return;
+    const keys = pickableKeysForItem(item);
+    if(!keys.length){ SFX.badPop(); applyItemEffect(item, grade, null); return; } // нет подходящих — применяем как есть
+    host.innerHTML = `<div class="item-grade-note">${LT(UI_TEXT.INV_PICK_REG)}</div><div class="reg-pick-row">` +
+      keys.map(k=>`<button class="reg-pick-btn" data-key="${k}">${LT(regKeyLabel(k))}</button>`).join('') +
+      `<button class="reg-pick-btn cancel" data-key="">${LT(UI_TEXT.INV_PICK_CANCEL)}</button></div>`;
+    host.querySelectorAll('.reg-pick-btn').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const k = b.dataset.key;
+        if(!k){ host.innerHTML=''; SFX.uiClick(); return; }
+        applyItemEffect(item, grade, k);
+      });
+    });
+  }
+
+  function paprikaFrac(key){
+    const cfg = target.cfg;
+    if(key==='color') return target.hueIdx/((cfg.colorSteps-1)||1);
+    if(key==='size')  return target.sizeIdx/((cfg.sizeSteps-1)||1);
+    if(key==='bsize') return target.bsizeIdx/((cfg.bsizeSteps-1)||1);
+    if(key==='count') return (target.count-1)/((cfg.countMax-1)||1);
+    return 0.5;
+  }
+  function applyPaprikaZone(key, zone, mark){
+    if(!S[key]) return;
+    const frac = paprikaFrac(key);
+    const lo = Math.max(0, frac - zone) * 100;
+    const hi = Math.min(1, frac + zone) * 100;
+    // паприка — мягкая зелёная зона; "Барменский глаз" — тонкая яркая метка
+    const col = mark ? 'rgba(120,240,255,.92)' : 'rgba(80,255,140,.5)';
+    const band = `linear-gradient(to top, transparent ${lo}%, ${col} ${lo}%, ${col} ${hi}%, transparent ${hi}%)`;
+    const base = (key === 'color') ? RAINBOW_BG : 'rgba(53,224,255,.12)';
+    S[key].setTrackBackground(band + ', ' + base);
+    S[key].setFlag(mark ? 'item-mark' : 'item-paprika', true);
+  }
+
+  function applyItemEffect(item, grade, key){
+    const PP = window.PotionProfile; if(!PP) return;
+    if(!PP.consumeItem(item.id, grade)){ SFX.badPop(); return; }
+    const gr = item.grades[grade];
+    if(item.effect === 'time'){
+      pendingItemFx.timeBonusMs += gr.bonusMs || 0;
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_TIME_TOAST, name:'' });
+    } else if(item.effect === 'memtime'){
+      pendingItemFx.memBonusMs += gr.bonusMs || 0;
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_TIME_TOAST, name:'' });
+    } else if(item.effect === 'flatbonus'){
+      if(target) target.itemFx.flatBonus = (target.itemFx.flatBonus || 0) + (gr.flat || 0);
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+    } else if(item.effect === 'rewardmult'){
+      if(target) target.itemFx.rewardMult = (target.itemFx.rewardMult || 0) + (gr.mult || 0);
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+    } else if(item.effect === 'shield'){
+      if(target) target.itemFx.shieldCut = Math.max(target.itemFx.shieldCut || 0, gr.cut || 0);
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+    } else if(item.effect === 'speedlock'){
+      if(target) target.itemFx.speedLock = Math.max(target.itemFx.speedLock || 0, gr.lock || 0);
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+    } else if(item.effect === 'mark'){
+      if(key) applyPaprikaZone(key, gr.zone, true); // true — тонкая яркая метка (не зелёная зона)
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+    } else if(item.effect === 'jigger'){
+      let k = key;
+      if(!k){ const keys = pickableKeysForItem(item); k = keys.length ? pick(keys) : null; }
+      if(k && target){
+        target.itemFx.jiggerKey = k;
+        if(S[k]){ S[k].setDisabled(true); S[k].setFlag('item-jigger', true); }
+        updatePlayerJar();
+      }
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+    } else if(item.effect === 'paprika'){
+      if(key) applyPaprikaZone(key, gr.zone);
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+    } else if(item.effect === 'chip'){
+      if(target) target.itemFx.chip = { lo:gr.lo, hi:gr.hi };
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+    }
+    SFX.cardPick();
+    closeInventory();
+  }
+
+  function openShop(){
+    if(isDailyMode || !progMechUnlocked('shop')) return;
+    if(dayNum !== 1){ SFX.badPop(); showToast({ icon:'🛒', prefix:UI_TEXT.SHOP_ONLY_DAY1, name:'' }); return; }
+    renderShop(); $('shopOverlay').classList.add('show'); SFX.uiClick();
+  }
+  function closeShop(){ $('shopOverlay').classList.remove('show'); }
+  function openInventory(){
+    if(isDailyMode || !progMechUnlocked('shop')) return;
+    if($('roundScreen').classList.contains('show') && currentPhase === 'scan') return; // не в запоминании
+    renderInventory(); $('inventoryOverlay').classList.add('show'); SFX.uiClick();
+  }
+  function closeInventory(){ $('inventoryOverlay').classList.remove('show'); }
+
+  { // проводка кнопок магазина/инвентаря
+    const b1 = $('shopBtn'); if(b1) b1.addEventListener('click', openShop);
+    const b2 = $('inventoryBtn'); if(b2) b2.addEventListener('click', openInventory);
+    const c1 = $('shopCloseBtn'); if(c1) c1.addEventListener('click', ()=>{ SFX.uiClick(); closeShop(); });
+    const c2 = $('inventoryCloseBtn'); if(c2) c2.addEventListener('click', ()=>{ SFX.uiClick(); closeInventory(); });
+  }
+
+  // ============================================================
+  // Режим разработчика (тест) — кнопка внизу справа
+  // ============================================================
+  // Вкл: много чаевых + огромный xp (вся прогрессия) + максимум репутации у всех
+  // НПС (+все отмечены встреченными). Выкл: возврат реального профиля игрока из
+  // бэкапа (см. profile.js). Профиль игрока не теряется — dev пишется поверх
+  // бэкапа, при выходе восстанавливается.
+  function applyDevOverrides(){
+    const PP = window.PotionProfile; if(!PP) return;
+    PP.data.progression = PP.data.progression || { xp:0, metNpcs:[] };
+    PP.data.progression.xp = 1000000; // заведомо больше суммы всех порогов прогрессии
+    PP.data.tips = { balance: 999999, lifetime: Math.max((PP.data.tips && PP.data.tips.lifetime) || 0, 999999) };
+    if(typeof ALL_NPCS !== 'undefined'){
+      ALL_NPCS.forEach(n=>{ PP.setReputation(n.id, 999); PP.markNpcMet(n.id); });
+    }
+    PP.save();
+  }
+  function toggleDevMode(){
+    const PP = window.PotionProfile; if(!PP) return;
+    if(PP.isDevMode()){
+      PP.exitDevMode();
+    } else {
+      PP.enterDevMode();
+      applyDevOverrides();
+    }
+    location.reload(); // чистая переинициализация с новым/восстановленным профилем
+  }
+  function refreshDevBtn(){
+    const b = $('devModeBtn');
+    if(b && window.PotionProfile) b.classList.toggle('dev-on', window.PotionProfile.isDevMode());
+  }
+  {
+    const db = $('devModeBtn');
+    if(db) db.addEventListener('click', ()=>{ SFX.uiClick(); toggleDevMode(); });
+    refreshDevBtn();
   }
   // Фаза 3 (3B): подсказка на финале шкалы — что откроется по её завершении
   function progFinalHint(bar){
@@ -3006,7 +3293,7 @@
     ['collectionBtn','charactersBtn','passivesBtn'].forEach(id=>{
       const el = $(id); if(el) el.classList.add('hidden');
     });
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear();
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0;
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
     $('dayVal').textContent = dayNum;
@@ -3108,6 +3395,12 @@
   // до конца цикла они больше не выпадают (см. pickConfigForTier). Сбрасывается
   // в началах цикла (там же, где dayNum = 1).
   let pogromRemovedIds = new Set();
+
+  // Фаза 6, магазин: отложенные эффекты предметов, применённых в фазе выбора
+  // (сейчас — только бонус времени от "Сломанного секундомера"). Действуют на
+  // СЛЕДУЮЩИЙ заказ, гасятся при старте варки. Эффекты, применённые во время
+  // варки, живут в target.itemFx (сбрасывается на каждый заказ).
+  let pendingItemFx = { timeBonusMs: 0, memBonusMs: 0 };
 
   // Патч "Взаимоотношения": разовые эффекты на ДРУГИХ НПС тройки, связанных с
   // тем, кого игрок только что выбрал для заказа. Возвращает мс задержки
@@ -3498,7 +3791,7 @@
     }
 
     target = {
-      cfg, type: cfg.type, flags, focus, mods: ord.mods || [], regLevel,
+      cfg, type: cfg.type, flags, focus, mods: ord.mods || [], itemFx: {}, regLevel,
       hue: idxToVal(hueIdx, cfg.colorSteps, 360), hueIdx,
       size: idxToVal(sizeIdx, cfg.sizeSteps, 100), sizeIdx,
       bsize: idxToVal(bsizeIdx, cfg.bsizeSteps, 100), bsizeIdx,
@@ -3655,6 +3948,7 @@
     $('leftCol').classList.remove('show');
     $('rightCol').classList.remove('show');
     currentPhase = 'scan';
+    refreshShopDockState(); // Фаза 6: в фазе запоминания инвентарь недоступен
     $('phaseLabel').textContent = LT(UI_TEXT.PHASE_SCAN);
     $('brewBtn').disabled = false;
     craftLocked = false;
@@ -3669,7 +3963,10 @@
     // Патч (Модница УР.4): фаза показа теперь обычная (цикл цветов убран) —
     // таймер чуть длиннее, раз регуляторы на игре будут открываться по одному
     const fashionistaL4Bonus = (cfg.id === 'fashionista' && regLevel === 4) ? 1500 : 0;
-    const memDuration = Math.round(cfg.memorizeMs * (1 + (target.passiveFx.memTime || 0))) + janitorL4Bonus + fashionistaL4Bonus;
+    // Фаза 6, "Тоник ясности": отложенный бонус времени запоминания (применён в фазе выбора)
+    let clarityBonus = 0;
+    if(pendingItemFx.memBonusMs){ clarityBonus = pendingItemFx.memBonusMs; pendingItemFx.memBonusMs = 0; }
+    const memDuration = Math.round(cfg.memorizeMs * (1 + (target.passiveFx.memTime || 0))) + janitorL4Bonus + fashionistaL4Bonus + clarityBonus;
     target.memDuration = memDuration; // Патч "УР.4": механики фазы показа читают отсюда
     // Тот-Кто-Ждёт: у него нет таймера ни на запоминание, ни на варку —
     // игрок сам решает, когда готов, кнопкой "Готово, воссоздаю"
@@ -3705,6 +4002,7 @@
     setTimeout(()=>{ $('fog').classList.remove('show'); }, 450);
     $('jarSvg').classList.add('brewing');
     currentPhase = 'craft';
+    refreshShopDockState(); // Фаза 6: в фазе варки инвентарь снова доступен
     $('phaseLabel').textContent = LT(UI_TEXT.PHASE_CRAFT);
 
     S.color.configure({ min:0, max:cfg.colorSteps-1, step:1, value:Math.floor((cfg.colorSteps-1)/2) });
@@ -3755,6 +4053,12 @@
     Object.values(S).forEach(s=>{ if(s.setFlag){ s.setFlag('ir-gift', false); } });
     S.color.setTrackBackground(RAINBOW_BG);
     S.colorB.setTrackBackground(RAINBOW_BG);
+    // Фаза 6: снять подсказки/метки предметов прошлого заказа со всех ползунков
+    ['color','colorB','size','count','bsize','size2','sat','shape','speed','rotation'].forEach(k=>{
+      if(!S[k]) return;
+      if(!['color','colorB'].includes(k)) S[k].setTrackBackground(''); // цветным фон уже вернули к радуге выше
+      S[k].setFlag('item-paprika', false); S[k].setFlag('item-mark', false); S[k].setFlag('item-jigger', false);
+    });
 
     Object.values(S).forEach(s=>{ s.setDisabled(false); s.setDiffLocked(false); });
     applyDifficultyGating();
@@ -3813,6 +4117,8 @@
     // Применяем к базе (craftBaseDuration тоже), чтобы бонус за скорость мерился
     // относительно уже урезанного окна, а не полного.
     if(target.mods && target.mods.includes('timer')) craftDuration = Math.max(1500, Math.round(craftDuration * 0.75));
+    // Фаза 6, "Сломанный секундомер": отложенный бонус времени (применён в фазе выбора)
+    if(pendingItemFx.timeBonusMs){ craftDuration += pendingItemFx.timeBonusMs; pendingItemFx.timeBonusMs = 0; }
     target.craftDuration = craftDuration;
     target.craftBaseDuration = craftDuration; // для честного timeFrac, даже когда таймер не тикает
 
@@ -4093,6 +4399,17 @@
       const totalGate = components.reduce((s,c)=>s+c.weight,0) || 1;
       components.forEach(c=>{ c.weight /= totalGate; });
     }
+    // Фаза 6, "Потрёпанный джиггер": отключённый регулятор не участвует в
+    // подсчёте — веса оставшихся нормализуются заново
+    if(target.itemFx && target.itemFx.jiggerKey){
+      const jk = target.itemFx.jiggerKey;
+      const before = components.length;
+      components = components.filter(c => c.key !== jk && !(c.key === 'size2' && jk === 'size'));
+      if(components.length && components.length < before){
+        const t = components.reduce((s,c)=>s+c.weight,0) || 1;
+        components.forEach(c=>{ c.weight /= t; });
+      }
+    }
     // Патч "УР.4" (Тентаклоид): считает ТОЛЬКО один (случайный, скрытый до
     // конца раунда) параметр — остальные полностью игнорируются, что бы
     // игрок с ними ни сделал (даже если бы они были идеальны или ужасны)
@@ -4249,7 +4566,9 @@
     // укладывании в первую треть таймера и 100% точности, дальше падает
     // и по времени, и по точности
     const third = 1/3;
-    const timeFactor = timeFrac <= third ? 1 : Math.max(0, 1 - (timeFrac - third)/(1 - third));
+    let timeFactor = timeFrac <= third ? 1 : Math.max(0, 1 - (timeFrac - third)/(1 - third));
+    // Фаза 6 ("Ускоритель варки"): гарантирует минимальную долю бонуса за скорость
+    if(target.itemFx && target.itemFx.speedLock) timeFactor = Math.max(timeFactor, target.itemFx.speedLock);
     // Фаза J: пассивка speedCap поднимает потолок бонуса за скорость
     const pfx = target.passiveFx || {};
     const speedCap = ((typeof SPEED_BONUS_MULT !== 'undefined' && SPEED_BONUS_MULT[target.regLevel]) ?? 0.5) + (pfx.speedCap || 0);
@@ -4354,6 +4673,22 @@
       else if(!swill) delta = Math.round(delta * 1.6); // усиленный штраф за брак
     }
     if(mods.includes('rampage') && delta > 0) delta = delta * 2;
+    // Фаза 6: предметы, влияющие на итоговый рейтинг заказа.
+    if(target.itemFx){
+      const fx = target.itemFx;
+      // "Утяжелённый шейкер": +% рейтинга за годноту/идеал
+      if(fx.rewardMult && good) delta = Math.round(delta * (1 + fx.rewardMult));
+      // "Звёздная соль": фиксированная прибавка за годноту
+      if(fx.flatBonus && good) delta += fx.flatBonus;
+      // "Фишка неудачника": ±случайная доля в диапазоне грейда (напр. −5%…+5%)
+      if(fx.chip){
+        const f = fx.chip.lo + Math.random() * (fx.chip.hi - fx.chip.lo);
+        delta = Math.round(delta * (1 + f));
+      }
+      // "Страховочный трос": смягчает потерю рейтинга при браке (cut — доля,
+      // на которую урезается штраф; 1.0 — потерь нет вовсе)
+      if(fx.shieldCut && delta < 0) delta = Math.round(delta * (1 - fx.shieldCut));
+    }
     score = Math.max(0, score + delta);
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
@@ -5621,7 +5956,7 @@
   });
   $('newWeekBtn').addEventListener('click', ()=>{
     SFX.uiClick();
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear();
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0;
     if(!isDailyMode){
       // Фаза J: новый цикл — состав пассивок снова можно менять,
       // счётчики "за цикл" (picksCycle) в профиле обнуляются
@@ -5800,7 +6135,7 @@
     stopMatrixRain();
     setDjAmbientDuck(false);
     isDailyMode = false;
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear();
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0;
     cycleStarted = false;
     if(window.PotionProfile) window.PotionProfile.startCycle();
     $('scoreVal').textContent = score;

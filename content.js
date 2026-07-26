@@ -92,6 +92,28 @@ const UI_TEXT = {
   // ---------- Фаза 5: чаевые ----------
   TIPS_TITLE:             { ru:'Чаевые', en:'Tips' },
   TIPS_EARNED_TOAST:      { ru:'Чаевые за цикл', en:'Tips for the cycle' },
+  // ---------- Фаза 6: магазин / инвентарь ----------
+  SHOP_BTN_TITLE:         { ru:'Магазин (только в 1-й день цикла)', en:'Shop (first day of the cycle only)' },
+  INV_BTN_TITLE:          { ru:'Инвентарь', en:'Inventory' },
+  SHOP_TITLE:             { ru:'Лавка припасов', en:'Supply Store' },
+  INV_TITLE:              { ru:'Инвентарь', en:'Inventory' },
+  SHOP_BALANCE:           { ru:'Чаевые:', en:'Tips:' },
+  SHOP_BUY:               { ru:'Купить', en:'Buy' },
+  SHOP_OWNED:             { ru:'в сумке:', en:'owned:' },
+  SHOP_LOCKED_GRADE:      { ru:'откроется по прогрессии', en:'unlocks with progression' },
+  SHOP_NEED_TIPS:         { ru:'Не хватает чаевых', en:'Not enough tips' },
+  SHOP_CLOSE:             { ru:'Закрыть', en:'Close' },
+  SHOP_ONLY_DAY1:         { ru:'Магазин открыт только в 1-й день цикла', en:'Shop is open only on the first day of the cycle' },
+  INV_EMPTY:              { ru:'Сумка пуста. Загляни в магазин в 1-й день цикла.', en:'Your bag is empty. Visit the shop on day 1 of the cycle.' },
+  INV_USE:                { ru:'Применить', en:'Use' },
+  INV_USE_CRAFT_ONLY:     { ru:'во время варки', en:'during crafting' },
+  INV_USE_SELECT_ONLY:    { ru:'перед заказом', en:'before an order' },
+  INV_PICK_REG:           { ru:'На какой регулятор?', en:'Which regulator?' },
+  INV_PICK_CANCEL:        { ru:'Отмена', en:'Cancel' },
+  ITEM_BOUGHT_TOAST:      { ru:'Куплено', en:'Bought' },
+  ITEM_USED_TOAST:        { ru:'Применено', en:'Used' },
+  ITEM_TIME_TOAST:        { ru:'Секундомер заведён — время добавится', en:'Stopwatch wound — time will be added' },
+  ITEM_GRADE_LABEL:       { ru:'Грейд', en:'Grade' },
   PROG_BAR_LEVEL:         { ru:'Лавка ур.', en:'Shop lv.' },
   PROG_BAR_MAX:           { ru:'Лавка развита полностью', en:'Shop fully grown' },
   PROG_MARK_LOCKED_NPC:   { ru:'Скоро: новый посетитель', en:'Soon: a new visitor' },
@@ -994,6 +1016,129 @@ const NPC_STAT_EXPLAIN = {
     rampage: { ru:'×2 рейтинг и чаевые за заказ. Но персонаж дерётся: уходит из цикла и портит репутацию другим гостям этого дня.',
                en:'×2 rating and tips for the order. But this one brawls: leaves the cycle and hurts the day\'s other guests\' reputation.' }
   };
+
+  // ---------- Фаза 6: магазин — предметы-расходники ----------
+  // Каждый предмет — расходник: покупается за чаевые, лежит в инвентаре со
+  // счётчиком, тратится при применении. У каждого 3 грейда (сильнее+дороже),
+  // покупаются постоянно (новый не заменяет предыдущий). Грейды 1/2/3
+  // открываются по прогрессии (Ур.4/5/8, флаги shop_grade_1..3).
+  //   icon      — эмодзи-плейсхолдер (ART-SWAP: путь к картинке подхватит visualHTML).
+  //   usePhase  — когда предмет можно применить: 'select' (влияет на СЛЕДУЮЩИЙ
+  //               заказ) или 'craft' (на ТЕКУЩИЙ, во время варки).
+  //   effect    — тег эффекта, game.js смотрит по нему, что делать.
+  //   grades[]  — по одному объекту на грейд: price + параметры эффекта + label.
+  const SHOP_ITEMS = [
+    {
+      id:'stopwatch', icon:'⏱️', usePhase:'select', effect:'time',
+      name:{ ru:'Сломанный секундомер', en:'Broken Stopwatch' },
+      desc:{ ru:'Заедает на полпути. Добавляет время на воссоздание следующего заказа.',
+             en:'Jams halfway. Adds crafting time to your next order.' },
+      grades:[
+        { price:80,  bonusMs:1000, label:{ ru:'+1 сек', en:'+1s' } },
+        { price:260, bonusMs:2000, label:{ ru:'+2 сек', en:'+2s' } },
+        { price:700, bonusMs:4000, label:{ ru:'+4 сек', en:'+4s' } }
+      ]
+    },
+    {
+      id:'jigger', icon:'🥃', usePhase:'craft', effect:'jigger',
+      name:{ ru:'Потрёпанный джиггер', en:'Battered Jigger' },
+      desc:{ ru:'Мятый мерный стакан. Отключает регулятор — он больше не влияет на рейтинг.',
+             en:'A dented measuring cup. Disables a regulator — it no longer affects your score.' },
+      grades:[
+        { price:120,  mode:'random',      label:{ ru:'случайный', en:'random' } },
+        { price:380,  mode:'choose',      label:{ ru:'на выбор',  en:'you pick' } },
+        { price:1000, mode:'choose_safe', label:{ ru:'на выбор',  en:'you pick' } }
+      ]
+    },
+    {
+      id:'paprika', icon:'🌶️', usePhase:'craft', effect:'paprika',
+      name:{ ru:'Космическая паприка', en:'Cosmic Paprika' },
+      desc:{ ru:'Щепотка звёздной пыльцы. Подсвечивает на регуляторе зелёную зону, где прячется верное значение.',
+             en:'A pinch of stellar dust. Lights a green zone on a regulator where the right value hides.' },
+      grades:[
+        { price:150,  zone:0.22, label:{ ru:'широкая зона', en:'wide zone' } },
+        { price:480,  zone:0.14, label:{ ru:'уже зона',     en:'tighter zone' } },
+        { price:1300, zone:0.08, label:{ ru:'узкая зона',   en:'narrow zone' } }
+      ]
+    },
+    {
+      id:'chip', icon:'🎲', usePhase:'craft', effect:'chip',
+      name:{ ru:'Фишка неудачника', en:"Loser's Chip" },
+      desc:{ ru:'Затёртая покерная фишка. В конце меняет итоговый рейтинг заказа на случайную величину.',
+             en:"A worn poker chip. At the end, shifts the order's final score by a random amount." },
+      grades:[
+        { price:100, lo:-0.05, hi:0.05, label:{ ru:'−5%…+5%', en:'−5%…+5%' } },
+        { price:320, lo:-0.03, hi:0.07, label:{ ru:'−3%…+7%', en:'−3%…+7%' } },
+        { price:850, lo:0.0,   hi:0.10, label:{ ru:'0%…+10%', en:'0%…+10%' } }
+      ]
+    },
+    {
+      id:'clarity', icon:'💧', usePhase:'select', effect:'memtime',
+      name:{ ru:'Тоник ясности', en:'Clarity Tonic' },
+      desc:{ ru:'Проясняет взгляд. Добавляет время на фазу запоминания следующего заказа.',
+             en:'Sharpens your eye. Adds memorize time to your next order.' },
+      grades:[
+        { price:90,  bonusMs:1000, label:{ ru:'+1 сек',   en:'+1s' } },
+        { price:300, bonusMs:2000, label:{ ru:'+2 сек',   en:'+2s' } },
+        { price:800, bonusMs:3500, label:{ ru:'+3.5 сек', en:'+3.5s' } }
+      ]
+    },
+    {
+      id:'salt', icon:'🧂', usePhase:'craft', effect:'flatbonus',
+      name:{ ru:'Звёздная соль', en:'Stardust Salt' },
+      desc:{ ru:'Щепотка на удачу. Прибавляет фиксированный рейтинг, если заказ вышел годным.',
+             en:'A pinch for luck. Adds flat rating if the order lands good.' },
+      grades:[
+        { price:110, flat:40,  label:{ ru:'+40',  en:'+40' } },
+        { price:340, flat:90,  label:{ ru:'+90',  en:'+90' } },
+        { price:900, flat:180, label:{ ru:'+180', en:'+180' } }
+      ]
+    },
+    {
+      id:'weight', icon:'⚖️', usePhase:'craft', effect:'rewardmult',
+      name:{ ru:'Утяжелённый шейкер', en:'Weighted Shaker' },
+      desc:{ ru:'Бьёт солиднее. Увеличивает рейтинг за годный или идеальный заказ.',
+             en:'Hits heavier. Boosts rating for a good or perfect order.' },
+      grades:[
+        { price:160,  mult:0.15, label:{ ru:'+15%', en:'+15%' } },
+        { price:520,  mult:0.30, label:{ ru:'+30%', en:'+30%' } },
+        { price:1400, mult:0.50, label:{ ru:'+50%', en:'+50%' } }
+      ]
+    },
+    {
+      id:'shield', icon:'🪢', usePhase:'craft', effect:'shield',
+      name:{ ru:'Страховочный трос', en:'Safety Line' },
+      desc:{ ru:'Ловит падение. Смягчает потерю рейтинга, если заказ ушёл в брак.',
+             en:'Catches the fall. Softens rating loss if the order flops.' },
+      grades:[
+        { price:130,  cut:0.5,  label:{ ru:'−½ штрафа',  en:'half loss' } },
+        { price:420,  cut:0.75, label:{ ru:'−¾ штрафа',  en:'quarter loss' } },
+        { price:1100, cut:1.0,  label:{ ru:'без потерь',  en:'no loss' } }
+      ]
+    },
+    {
+      id:'eye', icon:'👁️', usePhase:'craft', effect:'mark',
+      name:{ ru:'Барменский глаз', en:"Barkeep's Eye" },
+      desc:{ ru:'Намётанный глаз. Ставит на регуляторе точную метку верного значения.',
+             en:'A trained eye. Puts an exact marker of the right value on a regulator.' },
+      grades:[
+        { price:180,  zone:0.03,  label:{ ru:'метка', en:'marker' } },
+        { price:560,  zone:0.02,  label:{ ru:'точнее', en:'sharper' } },
+        { price:1500, zone:0.012, label:{ ru:'в точку', en:'pinpoint' } }
+      ]
+    },
+    {
+      id:'haste', icon:'⚡', usePhase:'craft', effect:'speedlock',
+      name:{ ru:'Ускоритель варки', en:'Brew Accelerant' },
+      desc:{ ru:'Подстёгивает руки. Гарантирует минимальный бонус за скорость, даже если возишься долго.',
+             en:'Quickens the hands. Guarantees a minimum speed bonus even if you take your time.' },
+      grades:[
+        { price:140, lock:0.5,  label:{ ru:'½ бонуса',  en:'½ bonus' } },
+        { price:450, lock:0.75, label:{ ru:'¾ бонуса',  en:'¾ bonus' } },
+        { price:1200, lock:1.0, label:{ ru:'полный',    en:'full' } }
+      ]
+    }
+  ];
 
   const SHAPE_NAMES = [
     { ru:'Капсула', en:'Capsule' }, { ru:'Блок', en:'Block' }, { ru:'Тубус', en:'Tube' },
