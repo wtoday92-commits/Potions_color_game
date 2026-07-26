@@ -254,7 +254,7 @@
   let craftLocked = false;
   let craftStartTime = 0;
   let ingTimerHandle = null;
-  const stickerCounts = { perfect:0, good:0, bad:0 };
+  const stickerCounts = { perfect:0, good:0, swill:0, bad:0 };
 
   let movingBubbles=null, movingGeom=null, movingProfile=null, movingR=0, movingLastT=0, movingRafId=null;
 
@@ -273,6 +273,7 @@
     $('stickerTally').innerHTML = `
       <span class="tally-item">${visualHTML(first(STICKERS.perfect),'tally-img')} <b>${stickerCounts.perfect}</b></span>
       <span class="tally-item">${visualHTML(first(STICKERS.good),'tally-img')} <b>${stickerCounts.good}</b></span>
+      <span class="tally-item">${visualHTML(first(STICKERS.swill),'tally-img')} <b>${stickerCounts.swill}</b></span>
       <span class="tally-item">${visualHTML(first(STICKERS.bad),'tally-img')} <b>${stickerCounts.bad}</b></span>
     `;
   }
@@ -2248,7 +2249,6 @@
     el.textContent = typeof FASHIONISTA_BOSSY_PHRASES !== 'undefined' ? LT(pickLocalized(FASHIONISTA_BOSSY_PHRASES)) : '';
   }
 
-  // ---------- Шеф туманности: гарниши-обманки среди настоящих сгустков ----------
   // ---------- Дегустатор (Гурман с Веги): кнопка "Дегустировать" + доделка
   // зелья после первой "какашки" (см. finishCraft/finalizeResult) ----------
   LEVEL4_FX.gourmet_vega = {
@@ -4016,8 +4016,13 @@
     const overallPct = Math.round(overall*100);
     const goodThreshold = cfg.tier >= 5 ? 0.85 : 0.8;
     const perfectThreshold = cfg.tier >= 5 ? 0.97 : 0.95;
+    // Фаза 2 (П7): «Пойло» — грейд между браком и годнотой. Настоящий брак
+    // теперь только НИЖЕ swillThreshold; всё, что дотянуло до полосы пойла, но
+    // не до годноты — пойло (малый ±рейтинг). Идеал/годнота не тронуты.
+    const swillThreshold = cfg.tier >= 5 ? 0.62 : 0.55;
     const good = overall >= goodThreshold;
     const perfect = overall >= perfectThreshold;
+    const swill = !good && overall >= swillThreshold;
 
     // ---------- Патч: контекст для особых стикеров + снимок для переигровок ----------
     // серии читаем из профиля ДО recordOrderResult (он их обновит ниже)
@@ -4057,6 +4062,14 @@
       delta = Math.round(base*(1+speedBonusFrac));
       speedBonusPct = Math.round(speedBonusFrac*100);
       streak++;
+    } else if(swill){
+      // Пойло: малый ±рейтинг. Ближе к годноте (верх полосы) — небольшой плюс,
+      // ближе к браку (низ) — небольшой минус. Без бонуса за скорость, серия
+      // сбрасывается (это не победа).
+      const band = Math.max(0.0001, goodThreshold - swillThreshold);
+      const f = Math.min(1, Math.max(0, (overall - swillThreshold) / band)); // 0..1
+      delta = Math.round(effReward * (f - 0.5) * 0.30);
+      streak = 0;
     } else {
       delta = -Math.round(effReward*(1-overall));
       streak = 0;
@@ -4129,10 +4142,13 @@
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
 
-    if(perfect) stickerCounts.perfect++; else if(good) stickerCounts.good++; else stickerCounts.bad++;
+    if(perfect) stickerCounts.perfect++; else if(good) stickerCounts.good++; else if(swill) stickerCounts.swill++; else stickerCounts.bad++;
     updateStickerTally();
 
-    if(!good){
+    if(swill){
+      // Пойло не двигает стадию (ни вверх, ни вниз), но обрывает серии на максимуме
+      perfectStreakAtMax = 0; goodStreakAtMax = 0;
+    } else if(!good){
       stage = Math.max(0, stage-1);
       perfectStreakAtMax = 0; goodStreakAtMax = 0;
     } else if(stage < MAX_STAGE){
@@ -4153,13 +4169,14 @@
     const forcedBad = !!(offendedSt && offendedSt.offended);
     const effGood = forcedBad ? false : good;
     const effPerfect = forcedBad ? false : perfect;
+    const effSwill = forcedBad ? false : swill; // обиженный НПС форсит именно брак
 
     // Фаза G: фиксируем КОНКРЕТНЫЙ вариант стикера один раз здесь (а не
     // внутри visualHTML), чтобы одно и то же значение ушло и на экран
     // результата, и в profile.stats.stickersSeen для альбома в Коллекции.
     // Патч: особые стикеры выпадают ТОЛЬКО по своим условиям (см.
     // STICKER_SPECIALS в content.js); обычные — случайно из "базовых".
-    const stickerCat = effPerfect ? 'perfect' : effGood ? 'good' : 'bad';
+    const stickerCat = effPerfect ? 'perfect' : effGood ? 'good' : effSwill ? 'swill' : 'bad';
     const stickerArr = STICKERS[stickerCat];
     let stickerIdx = 0;
     if(forcedBad){
@@ -4174,11 +4191,11 @@
         .filter(c => c.key === 'size' || c.key === 'size2')
         .every(c => c.score >= 0.999) && components.some(c => c.key === 'size2');
       const stickCtx = {
-        perfect, good, overall, components, target, timeFrac,
+        perfect, good, swill, overall, components, target, timeFrac,
         autoFinish: !!target.autoFinish,
         scoreAfter: score, dayNum,
         perfectRun: perfectRunNow, goodRun: goodRunNow, badRunBefore,
-        perfectThreshold, novaExact
+        perfectThreshold, goodThreshold, novaExact
       };
       const eligible = specials.filter(sp => { try { return !!sp.check(stickCtx); } catch(e){ return false; } });
       if(eligible.length){
@@ -4211,7 +4228,7 @@
     // режиме ничего из этого не пишем и не проверяем вовсе.
     if(!isDailyMode && window.PotionProfile){
       const repRes = window.PotionProfile.recordOrderResult({
-        npcId: cfg.id, perfect, good, delta, stickerCat, stickerIdx, progressWeight,
+        npcId: cfg.id, perfect, good, swill, delta, stickerCat, stickerIdx, progressWeight,
         regLevel: target.regLevel, focus: target.focus,
         fastThird: timeFrac <= 1/3,
         repMult: 1 + (pfx.rep || 0)
@@ -4383,13 +4400,13 @@
     }
 
     // cached so a language switch can re-translate the overlay without recomputing scores
-    lastResult = { perfect, good, delta, speedBonusPct, overallPct, components, focus: target.focus };
+    lastResult = { perfect, good, swill, delta, speedBonusPct, overallPct, components, focus: target.focus };
 
     $('stickerEmoji').innerHTML = visualHTML(stickerVal, 'sticker-img');
-    $('resultTitle').textContent = LT(perfect ? UI_TEXT.RESULT_PERFECT : good ? UI_TEXT.RESULT_GOOD : UI_TEXT.RESULT_BAD);
-    $('resultTitle').className = 'result-title ' + (good ? 'good' : 'bad');
+    $('resultTitle').textContent = LT(perfect ? UI_TEXT.RESULT_PERFECT : good ? UI_TEXT.RESULT_GOOD : swill ? UI_TEXT.RESULT_SWILL : UI_TEXT.RESULT_BAD);
+    $('resultTitle').className = 'result-title ' + (good ? 'good' : swill ? 'swill' : 'bad');
     $('deltaVal').textContent = (delta>=0?'+':'') + delta;
-    $('deltaVal').className = 'delta ' + (good ? 'good' : 'bad');
+    $('deltaVal').className = 'delta ' + (good ? 'good' : swill ? 'swill' : 'bad');
     $('speedNote').textContent = speedBonusPct >= 1 ? LT(UI_TEXT.SPEED_BONUS).replace('{p}', speedBonusPct) : '';
     $('overallScore').textContent = overallPct + '%';
     $('breakdown').innerHTML = components.map(c=>
@@ -4415,6 +4432,7 @@
     void jar.offsetWidth;
     if(perfect){ SFX.perfect(); jar.classList.add('celebrate'); }
     else if(good){ SFX.good(); jar.classList.add('celebrate'); }
+    else if(swill){ SFX.tick(); } // пойло — нейтральный отклик, без празднования и тряски
     else { SFX.bad(); jar.classList.add('shake'); }
     setTimeout(()=> $('resultOverlay').classList.add('show'), 450);
   }
@@ -4450,6 +4468,7 @@
       goodStreakAtMax = preResultSnapshot.goodStreakAtMax;
       stickerCounts.perfect = preResultSnapshot.stickerCounts.perfect;
       stickerCounts.good = preResultSnapshot.stickerCounts.good;
+      stickerCounts.swill = preResultSnapshot.stickerCounts.swill || 0;
       stickerCounts.bad = preResultSnapshot.stickerCounts.bad;
       archSeal = preResultSnapshot.archSeal
         ? { ...preResultSnapshot.archSeal, perfectNpcs: [...preResultSnapshot.archSeal.perfectNpcs] }
@@ -5177,7 +5196,7 @@
     // ---- альбом стикеров: силуэт для ещё не выбитых вариантов ----
     // (Фаза G доп.): необязательная своя картинка для замка —
     // ALBUM_LOCK_ICON в content.js, иначе рисуется просто "?"
-    const seen = (st.stickersSeen) || { perfect:[], good:[], bad:[] };
+    const seen = (st.stickersSeen) || { perfect:[], good:[], swill:[], bad:[] };
     const lockIcon = (typeof ALBUM_LOCK_ICON !== 'undefined') ? ALBUM_LOCK_ICON : null;
     const albumRow = (cat, labelKey)=>{
       const arr = STICKERS[cat];
@@ -5198,6 +5217,7 @@
     $('stickerAlbum').innerHTML =
       albumRow('perfect', 'ALBUM_LABEL_PERFECT') +
       albumRow('good', 'ALBUM_LABEL_GOOD') +
+      albumRow('swill', 'ALBUM_LABEL_SWILL') +
       albumRow('bad', 'ALBUM_LABEL_BAD');
 
     // ---- Фаза H v2: общие ачивки с порогами ----
@@ -5431,8 +5451,8 @@
       if(target.flags.hasShape) $('lblShape').textContent = LT(SHAPE_NAMES[S.shape.value]);
     }
     if($('resultOverlay').classList.contains('show') && lastResult){
-      const { perfect, good, delta, speedBonusPct, overallPct, components, focus } = lastResult;
-      $('resultTitle').textContent = LT(perfect ? UI_TEXT.RESULT_PERFECT : good ? UI_TEXT.RESULT_GOOD : UI_TEXT.RESULT_BAD);
+      const { perfect, good, swill, delta, speedBonusPct, overallPct, components, focus } = lastResult;
+      $('resultTitle').textContent = LT(perfect ? UI_TEXT.RESULT_PERFECT : good ? UI_TEXT.RESULT_GOOD : swill ? UI_TEXT.RESULT_SWILL : UI_TEXT.RESULT_BAD);
       $('speedNote').textContent = speedBonusPct >= 1 ? LT(UI_TEXT.SPEED_BONUS).replace('{p}', speedBonusPct) : '';
       $('breakdown').innerHTML = components.map(c=>
         `<div class="row ${c.focused?'focused':''} ${c.decisive?'decisive':''}"><span>${c.focused?visualHTML(FOCUS_ICONS[focus],'focus-img')+' ':''}${c.decisive?'🗿 ':''}${LT(c.label)}</span><span class="val">${Math.round(c.score*100)}%</span></div>`

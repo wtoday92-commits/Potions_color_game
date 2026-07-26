@@ -70,6 +70,7 @@ const UI_TEXT = {
   REWARD_PREFIX:     { ru:'за идеал: +', en:'for perfect: +' },
   RESULT_PERFECT:    { ru:'Идеальная смесь!', en:'Perfect mixture!' },
   RESULT_GOOD:       { ru:'Годная смесь', en:'Decent mixture' },
+  RESULT_SWILL:      { ru:'Пойло', en:'Swill' },
   RESULT_BAD:        { ru:'Брак...', en:'Reject...' },
   SPEED_BONUS:       { ru:'⚡ бонус за скорость: +{p}%', en:'⚡ speed bonus: +{p}%' },
   NEXT_BTN:          { ru:'К шлюзу →', en:'To the airlock →' },
@@ -96,6 +97,7 @@ const UI_TEXT = {
   STICKERS_SECTION_TITLE: { ru:'Альбом стикеров', en:'Sticker album' },
   ALBUM_LABEL_PERFECT:    { ru:'Идеал', en:'Perfect' },
   ALBUM_LABEL_GOOD:       { ru:'Годнота', en:'Decent' },
+  ALBUM_LABEL_SWILL:      { ru:'Пойло', en:'Swill' },
   ALBUM_LABEL_BAD:        { ru:'Брак', en:'Reject' },
   REPUTATION_SECTION_TITLE: { ru:'Репутация', en:'Reputation' },
   REP_LEVEL_LABEL:        { ru:'ур.', en:'lv.' },
@@ -213,44 +215,55 @@ const UI_TEXT = {
 // например perfect: 'assets/ui/sticker_perfect.png' — game.js поймёт сам.
 const STICKERS = {
   perfect: [
-    'assets/ui/perfect16.png',
-    'assets/ui/perfect17.png',
-    'assets/ui/perfect18.png',
+    'assets/ui/perfect1.png',
+    'assets/ui/perfect2.png',
+    'assets/ui/perfect3.png',
     // ---------- особые стикеры (выпадают ТОЛЬКО по условию, см. STICKER_SPECIALS) ----------
-    'assets/ui/perfect4.png',   // 3: 5 идеалов подряд
-    'assets/ui/perfect5.png',   // 4: 10 идеалов подряд
-    'assets/ui/perfect6.png',   // 5: все параметры ровно 100%
-    'assets/ui/perfect7.png',   // 6: идеал на градиенте (Двуликая жрица)
-    'assets/ui/perfect8.png',   // 7: идеал у Того-Кто-Ждёт без единой купленной секунды
-    'assets/ui/perfect9.png',   // 8: идеал в первую ШЕСТУЮ часть таймера
-    'assets/ui/perfect10.png',   // 9: идеал под дебаффом Ир
-    'assets/ui/perfect11.png',   // 10: идеал под печатью Хранителя
-    'assets/ui/perfect12.png',   // 11: идеал на 4-ой сложности
-    'assets/ui/perfect13.png',   // 12: идеал при рейтинге цикла 3500+
-    'assets/ui/perfect14.png',   // 13: идеал у Сверхновой с точной шириной И высотой
-    'assets/ui/perfect15.png',   // 14: идеал в 10-й (последний) день цикла
+    '🔥',   // 3: 5 идеалов подряд
+    '👑',   // 4: 10 идеалов подряд
+    '💯',   // 5: все параметры ровно 100%
+    '🌈',   // 6: идеал на градиенте (Двуликая жрица)
+    '🕰',   // 7: идеал у Того-Кто-Ждёт без единой купленной секунды
+    '⚡',   // 8: идеал в первую ШЕСТУЮ часть таймера
+    '🌑',   // 9: идеал под дебаффом Ир
+    '📜',   // 10: идеал под печатью Хранителя
+    '💎',   // 11: идеал на 4-ой сложности
+    '🚀',   // 12: идеал при рейтинге цикла 3500+
+    '🌟',   // 13: идеал у Сверхновой с точной шириной И высотой
+    '🏆',   // 14: идеал в 10-й (последний) день цикла
   ],
   good: [
     'assets/ui/good1.png',
     'assets/ui/good2.png',
     'assets/ui/good3.png',
     // ---------- особые ----------
-    'assets/ui/good4.png',   // 3: до идеала не хватило меньше 2%
-    'assets/ui/good5.png',   // 4: 8+ смесей подряд без брака
-    'assets/ui/good6.png',   // 5: годнота в последние 10% таймера
-    'assets/ui/good7.png',   // 6: годнота, прервавшая серию из 2+ браков
+    '😅',   // 3: до идеала не хватило меньше 2%
+    '⚙️',   // 4: 8+ смесей подряд без брака
+    '🐢',   // 5: годнота в последние 10% таймера
+    '🌤',   // 6: годнота, прервавшая серию из 2+ браков
+  ],
+  // Фаза 2 (П7): «Пойло» — грейд между браком и годнотой (малый ±рейтинг).
+  // Базовые варианты — эмодзи-заглушки; заменить на картинки можно так же,
+  // как perfect/good/bad (положить 'assets/ui/swill1.png' и т.п.).
+  swill: [
+    '🫗',   // 0: пойло (базовый)
+    '🥴',   // 1: пойло (базовый)
+    '🍺',   // 2: пойло (базовый)
+    // ---------- особые ----------
+    '😐',   // 3: пойло почти дотянуло до годноты (см. STICKER_SPECIALS.swill)
+    '🪤',   // 4: пойло, прервавшее серию из 2+ браков
   ],
   bad: [
-    'assets/ui/bad10.png',
-    'assets/ui/bad11.png',
-    'assets/ui/bad12.png',
+    'assets/ui/bad1.png',
+    'assets/ui/bad2.png',
+    'assets/ui/bad3.png',
     // ---------- особые ----------
-    'assets/ui/bad4.png',   // 3: точность ниже 30%
-    'assets/ui/bad5.png',   // 4: брак на 1-ой сложности (один-единственный ползунок!)
-    'assets/ui/bad6.png',   // 5: третий брак подряд
-    'assets/ui/bad7.png',   // 6: таймер истёк сам — кнопку так и не нажали
-    'assets/ui/bad8.png',   // 7: брак под печатью Хранителя (исторический провал)
-    'assets/ui/bad9.png',   // 8: обиженный связями НПС форсирует этот стикер (см. NPC_RELATIONS в game.js)
+    '💀',   // 3: точность ниже 30%
+    '🙈',   // 4: брак на 1-ой сложности (один-единственный ползунок!)
+    '📉',   // 5: третий брак подряд
+    '⏰',   // 6: таймер истёк сам — кнопку так и не нажали
+    '🧯',   // 7: брак под печатью Хранителя (исторический провал)
+    '💩',   // 8: обиженный связями НПС форсирует этот стикер (см. NPC_RELATIONS в game.js)
   ]
 };
 
@@ -312,6 +325,13 @@ const STICKER_SPECIALS = {
       hint:{ ru:'время вышло само', en:'time simply ran out' } },
     { idx:7, check:c => !!c.target.sealed,
       hint:{ ru:'провал, вписанный в историю', en:'a failure written into history' } }
+  ],
+  // Фаза 2 (П7): особые стикеры «Пойла» (ctx получает goodThreshold — см. game.js)
+  swill: [
+    { idx:3, check:c => c.overall >= (c.goodThreshold - 0.03),
+      hint:{ ru:'почти годнота', en:'almost decent' } },
+    { idx:4, check:c => c.badRunBefore >= 2,
+      hint:{ ru:'хоть не брак', en:'at least not a reject' } }
   ]
 };
 
@@ -1131,63 +1151,70 @@ const NPC_STAT_EXPLAIN = {
   // (по подсказке на каждый порог); открываются из game.js вызовом
   // unlockManualAchievement(id, номерПорога) в нужный момент.
   const GENERAL_ACHIEVEMENTS = [
-    { id:'total_score', img:'assets/ach/1.png',
+    { id:'total_score', icon:'💎', img:null,
       name:{ ru:'Казна лавки', en:'Shop treasury' },
       desc:{ ru:'Суммарный рейтинг, заработанный за всю историю лавки.', en:'Total rating earned across the shop\'s entire history.' },
       value:p => (p.stats.totalScoreEarned||0),
       t:[1000, 5000, 20000, 50000, 100000, 200000, 350000, 600000, 1000000] },
 
-    { id:'cycle_score', icon:'📈', img:'assets/ach/2.png',
+    { id:'cycle_score', icon:'📈', img:null,
       name:{ ru:'Рекордный цикл', en:'Record cycle' },
       desc:{ ru:'Лучший рейтинг, набранный за один цикл.', en:'Best rating earned in a single cycle.' },
       value:p => (p.stats.bestCycleScore||0),
       t:[800, 1500, 2500, 4000, 6000, 8500, 12000] },
 
-    { id:'progress', icon:'🧪', img:'assets/ach/3.png',
+    { id:'progress', icon:'🧪', img:null,
       name:{ ru:'Мастер смесей', en:'Mixture mastery' },
       desc:{ ru:'Взвешенный прогресс: годные и идеальные смеси, помноженные на сложность.', en:'Weighted progress: decent and perfect mixtures multiplied by difficulty.' },
       value:p => (p.stats.weightedProgress||0),
       t:[50, 150, 300, 600, 1000, 2500, 5000, 10000] },
 
-    { id:'perfect_streak', icon:'✨', img:'assets/ach/4.png',
+    { id:'perfect_streak', icon:'✨', img:null,
       name:{ ru:'Безупречность', en:'Flawlessness' },
       desc:{ ru:'Лучшая серия идеальных зелий подряд.', en:'Best streak of perfect mixtures in a row.' },
       value:p => (p.streaks.perfectBest||0),
       t:[3, 5, 10, 15, 20, 30, 50] },
 
-    { id:'goodplus_streak', icon:'⚙️', img:'assets/ach/5.png',
+    { id:'goodplus_streak', icon:'⚙️', img:null,
       name:{ ru:'Конвейер', en:'Assembly line' },
       desc:{ ru:'Лучшая серия смесей подряд без единого брака.', en:'Best streak of mixtures without a single reject.' },
       value:p => (p.streaks.goodPlusBest||0),
       t:[10, 25, 50, 100, 200, 400] },
 
-    { id:'bad_streak', icon:'💩', img:'assets/ach/6.png',
+    { id:'bad_streak', icon:'💩', img:null,
       name:{ ru:'Чёрная полоса', en:'Rough patch' },
       desc:{ ru:'Серия браков подряд. Бывает. Носи с гордостью.', en:'Rejects in a row. It happens. Wear it proudly.' },
       value:p => (p.streaks.badBest||0),
       t:[3, 5, 10] },
 
-    { id:'cycles', icon:'🔁', img:'assets/ach/7.png',
+    // Фаза 2 (П7): ачивка на «Пойло» — грейд между браком и годнотой
+    { id:'swill_total', icon:'🫗', img:null,
+      name:{ ru:'Разливщик пойла', en:'Swill pourer' },
+      desc:{ ru:'Сколько всего «пойла» ты налил за всю историю лавки. Не идеал, но и не брак.', en:'How much "swill" you have poured across the shop\'s history. Not perfect, not a reject.' },
+      value:p => ((p.stats.stickersLifetime && p.stats.stickersLifetime.swill) || 0),
+      t:[10, 40, 120, 300, 700] },
+
+    { id:'cycles', icon:'🔁', img:null,
       name:{ ru:'Ветеран лавки', en:'Shop veteran' },
       desc:{ ru:'Завершено полных циклов.', en:'Full cycles completed.' },
       value:p => (p.stats.cyclesCompleted||0),
       t:[5, 20, 50, 100, 250] },
 
-    { id:'orders', icon:'📦', img:'assets/ach/8.png',
+    { id:'orders', icon:'📦', img:null,
       name:{ ru:'Поток заказов', en:'Order flow' },
       desc:{ ru:'Всего выполнено заказов.', en:'Total orders completed.' },
       value:p => (p.stats.totalOrders||0),
       t:[50, 200, 500, 1500, 4000, 10000] },
 
     // ---- ручные (открываются game.js в конкретный момент) ----
-    { id:'speedrun', icon:'⚡', img:'assets/ach/9.png', manual:true,
+    { id:'speedrun', icon:'⚡', img:null, manual:true,
       name:{ ru:'Молния на пределе', en:'Lightning at the limit' },
       desc:{ ru:'Идеальное зелье тира 5 на максимальной сложности регуляторов, уложившись в первую треть таймера.', en:'A perfect tier-5 mixture at max regulator difficulty, finished within the first third of the timer.' },
       tiers:[
         { hint:{ ru:'Идеал тира 5 на макс. сложности в первую треть таймера', en:'Perfect tier-5 at max difficulty within the first third of the timer' } }
       ] },
 
-    { id:'leaderboard', icon:'🏆', img:'assets/ach/11.png', manual:true,
+    { id:'leaderboard', icon:'🏆', img:null, manual:true,
       name:{ ru:'Слава галактики', en:'Galactic fame' },
       desc:{ ru:'Твоё место в глобальном рейтинге.', en:'Your place on the global leaderboard.' },
       tiers:[

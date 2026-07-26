@@ -548,9 +548,12 @@
   @keyframes pop{0%{transform:scale(0.2) rotate(-15deg);opacity:0;}100%{transform:scale(1) rotate(0);opacity:1;}}
   .result-title{font-family:'Russo One',sans-serif;font-size:17px;font-weight:400;margin:2px 0 4px;letter-spacing:.05em;}
   .result-title.good{color:var(--good);text-shadow:0 0 12px rgba(93,255,176,.7);}
+  /* Фаза 2 (П7): «Пойло» — приглушённый янтарный, между зелёным и красным */
+  .result-title.swill{color:#e6b657;text-shadow:0 0 12px rgba(230,182,87,.6);}
   .result-title.bad{color:var(--danger);text-shadow:0 0 12px rgba(255,93,106,.7);}
   .delta{font-family:'IBM Plex Mono',monospace;font-size:15px;margin-bottom:2px;}
   .delta.good{color:var(--good);}
+  .delta.swill{color:#e6b657;}
   .delta.bad{color:var(--danger);}
   .speed-note{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--neon-light);margin-bottom:2px;min-height:14px;}
   .score-breakdown{

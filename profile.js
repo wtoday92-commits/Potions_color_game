@@ -109,8 +109,8 @@
         totalScoreEarned: 0,
         bestCycleScore: 0,
         totalOrders: 0,
-        stickersLifetime: { perfect: 0, good: 0, bad: 0 },
-        stickersSeen: { perfect: [], good: [], bad: [] },
+        stickersLifetime: { perfect: 0, good: 0, swill: 0, bad: 0 },
+        stickersSeen: { perfect: [], good: [], swill: [], bad: [] },
         weightedProgress: 0
       },
       streaks: {
@@ -232,17 +232,24 @@
     //  repMult        — множитель прироста репутации от пассивок (>=1)
     // Возвращает { repBefore, repAfter } — game.js по ним ловит смену
     // уровня репутации (пороги уровней — REP_LEVELS в content.js).
-    recordOrderResult({ npcId, perfect, good, delta, stickerCat, stickerIdx, progressWeight, regLevel, focus, fastThird, repMult }){
+    recordOrderResult({ npcId, perfect, good, swill, delta, stickerCat, stickerIdx, progressWeight, regLevel, focus, fastThird, repMult }){
       load();
       const st = profile.stats;
       st.totalOrders++;
       if(delta > 0) st.totalScoreEarned += delta;
+      // Фаза 2 (П7): «Пойло» (swill) — отдельная категория между good и bad.
+      // Защитная инициализация для старых профилей без ключей swill.
+      if(st.stickersLifetime.swill == null) st.stickersLifetime.swill = 0;
+      // bad здесь — «истинный» брак: не perfect, не good и не swill
+      const bad = !good && !swill;
       if(perfect) st.stickersLifetime.perfect++;
       else if(good) st.stickersLifetime.good++;
+      else if(swill) st.stickersLifetime.swill++;
       else st.stickersLifetime.bad++;
 
       if(stickerCat && typeof stickerIdx === 'number'){
-        if(!st.stickersSeen) st.stickersSeen = { perfect:[], good:[], bad:[] };
+        if(!st.stickersSeen) st.stickersSeen = { perfect:[], good:[], swill:[], bad:[] };
+        if(!st.stickersSeen.swill) st.stickersSeen.swill = [];
         const arr = st.stickersSeen[stickerCat];
         if(arr && !arr.includes(stickerIdx)) arr.push(stickerIdx);
       }
@@ -259,6 +266,10 @@
       else { s.perfectCurrent = 0; }
       if(good){
         s.goodPlusCurrent++; s.goodPlusBest = Math.max(s.goodPlusBest, s.goodPlusCurrent);
+        s.badCurrent = 0;
+      } else if(swill){
+        // Пойло — не победа и не брак: обрывает и серию годнот, и серию браков
+        s.goodPlusCurrent = 0;
         s.badCurrent = 0;
       } else {
         s.badCurrent++; s.badBest = Math.max(s.badBest, s.badCurrent);
@@ -297,6 +308,9 @@
           ns.goods++;
           ns.noBadStreak++;
           ns.noBadStreakBest = Math.max(ns.noBadStreakBest, ns.noBadStreak);
+        } else if(swill){
+          // Пойло — не годнота и не брак: счётчики goods/bads не трогаем,
+          // серию «без брака» не рвём (пойло браком не считается)
         } else {
           ns.bads++;
           ns.noBadStreak = 0;
@@ -314,6 +328,8 @@
           const wScale = Math.min(2.5, Math.max(0.25, w));
           const rm = (typeof repMult === 'number' && repMult > 0) ? repMult : 1;
           rep.value += base * wScale * rm;
+        } else if(swill){
+          // Пойло репутацию не двигает (мягче брака: тот отнимает −2)
         } else {
           rep.value = Math.max(0, rep.value - 2);
         }
