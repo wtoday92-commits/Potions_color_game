@@ -133,7 +133,12 @@
       // сбрасывается в startCycle(). discoveredRelations — открытые игроком
       // связи, НАВСЕГДА (ключ — relationKey(a,b) из game.js, отсортированная пара).
       npcRelationsState: {},
-      discoveredRelations: []
+      discoveredRelations: [],
+      // Фаза 3: прогрессия. xp — накопленная сумма рейтингов завершённых циклов
+      // (аркада). metNpcs — id персонажей, которых игрок УЖЕ встречал (для показа
+      // в коллекции только после первой встречи + одноразовой приветственной
+      // фразы). Уровень/дни/пул/открытые НПС ВЫЧИСЛЯЮТСЯ из xp в game.js.
+      progression: { xp: 0, metNpcs: [] }
     };
   }
 
@@ -491,6 +496,41 @@
       load();
       profile.passives.active = Array.isArray(list) ? list.slice(0, 3) : [];
       save();
+    },
+
+    // ---------- Фаза 3: прогрессия ----------
+    // Хранилище «тупое»: только сырой xp + список встреченных НПС. Всё
+    // производное (уровень, дни цикла, размер пула, открытые персонажи)
+    // вычисляет game.js из PROGRESSION-конфига. Защитная инициализация —
+    // для профилей, сохранённых до Фазы 3.
+    _ensureProgression(){
+      if(!profile.progression) profile.progression = { xp: 0, metNpcs: [] };
+      if(typeof profile.progression.xp !== 'number') profile.progression.xp = 0;
+      if(!Array.isArray(profile.progression.metNpcs)) profile.progression.metNpcs = [];
+      return profile.progression;
+    },
+    getProgressionXp(){
+      load();
+      return this._ensureProgression().xp;
+    },
+    addProgressionXp(amount){
+      load();
+      const pr = this._ensureProgression();
+      pr.xp += Math.max(0, Math.round(amount || 0));
+      save();
+      return pr.xp;
+    },
+    isNpcMet(id){
+      load();
+      return this._ensureProgression().metNpcs.includes(id);
+    },
+    markNpcMet(id){
+      load();
+      const pr = this._ensureProgression();
+      if(!id || pr.metNpcs.includes(id)) return false;
+      pr.metNpcs.push(id);
+      save();
+      return true; // true — встретили ВПЕРВЫЕ (для приветственной фразы)
     }
   };
 
