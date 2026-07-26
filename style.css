@@ -316,6 +316,16 @@
   .focus-chip.no-focus{
     border-top-color:rgba(255,93,106,.28);background:rgba(255,93,106,.08);color:var(--danger);
   }
+  /* Фаза 3: поведенческие модификаторы — свой цвет на каждый */
+  .focus-chip.mod-timer{
+    border-top-color:rgba(90,200,255,.32);background:rgba(90,200,255,.10);color:#5ac8ff;
+  }
+  .focus-chip.mod-duck{
+    border-top-color:rgba(255,206,84,.34);background:rgba(255,206,84,.10);color:#ffce54;
+  }
+  .focus-chip.mod-rampage{
+    border-top-color:rgba(255,120,60,.36);background:rgba(255,120,60,.12);color:#ff7a3c;
+  }
   .focus-chip .no-focus-icon{font-size:14px;font-weight:700;line-height:1;}
   .customer-card.expanded .plaque-quote{
     opacity:0;pointer-events:none;transform:translateX(-52px) scale(.55);

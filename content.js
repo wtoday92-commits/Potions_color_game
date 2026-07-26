@@ -54,6 +54,7 @@ const UI_TEXT = {
   ORDER_LABEL:       { ru:'Заявка №', en:'Order #' },
   FOCUS_PREFIX:      { ru:'фокус:', en:'focus:' },
   NO_FOCUS_LABEL:    { ru:'без модификатора', en:'no modifier' },
+  MOD_RAMPAGE_TOAST: { ru:'устроил погром и ушёл', en:'went on a rampage and left' },
   PHASE_SCAN:        { ru:'сканируй образец...', en:'scan the sample...' },
   PHASE_CRAFT:       { ru:'воссоздай смесь по памяти!', en:'recreate the mixture from memory!' },
   BREW_BTN:          { ru:'Готово!', en:'Done!' },
@@ -971,6 +972,27 @@ const NPC_STAT_EXPLAIN = {
     bubbles:['count','bsize'],
     color:['color','colorB','sat'],
     size:['size','bsize']
+  };
+
+  // ---------- Фаза 3: "поведенческие" модификаторы заказа (Ур.4+) ----------
+  // Помимо фокус-модификаторов (спектр/сгустки/габариты, см. выше) на Ур.4
+  // прогрессии открываются модификаторы, меняющие не ВЕС параметров, а сами
+  // условия заказа. С Ур.7 у красных+ персонажей их может быть несколько сразу.
+  // Иконки — эмодзи-плейсхолдеры. ART-SWAP: заменить на картинки в assets/ui.
+  const MOD_ICONS = { timer:'⏱️', duck:'🦆', rampage:'💥' };
+  const MOD_NAMES = {
+    timer:   { ru:'Таймер',      en:'Timer' },
+    duck:    { ru:'Важная утка',  en:'VIP Duck' },
+    rampage: { ru:'Погром',       en:'Rampage' }
+  };
+  // краткие описания для тултипа (title) на плашке модификатора
+  const MOD_DESC = {
+    timer:   { ru:'На воссоздание даётся на 25% меньше времени.',
+               en:'25% less time to recreate the potion.' },
+    duck:    { ru:'За идеал — больше рейтинга, за брак — больше штраф.',
+               en:'Bigger reward for a perfect, bigger penalty for a botch.' },
+    rampage: { ru:'×2 рейтинг и чаевые за заказ. Но персонаж дерётся: уходит из цикла и портит репутацию другим гостям этого дня.',
+               en:'×2 rating and tips for the order. But this one brawls: leaves the cycle and hurts the day\'s other guests\' reputation.' }
   };
 
   const SHAPE_NAMES = [

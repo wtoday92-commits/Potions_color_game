@@ -3006,7 +3006,7 @@
     ['collectionBtn','charactersBtn','passivesBtn'].forEach(id=>{
       const el = $(id); if(el) el.classList.add('hidden');
     });
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0;
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear();
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
     $('dayVal').textContent = dayNum;
@@ -3028,7 +3028,9 @@
     // Патч "Взаимоотношения": НПС, который "ушёл" из-за обиды, не выпадает
     // до конца цикла — если это оставит пул пустым, лучше не блокировать
     // генерацию тройки вовсе, чем сломать раунд
-    const notLeft = pool.filter(c => !isRelationLeftCycle(c.id));
+    // Патч "Взаимоотношения" + Фаза 3 "Погром": ушедший из-за обиды ИЛИ
+    // подравшийся (Погром) НПС не выпадает до конца цикла
+    const notLeft = pool.filter(c => !isRelationLeftCycle(c.id) && !pogromRemovedIds.has(c.id));
     const basePool = notLeft.length ? notLeft : pool;
     const fresh = basePool.filter(c => !usedNames.has(c.name));
     const cfg = pick(fresh.length ? fresh : basePool);
@@ -3040,25 +3042,50 @@
   // forceFocus — Патч "Ежедневный заказ": гарантированный модификатор
   // (вместо обычных случайных 40%) — см. вызов ниже в showSelectScreen
   function buildOrderDescriptor(cfg, forceFocus){
-    let focus = null;
-    // Фаза 3 (3E): модификаторы (фокус-заказы) в аркаде открываются только с
-    // Ур.3 прогрессии; в дейлике — как раньше (там прогрессии нет). Новые
-    // модификаторы (Ур.4) и мультимодификаторы (Ур.7) — отдельная система,
-    // флаги progMechUnlocked('modifiers_new3'|'modifiers_multi') уже считаются.
+    // Фаза 3: модификаторы. focus (спектр/сгустки/габариты) — старый "фокус-
+    // заказ", остаётся одиночным полем и меняет ВЕСА параметров. Новые
+    // "поведенческие" модификаторы (Ур.4: timer/duck/rampage) копятся в mods[]
+    // и меняют условия заказа. На Ур.7 у красных+ (тир 4-5) персонажей их может
+    // быть несколько сразу (focus считается за один модификатор). Без дублей.
+    let focus = null, mods = [];
+    // фокус-заказы в аркаде — с Ур.3 прогрессии; в дейлике — как раньше.
     const modifiersOn = isDailyMode || progMechUnlocked('modifiers');
+    // новые модификаторы (Ур.4) и мультимодификаторы (Ур.7) — только в аркаде
+    const new3On  = !isDailyMode && progMechUnlocked('modifiers_new3');
+    const multiOn = !isDailyMode && progMechUnlocked('modifiers_multi');
     // Патч (Тентаклоид): у него никогда не бывает обычных модификаторов —
     // его собственная механика (один скрытый решающий параметр) их заменяет
-    const focusEligible = modifiersOn && cfg.type === 'normal' && cfg.tier >= 2 && cfg.id !== 'tentacloid';
-    if(focusEligible && (forceFocus || Math.random() < 0.4)){
-      focus = pick(['bubbles','color','size']);
+    const baseEligible  = cfg.tier >= 2 && cfg.id !== 'tentacloid';
+    // фокус меняет веса регуляторов — нужен обычный набор ползунков (type normal)
+    const focusEligible = modifiersOn && baseEligible && cfg.type === 'normal';
+    if(modifiersOn && baseEligible && (forceFocus || Math.random() < 0.4)){
+      // какие "виды" модификаторов доступны этому персонажу
+      const kinds = [];
+      if(focusEligible) kinds.push('focus');
+      if(new3On){
+        if(cfg.special !== 'no_timer') kinds.push('timer'); // у Того-Кто-Ждёт нет таймера игры
+        kinds.push('duck');
+        kinds.push('rampage');
+      }
+      if(kinds.length){
+        // обычно 1 модификатор; на Ур.7 у красных+ — 2 (изредка 3), без дублей
+        let count = 1;
+        if(multiOn && cfg.tier >= 4) count = Math.random() < 0.22 ? 3 : 2;
+        count = Math.min(count, kinds.length);
+        shuffleArr(kinds).slice(0, count).forEach(k=>{
+          if(k === 'focus') focus = pick(['bubbles','color','size']);
+          else mods.push(k);
+        });
+      }
     }
+    const hasAnyMod = !!focus || mods.length > 0;
     // Фаза I: иногда вместо обычной реплики — уже открытая лорная фраза
-    // (подсвечивается другим цветом). НЕ на фокус-заказах: там реплика
+    // (подсвечивается другим цветом). НЕ на заказах с модификатором: там реплика
     // несёт игровую информацию и заменять её нельзя.
     let flavor = null, isLore = false;
     // Патч "Ежедневный заказ": лорные фразы разблокируются достижениями
     // аркадного профиля — в дневном режиме их не подмешиваем вовсе
-    if(!isDailyMode && !focus && window.PotionProfile && typeof NPC_LORE !== 'undefined' && NPC_LORE[cfg.id]){
+    if(!isDailyMode && !hasAnyMod && window.PotionProfile && typeof NPC_LORE !== 'undefined' && NPC_LORE[cfg.id]){
       const unl = (((window.PotionProfile.data.lorePhrases||{}).unlockedByNpc||{})[cfg.id]) || [];
       const chance = (typeof LORE_PHRASE_CHANCE !== 'undefined') ? LORE_PHRASE_CHANCE : 0.35;
       if(unl.length && Math.random() < chance){
@@ -3071,11 +3098,16 @@
     if(!flavor) flavor = focus && cfg.ff ? pickLocalized(cfg.ff[focus]) : pickLocalized(cfg.flavors);
     // avatar variant is chosen once here, so the card and the order bubble match
     const avatar = Array.isArray(cfg.img) ? pick(cfg.img) : (cfg.img || cfg.emoji);
-    return { cfg, focus, flavor, avatar, isLore };
+    return { cfg, focus, mods, flavor, avatar, isLore };
   }
 
   // cached so a language switch can re-render the same cards without rerolling them
   let currentOrders = [];
+
+  // Фаза 3, модификатор "Погром": id персонажей, "подравшихся" в этом цикле —
+  // до конца цикла они больше не выпадают (см. pickConfigForTier). Сбрасывается
+  // в началах цикла (там же, где dayNum = 1).
+  let pogromRemovedIds = new Set();
 
   // Патч "Взаимоотношения": разовые эффекты на ДРУГИХ НПС тройки, связанных с
   // тем, кого игрок только что выбрал для заказа. Возвращает мс задержки
@@ -3125,6 +3157,23 @@
     return anyAnimated ? 650 : 0;
   }
 
+  // Фаза 3: плашки модификаторов заказа — фокус (спектр/сгустки/габариты) +
+  // поведенческие (таймер/утка/погром). hideEmpty=true → пусто, когда нет
+  // модификаторов (для реплики-пузыря в раунде); иначе чип "без модификатора".
+  function modChipsHTML(focus, mods, hideEmpty){
+    const chips = [];
+    if(focus){
+      chips.push(`<div class="focus-chip">${visualHTML(FOCUS_ICONS[focus],'focus-img')}<span>${LT(FOCUS_NAMES[focus])}</span></div>`);
+    }
+    (mods||[]).forEach(m=>{
+      chips.push(`<div class="focus-chip mod-${m}" title="${LT(MOD_DESC[m])}">${visualHTML(MOD_ICONS[m],'focus-img')}<span>${LT(MOD_NAMES[m])}</span></div>`);
+    });
+    if(!chips.length){
+      return hideEmpty ? '' : `<div class="focus-chip no-focus"><span class="no-focus-icon">✕</span><span>${LT(UI_TEXT.NO_FOCUS_LABEL)}</span></div>`;
+    }
+    return chips.join('');
+  }
+
   // Фаза D (v2): иконка непися — просто круг с портретом (2x крупнее) и
   // свечением/рамкой в цвет tier. Имя больше не рисуется полукругом (было
   // нечитаемо) — по клику на иконку оно выезжает справа от неё обычным
@@ -3170,9 +3219,7 @@
         <div class="plaque-stack">
           <div class="plaque-quote">
             <div class="quote${isLore ? ' lore' : ''}">«${LT(flavor)}»</div>
-            ${focus
-              ? `<div class="focus-chip">${visualHTML(FOCUS_ICONS[focus],'focus-img')}<span>${LT(FOCUS_NAMES[focus])}</span></div>`
-              : `<div class="focus-chip no-focus"><span class="no-focus-icon">✕</span><span>${LT(UI_TEXT.NO_FOCUS_LABEL)}</span></div>`}
+            ${modChipsHTML(focus, ord.mods)}
           </div>
           <div class="plaque-levels">${levelCardsHTML}</div>
         </div>
@@ -3349,7 +3396,7 @@
         const chosen = pick(candidates);
         chosen.sealed = true;
         chosen.isKeeper = true;
-        chosen.focus = null; // печать заменяет реплику — фокус снимается, чтобы не терять игровую информацию
+        chosen.focus = null; chosen.mods = []; // печать заменяет реплику — модификаторы снимаются, чтобы не терять игровую информацию
         chosen.flavor = localizedWithName(pickLocalized(ARCH_SEAL_ORDER_PHRASES), chosen.cfg.name);
         archSeal.remaining--;
         archSeal.tripleActive = true;
@@ -3425,7 +3472,7 @@
     $('orderText').classList.toggle('lore', !greeting && !!ord.isLore); // Фаза I: лор — другим цветом
     $('orderText').classList.toggle('keeper', !greeting && !!ord.isKeeper); // Патч: фраза Хранителя — золотом
     $('orderBubble').style.borderLeftColor = TIER_COLORS[cfg.tier];
-    $('orderFocusTag').innerHTML = focus ? `${visualHTML(FOCUS_ICONS[focus],'focus-img')} ${LT(UI_TEXT.FOCUS_PREFIX)} ${LT(FOCUS_NAMES[focus])}` : '';
+    $('orderFocusTag').innerHTML = modChipsHTML(focus, ord.mods, true);
     const levelTag = $('orderLevelTag');
     if(levelTag) levelTag.textContent = LT(UI_TEXT.DIFF_BTN_LABEL) + regLevel;
     SFX.orderShow();
@@ -3451,7 +3498,7 @@
     }
 
     target = {
-      cfg, type: cfg.type, flags, focus, regLevel,
+      cfg, type: cfg.type, flags, focus, mods: ord.mods || [], regLevel,
       hue: idxToVal(hueIdx, cfg.colorSteps, 360), hueIdx,
       size: idxToVal(sizeIdx, cfg.sizeSteps, 100), sizeIdx,
       bsize: idxToVal(bsizeIdx, cfg.bsizeSteps, 100), bsizeIdx,
@@ -3762,6 +3809,10 @@
     if(irFx && irFx.id === 'time_minus') craftDuration = Math.max(1500, craftDuration - 2000);
     // Патч "УР.4" (Тот-Кто-Ждёт): дар "вдвое медленнее" — на СЛЕДУЮЩИЙ заказ
     if(target.waiterSlowBuff) craftDuration *= 2;
+    // Фаза 3, модификатор "Таймер": на воссоздание на 25% меньше времени.
+    // Применяем к базе (craftBaseDuration тоже), чтобы бонус за скорость мерился
+    // относительно уже урезанного окна, а не полного.
+    if(target.mods && target.mods.includes('timer')) craftDuration = Math.max(1500, Math.round(craftDuration * 0.75));
     target.craftDuration = craftDuration;
     target.craftBaseDuration = craftDuration; // для честного timeFrac, даже когда таймер не тикает
 
@@ -4292,6 +4343,17 @@
     // Патч "Ежедневный заказ": репутации тут нет вовсе — бонус к рейтингу
     // (ratingMultAdd/waiterThresholdOverride выше) остаётся, а repBonus молча игнорируется
     if(!isDailyMode && l4Bonus.repBonus && good && window.PotionProfile) window.PotionProfile.adjustReputation(cfg.id, l4Bonus.repBonus);
+    // Фаза 3, поведенческие модификаторы — итоговые множители рейтинга:
+    //  • "Важная утка": усиливает и плюс (good/идеал), и минус (брак). Пойло — нейтрально.
+    //  • "Погром": ×2 рейтинга (и, как следствие, чаевых — они 5% от рейтинга цикла).
+    //    Штраф за брак не удваиваем — расплата за Погром это уход из цикла + удар
+    //    по репутации других гостей дня (см. обработчик nextBtn).
+    const mods = target.mods || [];
+    if(mods.includes('duck')){
+      if(good) delta = Math.round(delta * 1.6);
+      else if(!swill) delta = Math.round(delta * 1.6); // усиленный штраф за брак
+    }
+    if(mods.includes('rampage') && delta > 0) delta = delta * 2;
     score = Math.max(0, score + delta);
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
@@ -4599,6 +4661,19 @@
     irReplayActive = false; // Патч (Ир): принял результат — переигровки на этом заказе больше нет
     // Фаза F: 1 день = 1 выполненный заказ, см. profile.js
     if(window.PotionProfile) window.PotionProfile.recordDayPlayed();
+    // Фаза 3, модификатор "Погром": персонаж "дерётся" — по завершении его дня
+    // он выбывает из цикла и портит репутацию остальным гостям этого дня
+    // (в дейлике репутации/модификатора нет — см. buildOrderDescriptor).
+    if(!isDailyMode && currentOrd && (currentOrd.mods||[]).includes('rampage')){
+      pogromRemovedIds.add(currentOrd.cfg.id);
+      if(window.PotionProfile){
+        currentOrders.forEach(o=>{
+          if(o.cfg.id !== currentOrd.cfg.id) window.PotionProfile.adjustReputation(o.cfg.id, -2);
+        });
+      }
+      const nm = LT(currentOrd.cfg.name);
+      showToast({ icon:'💥', prefix: LT(UI_TEXT.MOD_RAMPAGE_TOAST), name: nm });
+    }
     // Фаза 3: длина цикла в аркаде растёт по прогрессии (5→…→10); дейлик — 10.
     const cycleLen = isDailyMode ? 10 : progCycleDays();
     if(dayNum >= cycleLen){
@@ -5546,7 +5621,7 @@
   });
   $('newWeekBtn').addEventListener('click', ()=>{
     SFX.uiClick();
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0;
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear();
     if(!isDailyMode){
       // Фаза J: новый цикл — состав пассивок снова можно менять,
       // счётчики "за цикл" (picksCycle) в профиле обнуляются
@@ -5633,9 +5708,7 @@
         fxTagEl.innerHTML = fxHtml;
       }
       $('orderText').textContent = LT(currentOrd.flavor);
-      $('orderFocusTag').innerHTML = currentOrd.focus
-        ? `${visualHTML(FOCUS_ICONS[currentOrd.focus],'focus-img')} ${LT(UI_TEXT.FOCUS_PREFIX)} ${LT(FOCUS_NAMES[currentOrd.focus])}`
-        : '';
+      $('orderFocusTag').innerHTML = modChipsHTML(currentOrd.focus, currentOrd.mods, true);
       const levelTag = $('orderLevelTag');
       if(levelTag && currentOrd.regLevel) levelTag.textContent = LT(UI_TEXT.DIFF_BTN_LABEL) + currentOrd.regLevel;
       $('phaseLabel').textContent = currentPhase === 'craft' ? LT(UI_TEXT.PHASE_CRAFT) : LT(UI_TEXT.PHASE_SCAN);
@@ -5727,7 +5800,7 @@
     stopMatrixRain();
     setDjAmbientDuck(false);
     isDailyMode = false;
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0;
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear();
     cycleStarted = false;
     if(window.PotionProfile) window.PotionProfile.startCycle();
     $('scoreVal').textContent = score;
