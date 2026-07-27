@@ -1475,6 +1475,16 @@ body::after{
 /* иконка-картинка в тосте об ачивке (когда владелец задал img) */
 .ach-toast-icon img.ach-toast-img{width:30px;height:30px;object-fit:contain;display:block;}
 
+/* ---------- Фаза 9: бейдж «грейд выше своего» на карточке ---------- */
+.grade-badge{
+  position:absolute; top:-4px; left:-4px; z-index:3;
+  width:19px; height:19px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:800; line-height:1; cursor:help;
+  color:#0a0c1a; background:var(--tier-color, #ffd98a);
+  border:2px solid rgba(6,8,20,.9); box-shadow:0 0 9px var(--tier-color, #ffd98a);
+}
+
 /* ---------- Фаза 3: шкала прогрессии лавки ---------- */
 /* Тёмная подложка обязательна: без неё шкала и подписи тонут на светлом
    «пергаменте» игрового поля. */
@@ -2032,13 +2042,54 @@ body::after{
   display: none !important;
 }
 
-/* ==================== Фаза 6: магазин / инвентарь ==================== */
-/* Док кнопок — справа, между тонким топбаром и шапкой с названием. */
-.shop-dock{
-  display:flex; justify-content:flex-end; gap:10px;
+/* ==================== Доки (Фаза 6 магазин + Фаза 7 умения) ==================== */
+/* общий бар между топбаром и шапкой: умения слева, магазин справа */
+.dock-bar{
+  display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
   max-width:var(--plate-w, 620px); margin:6px auto 0; padding:0 8px;
-  box-sizing:border-box;
+  box-sizing:border-box; min-height:2px;
 }
+.shop-dock{ display:flex; gap:10px; }
+/* ---- Фаза 7: панель умений ---- */
+.skill-dock{ display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
+.skill-grid{ display:grid; grid-template-columns:repeat(2, 40px); grid-auto-rows:40px; gap:6px; }
+.skill-btn{
+  width:40px; height:40px; border-radius:11px; cursor:pointer; padding:0;
+  font-size:19px; line-height:1; display:flex; align-items:center; justify-content:center;
+  background:rgba(184,102,255,.10); border:1.5px solid rgba(184,102,255,.36); color:#eadcff;
+  transition:transform .12s ease, background .18s ease, border-color .18s ease, opacity .18s ease;
+}
+.skill-btn:hover{ background:rgba(184,102,255,.22); transform:translateY(-2px); }
+.skill-btn:disabled{ opacity:.35; cursor:not-allowed; transform:none; filter:grayscale(.5); }
+.skill-btn img{ width:24px; height:24px; }
+/* индикатор зарядов — точки (заполнённые/пустые) */
+.skill-charges{ display:flex; gap:5px; padding-left:2px; }
+.skill-charges .charge-pip{
+  width:11px; height:11px; border-radius:50%;
+  border:1.5px solid rgba(184,102,255,.5); background:transparent;
+}
+.skill-charges .charge-pip.full{ background:#b866ff; box-shadow:0 0 7px rgba(184,102,255,.7); }
+/* окно выбора персонажей для умения */
+.skill-card{ max-width:520px; }
+.skill-pick-grid{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); gap:10px;
+  overflow-y:auto; overflow-x:hidden; padding:2px; max-height:56vh; flex:1 1 auto;
+}
+.skill-pick-cell{
+  display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer;
+  padding:8px 4px; border-radius:12px; text-align:center;
+  background:rgba(255,255,255,.04); border:1.5px solid rgba(255,255,255,.12);
+  transition:all .13s ease;
+}
+.skill-pick-cell:hover{ background:rgba(184,102,255,.14); }
+.skill-pick-cell.selected{ border-color:#b866ff; background:rgba(184,102,255,.24); }
+.skill-pick-cell .pick-portrait{ width:48px; height:48px; display:flex; align-items:center; justify-content:center; font-size:34px; }
+.skill-pick-cell .pick-portrait img{ width:46px; height:46px; border-radius:10px; }
+.skill-pick-cell .pick-name{ font-size:11.5px; line-height:1.2; opacity:.9; }
+.skill-pick-btns{ display:flex; gap:12px; justify-content:center; margin-top:14px; flex:0 0 auto; }
+.skill-pick-cancel{ opacity:.7; }
+
+/* Фаза 6: магазин — кнопки дока */
 .shop-dock-btn{
   width:44px; height:44px; border-radius:12px; cursor:pointer;
   background:rgba(53,224,255,.10); border:1.5px solid rgba(53,224,255,.35);
@@ -2130,6 +2181,14 @@ body::after{
 .vslide-wrap.item-paprika .vslide-track{ box-shadow:0 0 12px rgba(80,255,140,.55); }
 /* ползунок с точной меткой "Барменского глаза" — голубое свечение */
 .vslide-wrap.item-mark .vslide-track{ box-shadow:0 0 12px rgba(120,240,255,.7); }
+/* регулятор, выставленный точно и зафиксированный (Философский камень) — золото */
+.vslide-wrap.item-solved .vslide-track{ box-shadow:0 0 14px rgba(255,217,138,.75); }
+.vslide-wrap.item-solved .vslide-thumb{ box-shadow:0 0 10px rgba(255,217,138,.9); }
+
+/* уникальные предметы в магазине — золотая рамка/бейдж */
+.item-card.item-unique{ border-color:rgba(255,206,84,.45); background:rgba(255,206,84,.06); }
+.grade-pip.unique-pip{ border-color:#ffce54; color:#ffce54; background:rgba(255,206,84,.14); cursor:default; }
+.item-grade-note.unique-note{ color:#ffce54; }
 
 /* ==================== Режим разработчика (тест) ==================== */
 .dev-mode-btn{

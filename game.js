@@ -104,6 +104,14 @@
   function rand(min,max){ return Math.random()*(max-min)+min; }
   function randInt(min,max){ return Math.floor(rand(min,max+1)); }
   function pick(arr){ return arr[randInt(0,arr.length-1)]; }
+  // взвешенный выбор из массива [{w, ...}] — возвращает выбранный элемент целиком
+  function weightedPick(items){
+    let total = 0; for(const it of items) total += (it.w > 0 ? it.w : 0);
+    if(total <= 0) return pick(items);
+    let r = Math.random() * total;
+    for(const it of items){ r -= (it.w > 0 ? it.w : 0); if(r <= 0) return it; }
+    return items[items.length - 1];
+  }
   function shuffleArr(arr){
     const a = [...arr];
     for(let i=a.length-1;i>0;i--){
@@ -1035,8 +1043,16 @@
     if(byPlayer) SFX.badClear();
     else jitterRandomRegulator();
   }
+  // Фаза 8 (8C): включена ли уникальная механика персонажа id для текущего заказа —
+  // на УР.4 всегда, либо с УР.1, если id ∈ MECH_FROM_L1. Общий предикат для развязки
+  // старого точечного гейтинга `regLevel === 4 && cfg.id === X` по нескольким местам.
+  function mechActive(id){
+    return !!(target && target.cfg && target.cfg.id === id
+      && (target.regLevel === 4 || MECH_FROM_L1.has(id)));
+  }
+  function droneBombsActive(){ return mechActive('drone'); }
   function badBubbleFrame(now){
-    if(!target || target.regLevel !== 4 || currentPhase !== 'craft' || craftLocked){ badBubbleRafId = null; return; }
+    if(!droneBombsActive() || currentPhase !== 'craft' || craftLocked){ badBubbleRafId = null; return; }
     if(!badBubbleLastT) badBubbleLastT = now;
     const dt = now - badBubbleLastT;
     badBubbleLastT = now;
@@ -1068,7 +1084,7 @@
   const jarSvgEl = $('jarSvg');
   if(jarSvgEl){
     jarSvgEl.addEventListener('pointerdown', e=>{
-      if(!target || target.regLevel !== 4 || currentPhase !== 'craft' || craftLocked) return;
+      if(!droneBombsActive() || currentPhase !== 'craft' || craftLocked) return;
       const g = e.target.closest ? e.target.closest('[data-bad-id]') : null;
       if(!g) return;
       e.stopPropagation();
@@ -1096,8 +1112,49 @@
   const LEVEL4_FX = {};
   let level4Active = null; // текущий обработчик этого заказа (или null)
 
+  // Фаза 8 (8B): персонажи, чья уникальная механика включается уже с УР.1
+  // (а не только на УР.4). По мере реворка (8C) сюда добавляются новые id.
+  // Механика при этом опирается на target.activeKeys, поэтому естественно
+  // масштабируется по уровню сложности (меньше ползунков — меньше механики).
+  // Фаза 8 (8C): персонажи, чья уникальная механика работает с УР.1, а не только
+  // на УР.4. Добавление id сюда включает их LEVEL4_FX-хуки на всех уровнях
+  // (механика опирается на target.activeKeys → масштабируется под уровень сама).
+  // Батч A (dj_pulsar/apothecary_mo/logic9/racer_kai) — «чистые»: их эффект целиком
+  // в LEVEL4_FX, без внешнего гейтинга regLevel===4 (эмбиент/таймер/степпер по
+  // activeKeys), поэтому безопасно активируются с УР.1 без иных правок.
+  const MECH_FROM_L1 = new Set([
+    'trucker_chrome', 'collector_gz', 'fashionista', 'tentacloid', 'vex',
+    // Батч A: dj_pulsar/apothecary_mo/logic9/racer_kai — эффект целиком в LEVEL4_FX,
+    // без внешнего гейта. janitor: механика-грязь тоже целиком в LEVEL4_FX
+    // (канвас поверх банки, без завязки на ползунки); внешняя строка — лишь
+    // доп-бонус +1000 за УР.4-вариант, безвредно остаётся УР.4-only.
+    'dj_pulsar', 'apothecary_mo', 'logic9', 'racer_kai', 'janitor',
+    // Батч B: drone — «плохие пузыри» живут вне LEVEL4_FX (droneBombsActive),
+    // но членство здесь используем как единый флаг «механика с УР.1». У drone нет
+    // LEVEL4_FX-обработчика, поэтому для диспетчера это безвредно (level4Active=undefined).
+    'drone',
+    // Батч B: guild_inspector (лист «Допусков» без показа, скоринг по допуску) и
+    // gourmet_vega (дегустация с одной переигровкой) — механика с УР.1; их точечный
+    // гейтинг regLevel===4 в finalize/показе развязан через mechActive(). УР.4-новинки
+    // (допрос инспектора / подсветка близости дегустации) — отдельно.
+    'guild_inspector', 'gourmet_vega',
+    // Фаза 8 (2): perfumer (пэд цвет×накал с УР.1, кастомная раскладка ползунков) и
+    // swarm_navigator (детали-перетаскивание с УР.1, кастомная раскладка) — см.
+    // computeActiveKeys. isFlySwarm-рендер развязан через mechActive().
+    'perfumer', 'swarm_navigator'
+  ]);
+
+  // Фаза 8 (баланс таймеров, 2026-07-27): базовые тайминги были слишком длинными.
+  // Глобально режем БАЗУ (cfg.memorizeMs/craftMs): показ −30%, игра −50%.
+  // Множители механик (степпер ×1.5, инспектор ×2 и т.п.) и абсолютные бонусы
+  // (предметы, УР.4-бонус, секунды Ир) применяются ПОВЕРХ и не масштабируются.
+  // Числа временные — пользователь ещё потестит и, возможно, урежет сильнее.
+  const MEM_TIME_SCALE = 0.7;
+  const CRAFT_TIME_SCALE = 0.5;
+
   function level4SetupOrder(){
-    level4Active = (target.regLevel === 4) ? LEVEL4_FX[target.cfg.id] : null;
+    const fromL1 = MECH_FROM_L1.has(target.cfg.id);
+    level4Active = (target.regLevel === 4 || fromL1) ? LEVEL4_FX[target.cfg.id] : null;
     if(level4Active && level4Active.setup) level4Active.setup();
   }
   function level4Stop(){
@@ -1133,8 +1190,10 @@
   // решает, пока не увидит результат (см. computeScoreComponents ниже).
   LEVEL4_FX.tentacloid = {
     setup(){
-      const keys = [...(target.activeKeys||[])].filter(k => S[k]);
-      target.tentacloidKey = keys.length ? pick(keys) : null;
+      const keys = shuffleArr([...(target.activeKeys||[])].filter(k => S[k]));
+      target.tentacloidKey = keys[0] || null;
+      // Фаза 8, УР.4: считает ДВЕ характеристики и берёт меньшую (см. скоринг)
+      target.tentacloidKey2 = (target.regLevel === 4 && keys.length >= 2) ? keys[1] : null;
     },
     craftStart(){
       // Патч (Фаза 0): баннер переехал из-под зелья (bottom:4%, перекрывал банку)
@@ -1661,13 +1720,18 @@
     while(v === val && guard-- > 0) v = randInt(min, max);
     return v;
   }
-  const L4_COLLECTOR_GRID_N = 25; // Патч: сетка 5x5 вместо 4x4 — сложнее найти свою баночку
+  // Фаза 8 (8C): размер сетки растёт по уровню сложности — 2×2 / 3×3 / 4×4 / 5×5.
+  function collectorGridN(){
+    const L = (target && target.regLevel) || 1;
+    return L >= 4 ? 25 : L === 3 ? 16 : L === 2 ? 9 : 4;
+  }
   function l4CollectorBuildJars(){
     const cfg = target.cfg;
-    const jars = new Array(L4_COLLECTOR_GRID_N);
-    const correctIdx = randInt(0, L4_COLLECTOR_GRID_N-1);
+    const N = collectorGridN();
+    const jars = new Array(N);
+    const correctIdx = randInt(0, N-1);
     let decoyI = 0;
-    for(let i=0;i<L4_COLLECTOR_GRID_N;i++){
+    for(let i=0;i<N;i++){
       if(i === correctIdx){
         jars[i] = { hue: target.hue, count: target.count, shapeIdx: target.shapeIdx, seed: randInt(1,99999), correct:true };
         continue;
@@ -1703,6 +1767,9 @@
     const grid = $('collectorGrid');
     if(!grid || !target.collectorJars) return;
     grid.innerHTML = '';
+    // число колонок = √N (2×2..5×5) — задаётся динамически по уровню
+    const cols = Math.round(Math.sqrt(target.collectorJars.length)) || 5;
+    grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
     target.collectorJars.forEach((jar, i)=>{
       const cell = document.createElement('div');
       cell.className = 'collector-jar-cell';
@@ -1935,68 +2002,11 @@
     }
   };
 
-  // ---------- Стажёр Бип: механика полностью заменена ----------
-  // Патч: раньше — подсказка-пузырь и авто-сбитый регулятор, затем — тихое
-  // автосреднее трёх предыдущих визитов, затем — отдельная кнопка-надпись
-  // поверх банки. Теперь: надпись ("мне всё равно, а что там было") — просто
-  // текст, не кликается. Роль запуска мини-игры взяла на себя главная кнопка
-  // "Готово!" (текст меняется на "Что там у других?" — тот же приём, что у
-  // Дегустатора с "Дегустировать", см. LEVEL4_FX.gourmet_vega). Первое
-  // нажатие открывает окно с 3 предыдущими визитёрами и ползунками (нужно
-  // ВСПОМНИТЬ их %), раунд по-настоящему завершается только по кнопке
-  // "Готово" уже ВНУТРИ этого окна (см. finishCraft/beepGuessCloseBtn).
-  function l4BeepBuildRows(){
-    const wrap = $('beepGuessRows');
-    if(!wrap) return;
-    const recent = orderAccuracyHistory.slice(-3);
-    if(!target.beepGuesses) target.beepGuesses = [50,50,50];
-    wrap.innerHTML = recent.map((h,i)=>`
-      <div class="beep-guess-row">
-        <div class="beep-guess-npc">${visualHTML(h.avatar,'npc-img')}<span>${LT(h.nameObj)}</span></div>
-        <input type="range" class="beep-guess-slider" min="0" max="100" step="1" value="${target.beepGuesses[i] ?? 50}" data-idx="${i}">
-        <div class="beep-guess-val">${target.beepGuesses[i] ?? 50}%</div>
-      </div>
-    `).join('');
-    wrap.querySelectorAll('.beep-guess-slider').forEach(sl=>{
-      sl.addEventListener('input', ()=>{
-        const idx = Number(sl.dataset.idx);
-        target.beepGuesses[idx] = Number(sl.value);
-        sl.nextElementSibling.textContent = sl.value + '%';
-        SFX.tick();
-      });
-    });
-  }
-  function l4BeepShowBanner(){
-    const wf = $('windowFrame');
-    if(!wf || document.getElementById('l4BeepBanner')) return;
-    const el = document.createElement('div');
-    el.id = 'l4BeepBanner'; el.className = 'l4-beep-banner';
-    el.textContent = LT(UI_TEXT.BEEP_GUESS_BTN);
-    wf.appendChild(el);
-  }
-  function l4BeepHideBanner(){
-    const el = document.getElementById('l4BeepBanner'); if(el) el.remove();
-  }
-  LEVEL4_FX.intern_beep = {
-    setup(){
-      target.beepGuesses = [50,50,50];
-      target.beepGuessOpened = false;
-    },
-    craftStart(){
-      if(orderAccuracyHistory.slice(-3).length >= 3){
-        // Патч (Фаза 0): убрали надпись-баннер Бипа (персонаж будет переделан
-        // целиком). Кнопка "Готово!" по-прежнему открывает мини-игру.
-        const btn = $('brewBtn');
-        if(btn) btn.textContent = LT(UI_TEXT.BEEP_MAIN_BTN);
-      }
-    },
-    stop(){
-      l4BeepHideBanner();
-      const btn = $('brewBtn');
-      if(btn) btn.textContent = LT(UI_TEXT.BREW_BTN);
-      const ov = $('beepGuessOverlay'); if(ov) ov.classList.remove('show');
-    }
-  };
+  // ---------- Стажёр Бип: механики нет (Фаза 8, 8C) ----------
+  // Самый базовый обучающий персонаж — обычные ползунки на всех уровнях, без
+  // уникальной механики. Прежняя УР.4-угадайка «Что там у других?» удалена.
+  // (Оверлей #beepGuessOverlay в index.html остаётся неиспользуемым — уберём
+  //  в финальной чистке, Фаза 13.)
 
   // ============================================================
   // Механики УР.4 — блок 3: новые виджеты ввода
@@ -2224,8 +2234,29 @@
       S[k].setDisabled(k !== l4FashionActiveKey);
     });
   }
+  // Фаза 8, УР.4: текущий регулятор считается «идеальным», если выставлен точно
+  // в цель (для основных дискретных характеристик). Прочее (накал и т.п.) не
+  // блокируем — чтобы не было софтлока.
+  function l4FashionKeyPerfect(key){
+    if(!S[key] || !target) return true;
+    const v = S[key].value;
+    switch(key){
+      case 'color':  return v === target.hueIdx;
+      case 'size':   return v === target.sizeIdx;
+      case 'bsize':  return v === target.bsizeIdx;
+      case 'count':  return v === target.count;
+      default:       return true;
+    }
+  }
   function l4FashionNextKey(){
     if(l4FashionOrder.length <= 1) return;
+    // Фаза 8 (8C), УР.4: «Дальше» не откроет следующий, пока текущий не идеален —
+    // каждое преждевременное нажатие сопровождается возмущённой репликой Модницы.
+    if(target.regLevel === 4 && !l4FashionKeyPerfect(l4FashionActiveKey)){
+      l4FashionShowPhrase();
+      SFX.badPop();
+      return;
+    }
     l4FashionOrderIdx = (l4FashionOrderIdx + 1) % l4FashionOrder.length;
     l4FashionActiveKey = l4FashionOrder[l4FashionOrderIdx];
     l4FashionApplyLocks();
@@ -2502,19 +2533,21 @@
       if(l4FlyWalkTimer){ clearInterval(l4FlyWalkTimer); l4FlyWalkTimer = null; }
       // детали уже разлетелись во время запоминания — просто разрешаем перетаскивание
       l4FlyItems.forEach(fly=>{ fly.dragging = false; });
-      // Патч (Фаза 0): лёгкий дрейф деталей во время игры — их чуть сложнее
-      // поймать и вернуть. Дрейфуют только НЕ перетаскиваемые и ещё НЕ
-      // возвращённые в банку детали; шаг маленький, движение плавное (CSS
-      // transition left/top на .l4-fly).
-      if(l4FlyDriftTimer){ clearInterval(l4FlyDriftTimer); }
-      l4FlyDriftTimer = setInterval(()=>{
-        l4FlyItems.forEach(f=>{
-          if(f.dragging || f.inside) return;
-          f.x = Math.max(4, Math.min(96, f.x + rand(-2.2, 2.2)));
-          f.y = Math.max(6, Math.min(94, f.y + rand(-2.2, 2.2)));
-          if(f.el){ f.el.style.left = f.x+'%'; f.el.style.top = f.y+'%'; }
-        });
-      }, 650);
+      // Фаза 8 (уточнение пользователя): дрейф деталей во время игры — это
+      // отдельная УР.4-механика («сложнее поймать»). На УР.1-3 детали статичны
+      // (ловить легче), на УР.4 — дрейфуют. Дрейфуют только НЕ перетаскиваемые и
+      // ещё НЕ возвращённые в банку детали; движение плавное (CSS transition).
+      if(l4FlyDriftTimer){ clearInterval(l4FlyDriftTimer); l4FlyDriftTimer = null; }
+      if(target.regLevel === 4){
+        l4FlyDriftTimer = setInterval(()=>{
+          l4FlyItems.forEach(f=>{
+            if(f.dragging || f.inside) return;
+            f.x = Math.max(4, Math.min(96, f.x + rand(-2.6, 2.6)));
+            f.y = Math.max(6, Math.min(94, f.y + rand(-2.6, 2.6)));
+            if(f.el){ f.el.style.left = f.x+'%'; f.el.style.top = f.y+'%'; }
+          });
+        }, 620);
+      }
       l4FlyUpdateCount();
       l4SwarmShowHint();
       updatePlayerJar();
@@ -2690,43 +2723,72 @@
     if(cfg.id === 'plasma_bartender' && level === 4) allKeys.push('speed');
     // Патч "УР.4" (Двуликая жрица): второй, независимый счётчик сгустков
     if(cfg.id === 'twofaced_priestess' && level === 4) allKeys.push('countB');
-    // Патч "УР.4" (Векс): доп. компонент результата — положение сгустков
-    if(cfg.id === 'vex' && level === 4) allKeys.push('vexPosition');
+    // Векс (Фаза 8: механика на всех уровнях): доп. компонент результата —
+    // положение сгустков (их таскают к узлам сетки)
+    if(cfg.id === 'vex') allKeys.push('vexPosition');
     const allSet = new Set(allKeys);
-    // Патч "УР.4" (Векс): сгустки всегда одного размера и фиксированного
-    // числа — "Сгустки"/"Разм. сгуст." ему не нужны ни на экране, ни в очках
-    if(cfg.id === 'vex' && level === 4){ allSet.delete('count'); allSet.delete('bsize'); }
+    // Векс: сгустки фиксированного числа/размера — обычные "Сгустки"/"Разм. сгуст."
+    // ему не нужны ни на экране, ни в очках (число задаётся уровнем, размер — дрэгом)
+    if(cfg.id === 'vex'){ allSet.delete('count'); allSet.delete('bsize'); }
     // Патч "УР.4" (Хозяин Роя): детали — фиксированные иконки без размера,
     // "Разм. сгуст." тут нечего оценивать (счётчик "Сгустки" при этом остаётся —
     // он и есть механика "сколько деталей вернули в банку")
     if(cfg.id === 'swarm_navigator' && level === 4){ allSet.delete('bsize'); }
 
-    if(level >= 3) return allSet;
-
-    let base;
-    if(focus){
-      base = FOCUS_KEYS[focus].filter(k => allSet.has(k));
-    } else if(cfg.type === 'gradient'){
-      base = ['color','colorB'];
-    } else if(cfg.type === 'shape'){
-      base = ['shape','size'];
-    } else if(cfg.type === 'moving'){
-      base = ['count','bsize'];
-    } else {
-      base = ['color'];
+    // ---- Фаза 8 (2, по запросу пользователя): кастомная раскладка у двух НПС ----
+    // Парфюмер: его фишка — пэд «цвет × накал» — работает с УР.1. Размера банки
+    // на УР.1 у него НЕТ (банка стандартная); УР.2 +размер банки; УР.3 +сгустки
+    // +размер сгустков; УР.4 = как УР.3 (накал у него и так с УР.1).
+    if(cfg.id === 'perfumer'){
+      const p = new Set(['color']);
+      if(allSet.has('sat')) p.add('sat');
+      if(level >= 2) p.add('size');
+      if(level >= 3){ p.add('count'); p.add('bsize'); }
+      return p;
     }
-    const set1 = new Set(base);
-    if(dual && set1.has('size')) set1.add('size2');
-    if(level === 1) return set1;
+    // Навигатор Роя (уточнение пользователя): отдельных ползунков «Сгустки»/
+    // «Разм. сгуст.» у него НЕТ. Но «детали» — это его механика: сколько деталей
+    // перетащил обратно в банку, пишется в count (l4FlyUpdateCount), слайдер count
+    // при этом СКРЫТ (l4-fly-hidden) и ведётся перетаскиванием. Поэтому count
+    // остаётся в наборе (иначе детали не скорятся), а bsize исключён совсем.
+    // Раскладка: УР.1 — только детали (count-drag); УР.2 +цвет +размер банки;
+    // УР.3 +накал; УР.4 — детали ещё и дрейфуют (ловить сложнее).
+    if(cfg.id === 'swarm_navigator'){
+      const s = new Set(['count']);
+      if(level >= 2){ s.add('color'); s.add('size'); }
+      if(level >= 3 && allSet.has('sat')) s.add('sat');
+      return s;
+    }
 
-    // level === 2: добавляем цвет, если его ещё нет; если он уже есть —
-    // добавляем размер банки. Оттенок (sat) всегда идёт вместе с цветом.
-    const set2 = new Set(set1);
-    if(!set2.has('color')) set2.add('color');
-    else set2.add('size');
-    if(set2.has('color') && flags.hasSat) set2.add('sat');
-    if(dual && set2.has('size')) set2.add('size2');
-    return set2;
+    // ---- Фаза 8 (8A): новый порядок раскрытия ползунков по уровням ----
+    // УР.1 — габарит + цвет; УР.2 — +количество сгустков; УР.3 — +размер
+    // сгустков; УР.4 — +накал (у кого есть) и эксклюзивные регуляторы УР.4.
+    // Поправки на тип: shape — форма вместо цвета; gradient — оба спектра;
+    // dual_size — габарит распадается на ширину+высоту (ходят парой).
+    const out = new Set();
+    const add = k => { if(allSet.has(k)) out.add(k); };
+    // УР.1: базовые «габарит + цвет» (с поправкой на тип)
+    add('size'); if(dual) add('size2');
+    if(flags.hasShape) add('shape'); else add('color');
+    if(flags.hasGradient) add('colorB');
+    if(cfg.id === 'vex') add('vexPosition'); // Векс: дрэг-компонент активен на всех уровнях
+    // Модификатор фокуса: на УР.1/2 сужаем набор до фокусных характеристик
+    // (фокус несёт игровую суть — прежнее поведение модификатора); УР.3+ — общий порядок
+    if(focus && level < 3){
+      const f = new Set(FOCUS_KEYS[focus].filter(k => allSet.has(k)));
+      if(dual && f.has('size')) f.add('size2');
+      if(f.size){
+        if(level >= 2) f.add('count'); // мягкий шаг вверх на УР.2
+        return f;
+      }
+    }
+    if(level >= 2) add('count');
+    if(level >= 3) add('bsize');
+    if(level >= 4){
+      add('sat');
+      add('rotation'); add('speed'); add('countB'); add('vexPosition');
+    }
+    return out;
   }
 
   function computeFlags(cfg){
@@ -2814,6 +2876,7 @@
       if(tipsOn){ const tv = $('tipsVal'); if(tv && window.PotionProfile) tv.textContent = window.PotionProfile.getTips(); }
     }
     refreshShopDockState(); // Фаза 6: видимость/доступность кнопок магазина/инвентаря
+    refreshSkillDock();     // Фаза 7: панель умений/заряды
     renderProgressionBar();
   }
 
@@ -2874,32 +2937,43 @@
     $('shopBalanceVal').textContent = PP ? PP.getTips() : 0;
     host.innerHTML = '';
     SHOP_ITEMS.forEach(item=>{
-      if(shopSelGrade[item.id] == null) shopSelGrade[item.id] = defaultSelGrade(item);
-      const g = shopSelGrade[item.id];
+      const isUnique = !!item.unique;
+      let g;
+      if(isUnique){ g = 0; }
+      else { if(shopSelGrade[item.id] == null) shopSelGrade[item.id] = defaultSelGrade(item); g = shopSelGrade[item.id]; }
       const grade = item.grades[g];
+      const unlocked = isUnique ? progMechUnlocked('unique_items') : shopGradeUnlocked(g);
       const canAfford = PP && PP.getTips() >= grade.price;
-      const buyable = shopGradeUnlocked(g) && canAfford;
+      const buyable = unlocked && canAfford;
       const owned = PP ? PP.itemQty(item.id, g) : 0;
-      const gradesHTML = item.grades.map((gr,i)=>{
-        const unl = shopGradeUnlocked(i);
-        return `<div class="grade-pip ${i===g?'selected':''} ${unl?'':'locked'}" data-grade="${i}" title="${unl?LT(gr.label):LT(UI_TEXT.SHOP_LOCKED_GRADE)}">${i+1}</div>`;
-      }).join('');
+      // столбик грейдов только у обычных предметов; у уникальных — бейдж ★
+      const gradesHTML = isUnique
+        ? `<div class="item-grades"><div class="grade-pip unique-pip" title="${LT(UI_TEXT.SHOP_UNIQUE_TAG)}">★</div></div>`
+        : `<div class="item-grades">${item.grades.map((gr,i)=>{
+            const unl = shopGradeUnlocked(i);
+            return `<div class="grade-pip ${i===g?'selected':''} ${unl?'':'locked'}" data-grade="${i}" title="${unl?LT(gr.label):LT(UI_TEXT.SHOP_LOCKED_GRADE)}">${i+1}</div>`;
+          }).join('')}</div>`;
+      const nameSuffix = isUnique
+        ? `<span class="item-grade-note unique-note">· ★ ${LT(UI_TEXT.SHOP_UNIQUE_TAG)}</span>`
+        : `<span class="item-grade-note">· ${LT(UI_TEXT.ITEM_GRADE_LABEL)} ${g+1} (${LT(grade.label)})</span>`;
+      const lockedNote = unlocked ? '' :
+        `<span class="item-grade-note">(${LT(isUnique ? UI_TEXT.SHOP_UNIQUE_LOCKED : UI_TEXT.SHOP_LOCKED_GRADE)})</span>`;
       const card = document.createElement('div');
-      card.className = 'item-card';
+      card.className = 'item-card' + (isUnique ? ' item-unique' : '');
       card.innerHTML = `
         <div class="item-icon">${visualHTML(item.icon,'item-img')}</div>
         <div class="item-body">
-          <div class="item-name">${LT(item.name)} <span class="item-grade-note">· ${LT(UI_TEXT.ITEM_GRADE_LABEL)} ${g+1} (${LT(grade.label)})</span></div>
+          <div class="item-name">${LT(item.name)} ${nameSuffix}</div>
           <div class="item-desc">${LT(item.desc)}</div>
           <div class="item-action">
             <button class="item-buy-btn" ${buyable?'':'disabled'}>${LT(UI_TEXT.SHOP_BUY)}</button>
             <span class="item-price">🪙 ${grade.price}</span>
             <span class="item-owned">${LT(UI_TEXT.SHOP_OWNED)} ${owned}</span>
-            ${shopGradeUnlocked(g)?'':`<span class="item-grade-note">(${LT(UI_TEXT.SHOP_LOCKED_GRADE)})</span>`}
+            ${lockedNote}
           </div>
         </div>
-        <div class="item-grades">${gradesHTML}</div>`;
-      card.querySelectorAll('.grade-pip').forEach(pip=>{
+        ${gradesHTML}`;
+      if(!isUnique) card.querySelectorAll('.grade-pip').forEach(pip=>{
         pip.addEventListener('click', ()=>{
           const gi = parseInt(pip.dataset.grade,10);
           if(!shopGradeUnlocked(gi)){ SFX.badPop(); return; }
@@ -2914,7 +2988,8 @@
 
   function buyItem(item, g){
     const PP = window.PotionProfile; if(!PP) return;
-    if(!shopGradeUnlocked(g)){ SFX.badPop(); return; }
+    const unlocked = item.unique ? progMechUnlocked('unique_items') : shopGradeUnlocked(g);
+    if(!unlocked){ SFX.badPop(); return; }
     if(!PP.spendTips(item.grades[g].price)){
       SFX.badPop(); showToast({ icon:'🪙', prefix:UI_TEXT.SHOP_NEED_TIPS, name:'' }); return;
     }
@@ -3001,8 +3076,60 @@
     S[key].setFlag(mark ? 'item-mark' : 'item-paprika', true);
   }
 
+    // ставит регулятор точно на верное значение и фиксирует (Философский камень)
+  function setSliderToTarget(key){
+    if(!S[key] || !target) return false;
+    let v = null;
+    if(key === 'color') v = target.hueIdx;
+    else if(key === 'size') v = target.sizeIdx;
+    else if(key === 'bsize') v = target.bsizeIdx;
+    else if(key === 'count') v = target.count;
+    if(v == null) return false;
+    S[key].value = v;
+    S[key].setDisabled(true);
+    S[key].setFlag('item-solved', true);
+    return true;
+  }
+
+  // Уникальный "Жетон дебоша": добавляет случайный модификатор случайному
+  // подходящему гостю дня, соблюдая правила Фазы 3 (без дублей; несколько — только
+  // красным+ и при Ур.7). Возвращает изменённый заказ или null (некому).
+  function addRandomModifier(){
+    if(isDailyMode) return null;
+    const multiOn = progMechUnlocked('modifiers_multi');
+    const new3On  = progMechUnlocked('modifiers_new3');
+    const cands = (currentOrders || []).filter(o => o.cfg.tier >= 2 && o.cfg.id !== 'tentacloid');
+    for(const o of shuffleArr(cands)){
+      const modCount = (o.focus ? 1 : 0) + ((o.mods && o.mods.length) || 0);
+      if(modCount > 0 && !(multiOn && o.cfg.tier >= 4)) continue; // второй модификатор нельзя
+      if(modCount >= 3) continue; // жёсткий лимит
+      const kinds = [];
+      if(o.cfg.type === 'normal' && !o.focus) kinds.push('focus');
+      if(new3On){
+        if(o.cfg.special !== 'no_timer' && !(o.mods || []).includes('timer')) kinds.push('timer');
+        if(!(o.mods || []).includes('duck')) kinds.push('duck');
+        if(!(o.mods || []).includes('rampage')) kinds.push('rampage');
+      }
+      if(!kinds.length) continue;
+      const k = pick(kinds);
+      if(k === 'focus') o.focus = pick(['bubbles','color','size']);
+      else { o.mods = o.mods || []; o.mods.push(k); }
+      return o;
+    }
+    return null;
+  }
+
   function applyItemEffect(item, grade, key){
     const PP = window.PotionProfile; if(!PP) return;
+    // Уникальный "Жетон дебоша" — проверяем успех ДО списания (иначе тратим впустую)
+    if(item.effect === 'addmod'){
+      const o = addRandomModifier();
+      if(!o){ SFX.badPop(); showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_NO_TARGET, name:'' }); return; }
+      PP.consumeItem(item.id, grade);
+      renderCustomerCards(currentOrders); // показать новую плашку
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+      SFX.cardPick(); closeInventory(); return;
+    }
     if(!PP.consumeItem(item.id, grade)){ SFX.badPop(); return; }
     const gr = item.grades[grade];
     if(item.effect === 'time'){
@@ -3011,6 +3138,10 @@
     } else if(item.effect === 'memtime'){
       pendingItemFx.memBonusMs += gr.bonusMs || 0;
       showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_TIME_TOAST, name:'' });
+    } else if(item.effect === 'charge'){
+      if(window.PotionProfile) window.PotionProfile.addCharge(gr.add || 1);
+      refreshSkillDock();
+      showToast({ icon:item.icon, prefix:UI_TEXT.SKILL_CHARGE_GAINED, name:'' });
     } else if(item.effect === 'flatbonus'){
       if(target) target.itemFx.flatBonus = (target.itemFx.flatBonus || 0) + (gr.flat || 0);
       showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
@@ -3040,6 +3171,20 @@
       showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
     } else if(item.effect === 'chip'){
       if(target) target.itemFx.chip = { lo:gr.lo, hi:gr.hi };
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+    } else if(item.effect === 'revealall'){
+      // Звёздная карта: зелёная зона на всех доступных основных регуляторах
+      const keys = [...(target && target.activeKeys ? target.activeKeys : [])]
+        .filter(k => S[k] && ['color','size','bsize','count'].includes(k));
+      keys.forEach(k => applyPaprikaZone(k, gr.zone));
+      showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+    } else if(item.effect === 'truesolve'){
+      // Философский камень: ставит N случайных регуляторов точно и фиксирует
+      const keys = shuffleArr([...(target && target.activeKeys ? target.activeKeys : [])]
+        .filter(k => S[k] && ['color','size','bsize','count'].includes(k)));
+      let solved = 0;
+      for(const k of keys){ if(solved >= (gr.count || 1)) break; if(setSliderToTarget(k)) solved++; }
+      if(solved) updatePlayerJar();
       showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
     }
     SFX.cardPick();
@@ -3081,6 +3226,7 @@
     if(typeof ALL_NPCS !== 'undefined'){
       ALL_NPCS.forEach(n=>{ PP.setReputation(n.id, 999); PP.markNpcMet(n.id); });
     }
+    if(PP.addCharge) PP.addCharge(3); // Фаза 7: полный запас зарядов умений для теста
     PP.save();
   }
   function toggleDevMode(){
@@ -3102,6 +3248,122 @@
     if(db) db.addEventListener('click', ()=>{ SFX.uiClick(); toggleDevMode(); });
     refreshDevBtn();
   }
+
+  // ============================================================
+  // Фаза 7: умения игрока (панель слева + заряды)
+  // ============================================================
+  // конфиг персонажа по id — из пулов тиров (с влитыми таймерами/шагами) + спецы
+  function cfgById(id){
+    for(let t=1;t<=5;t++){ const c = tierPool(t).find(x=>x.id===id); if(c) return c; }
+    if(typeof SPECIAL_ORDERS !== 'undefined'){ const s = SPECIAL_ORDERS.find(x=>x.id===id); if(s) return s; }
+    return null;
+  }
+
+  function refreshSkillDock(){
+    const dock = $('skillDock'); if(!dock) return;
+    const on = !isDailyMode && progMechUnlocked('skill_1');
+    dock.style.display = on ? '' : 'none';
+    if(!on) return;
+    const onSelect = $('selectScreen').classList.contains('show');
+    const charges = window.PotionProfile ? window.PotionProfile.getCharges() : 0;
+    const grid = $('skillGrid'); grid.innerHTML = '';
+    SKILLS.forEach(sk=>{
+      if(!progMechUnlocked(sk.flag)) return; // ещё не открыт прогрессией
+      const btn = document.createElement('button');
+      btn.className = 'skill-btn';
+      btn.innerHTML = visualHTML(sk.icon, 'skill-img');
+      btn.title = LT(sk.name) + ' — ' + LT(sk.desc);
+      const stub = sk.mode === 'stub';
+      btn.disabled = stub || !onSelect || charges <= 0;
+      btn.addEventListener('click', ()=>{ SFX.uiClick(); useSkill(sk); });
+      grid.appendChild(btn);
+    });
+    const cp = $('skillCharges'); cp.innerHTML = '';
+    for(let i=0;i<3;i++){ const d = document.createElement('div'); d.className = 'charge-pip' + (i < charges ? ' full' : ''); cp.appendChild(d); }
+  }
+
+  // «Вам уже пора»: обновить всех гостей дня на новых (текущих не повторять)
+  function refreshDaySkill(){
+    const usedNames = new Set(currentOrders.map(o => o.cfg.name));
+    let tiers = getCardTiers();
+    const poolSize = progPoolSize();
+    if(tiers.length > poolSize) tiers = tiers.slice(0, poolSize);
+    else while(tiers.length < poolSize) tiers.push(tiers[tiers.length - 1]);
+    currentOrders = tiers.map(t => buildOrderDescriptor(pickConfigForTier(t, usedNames)));
+    renderSelectBanners();
+    renderCustomerCards(currentOrders);
+  }
+
+  function useSkill(sk){
+    if(sk.mode === 'stub'){ SFX.badPop(); showToast({ icon:sk.icon, prefix:UI_TEXT.SKILL_STUB_NOTE, name:'' }); return; }
+    if(!$('selectScreen').classList.contains('show')){ SFX.badPop(); showToast({ icon:'✨', prefix:UI_TEXT.SKILL_ONLY_SELECT, name:'' }); return; }
+    const PP = window.PotionProfile;
+    if(!PP || PP.getCharges() <= 0){ SFX.badPop(); showToast({ icon:'✨', prefix:UI_TEXT.SKILL_NO_CHARGES, name:'' }); return; }
+    if(sk.mode === 'refresh'){
+      PP.spendCharge();
+      refreshDaySkill();
+      showToast({ icon:sk.icon, prefix:UI_TEXT.SKILL_REFRESH_TOAST, name:'' });
+      refreshSkillDock();
+      return;
+    }
+    openSkillPicker(sk); // who / ban
+  }
+
+  // окно выбора персонажей для «Кто там?» (1) и «Этих не пускайте» (до 3)
+  let skillPickCtx = null;
+  function openSkillPicker(sk){
+    const unlockedSet = progUnlockedNpcSet();
+    const seen = new Set(); const ids = [];
+    const add = c => { if(!seen.has(c.id)){ seen.add(c.id); if(!unlockedSet || unlockedSet.has(c.id)) ids.push(c.id); } };
+    for(let t=1;t<=5;t++) tierPool(t).forEach(add);
+    if(typeof SPECIAL_ORDERS !== 'undefined') SPECIAL_ORDERS.forEach(add);
+    const list = sk.mode === 'ban' ? ids.filter(id => !bannedNpcs.has(id)) : ids;
+    skillPickCtx = { mode:sk.mode, selected:new Set(), max: sk.mode === 'ban' ? 3 : 1 };
+    $('skillPickTitle').textContent = LT(sk.mode === 'ban' ? UI_TEXT.SKILL_PICK_BAN_TITLE : UI_TEXT.SKILL_PICK_WHO_TITLE);
+    const grid = $('skillPickGrid'); grid.innerHTML = '';
+    list.forEach(id=>{
+      const cfg = cfgById(id); if(!cfg) return;
+      const cell = document.createElement('div'); cell.className = 'skill-pick-cell';
+      const avatar = Array.isArray(cfg.img) ? cfg.img[0] : (cfg.img || cfg.emoji);
+      cell.innerHTML = `<div class="pick-portrait">${visualHTML(avatar,'pick-img')}</div><div class="pick-name">${LT(cfg.name)}</div>`;
+      cell.addEventListener('click', ()=>{
+        SFX.uiClick();
+        if(skillPickCtx.selected.has(id)){ skillPickCtx.selected.delete(id); cell.classList.remove('selected'); return; }
+        if(skillPickCtx.selected.size >= skillPickCtx.max){
+          if(skillPickCtx.max === 1){ skillPickCtx.selected.clear(); grid.querySelectorAll('.selected').forEach(e=>e.classList.remove('selected')); }
+          else { SFX.badPop(); return; }
+        }
+        skillPickCtx.selected.add(id); cell.classList.add('selected');
+      });
+      grid.appendChild(cell);
+    });
+    $('skillOverlay').classList.add('show');
+  }
+  function closeSkillPicker(){ $('skillOverlay').classList.remove('show'); skillPickCtx = null; }
+  {
+    const cf = $('skillPickConfirm');
+    if(cf) cf.addEventListener('click', ()=>{
+      if(!skillPickCtx){ closeSkillPicker(); return; }
+      const sel = [...skillPickCtx.selected];
+      if(!sel.length){ SFX.badPop(); return; }
+      const PP = window.PotionProfile;
+      if(!PP || !PP.spendCharge()){ SFX.badPop(); return; }
+      if(skillPickCtx.mode === 'who'){
+        guaranteedNextNpc = sel[0];
+        const c = cfgById(sel[0]);
+        showToast({ icon:'👀', prefix:UI_TEXT.SKILL_GUARANTEED_TOAST, name: c ? c.name : '' });
+      } else {
+        sel.forEach(id => bannedNpcs.add(id));
+        showToast({ icon:'🚫', prefix:UI_TEXT.SKILL_BANNED_TOAST, name:'' });
+      }
+      SFX.cardPick();
+      closeSkillPicker();
+      refreshSkillDock();
+    });
+    const cc = $('skillPickCancel');
+    if(cc) cc.addEventListener('click', ()=>{ SFX.uiClick(); closeSkillPicker(); });
+  }
+
   // Фаза 3 (3B): подсказка на финале шкалы — что откроется по её завершении
   function progFinalHint(bar){
     const parts = [];
@@ -3293,7 +3555,7 @@
     ['collectionBtn','charactersBtn','passivesBtn'].forEach(id=>{
       const el = $(id); if(el) el.classList.add('hidden');
     });
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0;
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
     $('dayVal').textContent = dayNum;
@@ -3301,26 +3563,47 @@
     showSelectScreen();
   }
 
+  // Фаза 9: «грейд выше своего». Вес кандидата по разрыву тиров (0 = родной тир):
+  // родной доминирует, чужой выпадает изредка и тем реже, чем дальше от своего.
+  const GRADE_WEIGHT = [1, 0.15, 0.05, 0.02, 0.008];
+  // Награда подставленного персонажа масштабируется к целевому грейду (иначе
+  // «фиолетовый» слот с зелёной наградой был бы невыгоден). Числа — стартовые.
+  const GRADE_REWARD_MULT = [1, 1.6, 2.3, 3.2, 4.5];
+  function gradeUpCfg(cfg, targetTier){
+    const gap = Math.min(targetTier - cfg.tier, GRADE_REWARD_MULT.length - 1);
+    // клон (НЕ мутируем общий ALL_NPCS): тот же id/механика/имя, но выше тир и
+    // награда. Тир влияет на цвет карточки/пузыря, пороги (тир-5), доступность
+    // модификаторов; id/имя неизменны — репутация/связи/LEVEL4_FX работают как есть.
+    return Object.assign({}, cfg, { tier: targetTier, gradedFrom: cfg.tier,
+      reward: Math.round(cfg.reward * GRADE_REWARD_MULT[gap]) });
+  }
   function pickConfigForTier(tierNum, usedNames){
     const tierPoolFor = t => t < 5 ? tierPool(t) : [...tierPool(5), ...SPECIAL_ORDERS];
-    let pool = tierPoolFor(tierNum);
-    // Фаза 3: в аркаде доступны только открытые прогрессией НПС. Если на этом
-    // тире ещё никого не открыли — спускаемся к ближайшему нижнему тиру, где
-    // есть открытые (STAGE_TABLE может требовать тир выше текущей прогрессии).
-    if(!isDailyMode && progUnlockedNpcSet()){
-      let t = tierNum, unlocked = pool.filter(c => isNpcUnlocked(c.id));
-      while(unlocked.length === 0 && t > 1){ t--; unlocked = tierPoolFor(t).filter(c => isNpcUnlocked(c.id)); }
-      if(unlocked.length) pool = unlocked;
+    // доступен: открыт прогрессией (аркада) + не ушёл (обида/Погром/бан умения)
+    const isAvail = c => (isDailyMode || !progUnlockedNpcSet() || isNpcUnlocked(c.id))
+      && !isRelationLeftCycle(c.id) && !pogromRemovedIds.has(c.id) && !bannedNpcs.has(c.id);
+    // Фаза 9: кандидаты слота — персонажи РОДНОГО тира (полный вес) + НИЖНИХ тиров
+    // «грейдом выше» (вес GRADE_WEIGHT[разрыв]). Ещё не использованные сегодня —
+    // жёсткий запрет дублей в дне. В дейлике грейд-вариативности нет (своя
+    // последовательность, pickConfigForTier там не используется).
+    const gradeVariety = !isDailyMode;
+    const cands = [];
+    for(let t = tierNum; t >= (gradeVariety ? 1 : tierNum); t--){
+      const w = GRADE_WEIGHT[Math.min(tierNum - t, GRADE_WEIGHT.length - 1)];
+      tierPoolFor(t).forEach(c=>{ if(isAvail(c) && !usedNames.has(c.name)) cands.push({ c, w }); });
     }
-    // Патч "Взаимоотношения": НПС, который "ушёл" из-за обиды, не выпадает
-    // до конца цикла — если это оставит пул пустым, лучше не блокировать
-    // генерацию тройки вовсе, чем сломать раунд
-    // Патч "Взаимоотношения" + Фаза 3 "Погром": ушедший из-за обиды ИЛИ
-    // подравшийся (Погром) НПС не выпадает до конца цикла
-    const notLeft = pool.filter(c => !isRelationLeftCycle(c.id) && !pogromRemovedIds.has(c.id));
-    const basePool = notLeft.length ? notLeft : pool;
-    const fresh = basePool.filter(c => !usedNames.has(c.name));
-    const cfg = pick(fresh.length ? fresh : basePool);
+    let chosen = cands.length ? weightedPick(cands).c : null;
+    if(!chosen){
+      // родной+нижние тиры исчерпаны без повтора — добираем свежего из ВЕРХНИХ
+      // тиров (тоже без дубля); повтор имени — лишь абсолютный крайний случай
+      for(let t = tierNum + 1; t <= 5 && !chosen; t++){
+        const up = tierPoolFor(t).filter(c => isAvail(c) && !usedNames.has(c.name));
+        if(up.length) chosen = pick(up);
+      }
+      if(!chosen){ const base = tierPoolFor(tierNum).filter(isAvail); chosen = pick(base.length ? base : tierPoolFor(tierNum)); }
+    }
+    // родной тир — как есть; ниже — клонируем «грейдом выше своего»
+    const cfg = chosen.tier < tierNum ? gradeUpCfg(chosen, tierNum) : chosen;
     usedNames.add(cfg.name);
     return cfg;
   }
@@ -3343,8 +3626,17 @@
     // Патч (Тентаклоид): у него никогда не бывает обычных модификаторов —
     // его собственная механика (один скрытый решающий параметр) их заменяет
     const baseEligible  = cfg.tier >= 2 && cfg.id !== 'tentacloid';
-    // фокус меняет веса регуляторов — нужен обычный набор ползунков (type normal)
-    const focusEligible = modifiersOn && baseEligible && cfg.type === 'normal';
+    // фокус меняет веса регуляторов — нужен обычный набор ползунков (type normal).
+    // Исключены персонажи с кастомной раскладкой ползунков (Фаза 8), где стат-фокус
+    // ложился бы на неактивный/особый регулятор и ломал набор: Векс (сгустки
+    // таскаются), Парфюмер (пэд цвет×накал, своя раскладка), Навигатор (детали).
+    // Полностью без фокуса: Векс и Парфюмер (кастомный набор), Коллекционер
+    // (грид-выбор — стат-фокус ему не применим: ни сгустков, ни габаритов, ни
+    // спектра в привычном смысле). Навигатор фокус ПОЛУЧАЕТ, но ограниченный —
+    // только спектр/габариты (сгустков у него нет), см. focusTypesFor ниже.
+    const FOCUS_EXCLUDE = new Set(['vex', 'perfumer', 'collector_gz']);
+    const focusTypesFor = id => id === 'swarm_navigator' ? ['color', 'size'] : ['bubbles', 'color', 'size'];
+    const focusEligible = modifiersOn && baseEligible && cfg.type === 'normal' && !FOCUS_EXCLUDE.has(cfg.id);
     if(modifiersOn && baseEligible && (forceFocus || Math.random() < 0.4)){
       // какие "виды" модификаторов доступны этому персонажу
       const kinds = [];
@@ -3360,7 +3652,7 @@
         if(multiOn && cfg.tier >= 4) count = Math.random() < 0.22 ? 3 : 2;
         count = Math.min(count, kinds.length);
         shuffleArr(kinds).slice(0, count).forEach(k=>{
-          if(k === 'focus') focus = pick(['bubbles','color','size']);
+          if(k === 'focus') focus = pick(focusTypesFor(cfg.id));
           else mods.push(k);
         });
       }
@@ -3401,6 +3693,12 @@
   // СЛЕДУЮЩИЙ заказ, гасятся при старте варки. Эффекты, применённые во время
   // варки, живут в target.itemFx (сбрасывается на каждый заказ).
   let pendingItemFx = { timeBonusMs: 0, memBonusMs: 0 };
+
+  // Фаза 7: умения. guaranteedNextNpc — id гостя, гарантированно попадающего в
+  // следующую тройку («Кто там?»). bannedNpcs — id, не появляющиеся до конца
+  // цикла («Этих не пускайте»). Сбрасываются в началах цикла.
+  let guaranteedNextNpc = null;
+  let bannedNpcs = new Set();
 
   // Патч "Взаимоотношения": разовые эффекты на ДРУГИХ НПС тройки, связанных с
   // тем, кого игрок только что выбрал для заказа. Возвращает мс задержки
@@ -3507,6 +3805,7 @@
             <div class="icon-img">${visualHTML(avatar,'npc-img')}</div>
           </div>
           ${ord.sealed ? `<div class="seal-badge" title="${LT(UI_TEXT.ARCH_SEAL_TAG)}">📜</div>` : ''}
+          ${cfg.gradedFrom ? `<div class="grade-badge" title="${LT(UI_TEXT.GRADE_UP_TAG)}">↑</div>` : ''}
           <div class="icon-name-reveal"><span>${npcNameStr}</span></div>
         </div>
         <div class="plaque-stack">
@@ -3594,12 +3893,6 @@
   // ============================================================
   // Ир: ожидающий бафф/дебафф на следующее задание — {kind:'buff'|'debuff'}
   let irPending = null;
-  // Патч "УР.4" (Стажёр Бип): точность последних 3 закрытых заказов (любых
-  // НПС) — его собственный рейтинг считается как их среднее. beepBuffRemaining —
-  // сколько ещё СЛЕДУЮЩИХ заказов (любых НПС) получают +33% к рейтингу,
-  // выданные Бипом за визит без истории.
-  let orderAccuracyHistory = [];
-  let beepBuffRemaining = 0;
   // Патч "УР.4" (Тот-Кто-Ждёт): строгие 100% дарят бафф на СЛЕДУЮЩИЙ заказ
   // (у любого НПС) — таймер идёт вдвое медленнее (см. WAITER_SLOW_BUFF)
   let waiterSlowPending = false;
@@ -3660,7 +3953,7 @@
       // тех, кому модификатор в принципе доступен (см. focusEligible выше)
       const eligibleIdx = dailyPool
         .map((cfg,i)=>({cfg,i}))
-        .filter(o => o.cfg.type === 'normal' && o.cfg.tier >= 2 && o.cfg.id !== 'tentacloid')
+        .filter(o => o.cfg.type === 'normal' && o.cfg.tier >= 2 && o.cfg.id !== 'tentacloid' && o.cfg.id !== 'vex')
         .map(o=>o.i);
       const forceIdx = new Set(shuffleArr(eligibleIdx).slice(0, Math.min(2, eligibleIdx.length)));
       currentOrders = dailyPool.map((cfg,i) => buildOrderDescriptor(cfg, forceIdx.has(i)));
@@ -3677,6 +3970,16 @@
     else while(tiers.length < poolSize) tiers.push(tiers[tiers.length - 1]);
     const usedNames = new Set();
     currentOrders = tiers.map(t=> buildOrderDescriptor(pickConfigForTier(t, usedNames)));
+
+    // Фаза 7, умение «Кто там?»: гарантируем гостя в этой тройке (один раз)
+    if(guaranteedNextNpc){
+      const already = currentOrders.some(o => o.cfg.id === guaranteedNextNpc);
+      if(!already){
+        const gcfg = cfgById(guaranteedNextNpc);
+        if(gcfg) currentOrders[randInt(0, currentOrders.length - 1)] = buildOrderDescriptor(gcfg);
+      }
+      guaranteedNextNpc = null;
+    }
 
     // Патч (Хранитель): пока идёт кампания печатей — в каждой тройке одно
     // задание отмечается печатью (кроме самого Хранителя). Заряд тратится
@@ -3771,9 +4074,9 @@
     SFX.orderShow();
 
     const flags = computeFlags(cfg);
-    // Патч "УР.4" (Парфюмер): на УР.4 у него появляется "накал" — обычно
-    // недоступен тир-3 НПС (флаг требует tier>=4) — это его личное исключение
-    if(cfg.id === 'perfumer' && regLevel === 4) flags.hasSat = true;
+    // Парфюмер (Фаза 8: механика с УР.1): «накал» доступен ему на ВСЕХ уровнях —
+    // его фишка это пэд цвет×накал (обычно sat требует tier>=4, у него исключение).
+    if(cfg.id === 'perfumer') flags.hasSat = true;
     const hueIdx = randInt(0, cfg.colorSteps-1);
     const sizeIdx = randInt(0, cfg.sizeSteps-1);
     let bsizeIdx = randInt(0, cfg.bsizeSteps-1);
@@ -3782,10 +4085,11 @@
     if(cfg.countBias === 'high' && cfg.countMax > 5){
       count = Math.random() < 0.82 ? randInt(6, cfg.countMax) : randInt(1, 5);
     }
-    // Патч "УР.4" (Векс): сгустков всегда 4-7, размер — средний (никогда
-    // не самый большой и не самый маленький — их удобно хватать и таскать)
-    if(cfg.id === 'vex' && regLevel === 4){
-      count = randInt(4, 7);
+    // Векс (Фаза 8: механика на всех уровнях): число сгустков растёт по уровню —
+    // 3 / 4 / 5 / (5-7). Размер — средний (никогда не самый большой и не самый
+    // маленький — их удобно хватать и таскать к узлам сетки).
+    if(cfg.id === 'vex'){
+      count = regLevel >= 4 ? randInt(5, 7) : (regLevel === 3 ? 5 : (regLevel === 2 ? 4 : 3));
       const bLo = Math.round(cfg.bsizeSteps*0.35), bHi = Math.round(cfg.bsizeSteps*0.7);
       bsizeIdx = randInt(Math.max(0,bLo), Math.min(cfg.bsizeSteps-1, Math.max(bLo,bHi)));
     }
@@ -3873,7 +4177,7 @@
     // силуэт). shapeIdx=1 ("Блок") — самый близкий к прямоугольной прорези
     // кастомного арта профиль, нужен для clip-path/раскладки пузырей.
     const customBottleExcluded = flags.hasShape
-      || (cfg.id === 'collector_gz' && regLevel === 4)
+      || cfg.id === 'collector_gz'
       || (cfg.id === 'the_waiter' && regLevel === 4);
     if(!customBottleExcluded && typeof CUSTOM_BOTTLES_ENABLED !== 'undefined' && CUSTOM_BOTTLES_ENABLED && CUSTOM_BOTTLES.length){
       target.customBottle = pick(CUSTOM_BOTTLES);
@@ -3921,13 +4225,13 @@
     const targetR = 3 + (target.bsize/100)*9;
     // Патч "УР.4" (Хозяин Роя): мухи рисуются отдельными DOM-элементами,
     // а не SVG-пузырьками — банка всегда пустая по count для него
-    const isFlySwarm = cfg.id === 'swarm_navigator' && regLevel === 4;
+    const isFlySwarm = mechActive('swarm_navigator');
     // Патч "УР.4" (Двуликая жрица): банка разделена на 2 половины со своими
     // независимыми счётчиками сгустков
     const isTwofacedSplit = cfg.id === 'twofaced_priestess' && regLevel === 4;
     // Патч "УР.4" (Векс): сгустки — отдельные перетаскиваемые DOM-элементы,
     // а не SVG-пузырьки — банка всегда пустая по count для него
-    const isVexDrag = cfg.id === 'vex' && regLevel === 4;
+    const isVexDrag = cfg.id === 'vex';
     if(cfg.type === 'moving'){
       startMovingAnim();
     } else {
@@ -3949,6 +4253,7 @@
     $('rightCol').classList.remove('show');
     currentPhase = 'scan';
     refreshShopDockState(); // Фаза 6: в фазе запоминания инвентарь недоступен
+    refreshSkillDock();     // Фаза 7: умения вне экрана выбора недоступны
     $('phaseLabel').textContent = LT(UI_TEXT.PHASE_SCAN);
     $('brewBtn').disabled = false;
     craftLocked = false;
@@ -3966,7 +4271,7 @@
     // Фаза 6, "Тоник ясности": отложенный бонус времени запоминания (применён в фазе выбора)
     let clarityBonus = 0;
     if(pendingItemFx.memBonusMs){ clarityBonus = pendingItemFx.memBonusMs; pendingItemFx.memBonusMs = 0; }
-    const memDuration = Math.round(cfg.memorizeMs * (1 + (target.passiveFx.memTime || 0))) + janitorL4Bonus + fashionistaL4Bonus + clarityBonus;
+    const memDuration = Math.round(cfg.memorizeMs * MEM_TIME_SCALE * (1 + (target.passiveFx.memTime || 0))) + janitorL4Bonus + fashionistaL4Bonus + clarityBonus;
     target.memDuration = memDuration; // Патч "УР.4": механики фазы показа читают отсюда
     // Тот-Кто-Ждёт: у него нет таймера ни на запоминание, ни на варку —
     // игрок сам решает, когда готов, кнопкой "Готово, воссоздаю"
@@ -3981,14 +4286,9 @@
       // Патч "УР.4": у Того-Кто-Ждёт своя механика запоминания (метроном+числа)
       // даже без обычного таймера — цепляем через тот же хук memorizeStart
       if(level4Active && level4Active.memorizeStart) level4Active.memorizeStart();
-    } else if(cfg.id === 'intern_beep' && regLevel === 4){
-      // Патч "УР.4" (Стажёр Бип): фазы запоминания нет вообще — он "принимает
-      // любой коктейль", играть начинаем мгновенно
-      stopMovingAnim();
-      startGuessPhase();
-    } else if(cfg.id === 'guild_inspector' && regLevel === 4){
-      // Патч "УР.4" (Инспектор Гильдии): фазы показа "запрещённого образца"
-      // больше нет — сразу лист "Допусков" с текстом (таймер там же удвоен)
+    } else if(mechActive('guild_inspector')){
+      // Инспектор Гильдии (Ф8: с УР.1): фазы показа "запрещённого образца"
+      // нет — сразу лист "Допусков" с текстом (таймер варки там же удвоен)
       stopMovingAnim();
       startGuessPhase();
     } else {
@@ -4003,6 +4303,7 @@
     $('jarSvg').classList.add('brewing');
     currentPhase = 'craft';
     refreshShopDockState(); // Фаза 6: в фазе варки инвентарь снова доступен
+    refreshSkillDock();     // Фаза 7: умения вне экрана выбора недоступны
     $('phaseLabel').textContent = LT(UI_TEXT.PHASE_CRAFT);
 
     S.color.configure({ min:0, max:cfg.colorSteps-1, step:1, value:Math.floor((cfg.colorSteps-1)/2) });
@@ -4057,7 +4358,7 @@
     ['color','colorB','size','count','bsize','size2','sat','shape','speed','rotation'].forEach(k=>{
       if(!S[k]) return;
       if(!['color','colorB'].includes(k)) S[k].setTrackBackground(''); // цветным фон уже вернули к радуге выше
-      S[k].setFlag('item-paprika', false); S[k].setFlag('item-mark', false); S[k].setFlag('item-jigger', false);
+      S[k].setFlag('item-paprika', false); S[k].setFlag('item-mark', false); S[k].setFlag('item-jigger', false); S[k].setFlag('item-solved', false);
     });
 
     Object.values(S).forEach(s=>{ s.setDisabled(false); s.setDiffLocked(false); });
@@ -4105,7 +4406,7 @@
     // компенсация за то, что внимание постоянно отвлекается на "плохие" пузыри.
     // Фаза J: пассивка craftTime растягивает (или ужимает, если < 0) базу.
     const pfx = target.passiveFx || {};
-    let craftDuration = Math.round(cfg.craftMs * (1 + (pfx.craftTime || 0)))
+    let craftDuration = Math.round(cfg.craftMs * CRAFT_TIME_SCALE * (1 + (pfx.craftTime || 0)))
       + (target.regLevel === 4 ? (typeof LEVEL4_TIME_BONUS_MS !== 'undefined' ? LEVEL4_TIME_BONUS_MS : 0) : 0);
     // Патч (Ир): подаренные / украденные секунды
     // Патч (усилено): +4с / -2с вместо +2с / -1с
@@ -4143,9 +4444,9 @@
       runTimer(craftDuration, ()=>{ if(!craftLocked) finishCraft(true); }); // Патч: true = таймер истёк сам
     }
 
-    // запускаем "плохие" пузыри только у дрона на 4-ом уровне — у остальных
-    // НПС на УР.4 теперь свои уникальные механики (см. LEVEL4_FX ниже)
-    if(target.regLevel === 4 && cfg.id === 'drone'){
+    // запускаем "плохие" пузыри у дрона: на УР.4 или с УР.1 (drone ∈ MECH_FROM_L1).
+    // у остальных НПС на УР.4 — свои уникальные механики (см. LEVEL4_FX)
+    if(droneBombsActive()){
       badBubbleElapsed = 0;
       badBubbles = [];
       currentBadBubbles = [];
@@ -4263,8 +4564,8 @@
     // если и число, и размер сгустков недоступны на текущей сложности —
     // игра вообще их не генерирует (нечего показывать/угадывать)
     const noBubbles = target.activeKeys && !target.activeKeys.has('count') && !target.activeKeys.has('bsize');
-    const isFlySwarm = cfg.id === 'swarm_navigator' && target.regLevel === 4;
-    const isVexDrag = cfg.id === 'vex' && target.regLevel === 4;
+    const isFlySwarm = mechActive('swarm_navigator');
+    const isVexDrag = cfg.id === 'vex';
     const effCount = (noBubbles || isFlySwarm || isVexDrag) ? 0 : count;
     drawJar({ hue, hue2, sat, sizePct:size, heightPct, bubbleCount:effCount, bubbleR:r, shapeIdx,
       rotationDeg,
@@ -4379,7 +4680,7 @@
     // Патч "УР.4" (Векс): доп. компонент — насколько точно сгустки вернули
     // на места (вес заметно выше остальных характеристик), допуск разлёта
     // подобран так, чтобы 100% было реально достижимо руками
-    if(cfg.id === 'vex' && target.regLevel === 4 && target.vexPositions && target.vexFinalPositions && target.vexFinalPositions.length){
+    if(cfg.id === 'vex' && target.vexPositions && target.vexFinalPositions && target.vexFinalPositions.length){
       const perBlob = target.vexFinalPositions.map((item,i)=>{
         const tgt = target.vexPositions[i];
         if(!tgt) return 1;
@@ -4410,16 +4711,18 @@
         components.forEach(c=>{ c.weight /= t; });
       }
     }
-    // Патч "УР.4" (Тентаклоид): считает ТОЛЬКО один (случайный, скрытый до
-    // конца раунда) параметр — остальные полностью игнорируются, что бы
-    // игрок с ними ни сделал (даже если бы они были идеальны или ужасны)
-    if(cfg.id === 'tentacloid' && target.regLevel === 4 && target.tentacloidKey){
-      const hasKey = components.some(c => c.key === target.tentacloidKey);
-      if(hasKey) components.forEach(c=>{
-        const isIt = c.key === target.tentacloidKey;
-        c.weight = isIt ? 1 : 0;
-        if(isIt) c.decisive = true; // подсветка в разбивке результата — "вот на что он смотрел"
-      });
+    // Тентаклоид (Фаза 8: механика на всех уровнях): считает ТОЛЬКО скрытый(е)
+    // параметр(ы) — остальные полностью игнорируются. УР.1-3 — один параметр;
+    // УР.4 — ДВА, и берётся МЕНЬШИЙ из их score (вес целиком на худший из двух).
+    if(cfg.id === 'tentacloid' && target.tentacloidKey){
+      const hiddenKeys = [target.tentacloidKey];
+      if(target.tentacloidKey2) hiddenKeys.push(target.tentacloidKey2);
+      const relevant = components.filter(c => hiddenKeys.includes(c.key));
+      if(relevant.length){
+        const worst = relevant.reduce((a,b)=> b.score < a.score ? b : a);
+        components.forEach(c=>{ c.weight = (c === worst) ? 1 : 0; });
+        worst.decisive = true; // подсветка в разбивке — "вот что решило"
+      }
     }
 
     // focus modifier: focused stats weigh much more, the rest much less
@@ -4443,7 +4746,7 @@
     // доделать зелье с того же места, тем же таймером (он просто продолжает
     // тикать). Раунд по-настоящему заканчивается только на 2-й сдаче,
     // или если 1-я сдача сразу good/perfect.
-    if(target.cfg.id === 'gourmet_vega' && target.regLevel === 4 && !target.l4TasteFirstBad){
+    if(mechActive('gourmet_vega') && !target.l4TasteFirstBad){
       const peek = computeScoreComponents();
       const peekGoodThreshold = peek.cfg.tier >= 5 ? 0.85 : 0.8;
       if(peek.overall < peekGoodThreshold){
@@ -4451,18 +4754,6 @@
         l4TasteShowRetryNote();
         return;
       }
-    }
-    // Патч "УР.4" (Стажёр Бип): первое нажатие "Готово!" не завершает раунд —
-    // открывает мини-игру "Что там у других?"; раунд по-настоящему
-    // заканчивается только по кнопке "Готово" уже внутри неё (см. ниже,
-    // обработчик beepGuessCloseBtn — второй вызов finishCraft() пройдёт мимо
-    // этой ветки, т.к. target.beepGuessOpened уже true).
-    if(target.cfg.id === 'intern_beep' && target.regLevel === 4
-       && orderAccuracyHistory.slice(-3).length >= 3 && !target.beepGuessOpened){
-      target.beepGuessOpened = true;
-      l4BeepBuildRows();
-      $('beepGuessOverlay').classList.add('show');
-      return;
     }
     craftLocked = true;
     cancelAnimationFrame(rafId);
@@ -4498,29 +4789,13 @@
 
   function finalizeResult(scoreData, timeFrac){
     let { cfg, overall, components } = scoreData;
-    const rawOverall = overall; // до подмены Бипом — идёт в историю точности
-    // Патч "УР.4" (Стажёр Бип): ему неважно, что накрутил игрок — свой рейтинг
-    // определяется тем, насколько точно игрок ВСПОМНИЛ (окно-угадайка,
-    // кнопка на экране игры) проценты трёх ПРЕДЫДУЩИХ посетителей. Если
-    // истории меньше трёх — просто принимает коктейль без рейтинга и дарит
-    // бафф (+33% рейтинга) на трёх следующих посетителей.
-    const beepBuffActiveNow = beepBuffRemaining > 0;
-    let beepNoHistory = false;
-    if(cfg.id === 'intern_beep' && target.regLevel === 4){
-      const recent = orderAccuracyHistory.slice(-3);
-      if(recent.length >= 3){
-        const guesses = target.beepGuesses || [50,50,50];
-        const avgErr = recent.reduce((s,h,i)=> s + Math.abs((guesses[i] ?? 50) - h.pct), 0) / recent.length;
-        overall = curveScore(1 - avgErr/100);
-      } else {
-        beepNoHistory = true;
-      }
-    }
+    // Фаза 8 (8C): у Бипа механики больше нет — он самый базовый обучающий
+    // персонаж, рейтинг считается как у обычного заказа.
     // Патч "УР.4" (Инспектор Гильдии): реальная цель — числа из листа
     // "Допуски" (нет больше показанного образца, который надо избегать —
     // фазы показа для него нет вообще). Результат = доля параметров,
     // попавших в допуск ±N.
-    if(cfg.id === 'guild_inspector' && target.regLevel === 4 && target.inspectorTarget){
+    if(mechActive('guild_inspector') && target.inspectorTarget){
       const keys = inspectorActiveKeys();
       const tol = target.inspectorTolerance || 2;
       let missed = 0;
@@ -4530,9 +4805,9 @@
       });
       overall = missed === 0 ? 1 : Math.max(0.80, 0.94 - missed*0.03);
     }
-    // Патч "УР.4" (Коллекционер): бинарный результат — попал в правильную
-    // баночку из 16 (идеал) или нет (худший результат), никаких полутонов
-    if(cfg.id === 'collector_gz' && target.regLevel === 4){
+    // Коллекционер (Фаза 8: механика на всех уровнях): бинарный результат —
+    // попал в правильную баночку из сетки (идеал) или нет, никаких полутонов
+    if(cfg.id === 'collector_gz'){
       overall = target.collectorChoiceCorrect ? 1 : 0;
     }
     const overallPct = Math.round(overall*100);
@@ -4629,7 +4904,7 @@
     // Патч "УР.4" (Дегустатор): 1-я сдача (сразу good/perfect, без "какашки"
     // до этого) — идеал x2, годнота x0.5. 2-я сдача (после "какашки" на
     // 1-й) — идеал стандартный, годнота ноль, повторная какашка x2 штрафа.
-    if(cfg.id === 'gourmet_vega' && target.regLevel === 4){
+    if(mechActive('gourmet_vega')){
       if(target.l4TasteFirstBad){
         if(good && !perfect) delta = 0;
         else if(!good) delta = Math.round(delta * 2);
@@ -4640,25 +4915,12 @@
     }
     // Патч "УР.4" (Инспектор Гильдии): бонус за скорость не учитывается —
     // если рейтинг вообще положен (good), всегда фиксированные +50%.
-    if(cfg.id === 'guild_inspector' && target.regLevel === 4 && good){
+    if(mechActive('guild_inspector') && good){
       delta = Math.round(effReward * overall * 1.5);
     }
     // Патч "УР.4" (Стажёр Бип): бафф "+33% рейтинга" за визит без истории —
     // действует на этот (любой) заказ, если ещё не исчерпан, ДО того как
     // сам Бип, возможно, выдаст новый бафф за СВОЙ заказ без истории
-    if(beepBuffActiveNow){
-      delta = Math.round(delta * 1.33);
-      beepBuffRemaining = Math.max(0, beepBuffRemaining - 1);
-    }
-    if(cfg.id === 'intern_beep' && target.regLevel === 4 && beepNoHistory){
-      delta = 0;
-      beepBuffRemaining = 3;
-    }
-    // история точности — по НЕПОДМЕНЁННОЙ реальной точности этого заказа,
-    // нужна для угадайки Бипа (имя/аватар — храним объект, а не голое число,
-    // чтобы окно угадывания могло показать, КОГО именно вспоминать)
-    orderAccuracyHistory.push({ nameObj: cfg.name, avatar: currentOrd.avatar, pct: Math.round(rawOverall*100) });
-    if(orderAccuracyHistory.length > 3) orderAccuracyHistory.shift();
     // Патч "Ежедневный заказ": репутации тут нет вовсе — бонус к рейтингу
     // (ratingMultAdd/waiterThresholdOverride выше) остаётся, а repBonus молча игнорируется
     if(!isDailyMode && l4Bonus.repBonus && good && window.PotionProfile) window.PotionProfile.adjustReputation(cfg.id, l4Bonus.repBonus);
@@ -4695,6 +4957,19 @@
 
     if(perfect) stickerCounts.perfect++; else if(good) stickerCounts.good++; else if(swill) stickerCounts.swill++; else stickerCounts.bad++;
     updateStickerTally();
+
+    // Фаза 7: начисление зарядов умений (аркада; в дейлике умений нет).
+    //  • каждые 3 идеала за цикл → +1 заряд;
+    //  • сразу: Тот-Кто-Ждёт при 99%+ и Последний из Ир при 95%+.
+    if(!isDailyMode && window.PotionProfile){
+      if(perfect && window.PotionProfile.bumpPerfectCharge()){
+        showToast({ icon:'✨', prefix:UI_TEXT.SKILL_CHARGE_GAINED, name:'' });
+      }
+      if((cfg.id === 'the_waiter' && overall >= 0.99) || (cfg.id === 'last_of_ir' && overall >= 0.95)){
+        window.PotionProfile.addCharge(1);
+        showToast({ icon:'✨', prefix:UI_TEXT.SKILL_CHARGE_GAINED, name:'' });
+      }
+    }
 
     if(swill){
       // Пойло не двигает стадию (ни вверх, ни вниз), но обрывает серии на максимуме
@@ -4876,9 +5151,9 @@
       npcNoteText = LT(pickLocalized(NEBULA_CHEF_MEH_PHRASES));
     }
 
-    // ---------- Тентаклоид: раскрывает на результатах, какой ОДИН параметр
+    // ---------- Тентаклоид: раскрывает на результатах, какой параметр
     // на самом деле решал (см. LEVEL4_FX.tentacloid — components[].decisive) ----------
-    if(cfg.id === 'tentacloid' && target.regLevel === 4){
+    if(cfg.id === 'tentacloid'){
       const decisiveComp = components.find(c => c.decisive);
       if(decisiveComp){
         npcNoteText = LT(pickLocalized(TENTACLOID_REVEAL_PHRASES)).replace('{PARAM}', LT(decisiveComp.label));
@@ -4886,7 +5161,7 @@
     }
 
     // ---------- Дегустатор: реплика на каждый из 4 исходов дегустации ----------
-    if(cfg.id === 'gourmet_vega' && target.regLevel === 4){
+    if(mechActive('gourmet_vega')){
       if(target.l4TasteFirstBad){
         if(perfect) npcNoteText = LT(pickLocalized(GOURMET_SATISFIED_PHRASES));
         else if(good) npcNoteText = LT(pickLocalized(GOURMET_UNIMPRESSED_PHRASES));
@@ -5168,14 +5443,6 @@
   // Патч "УР.4" (Стажёр Бип): "Готово" внутри мини-игры — это и есть
   // настоящее завершение раунда (см. finishCraft — туда мы попали как раз
   // потому, что нажали главную "Готово!"/"Что там у других?" один раз)
-  const beepGuessCloseBtnEl = $('beepGuessCloseBtn');
-  if(beepGuessCloseBtnEl) beepGuessCloseBtnEl.addEventListener('click', ()=>{
-    SFX.uiClick();
-    $('beepGuessOverlay').classList.remove('show');
-    SFX.brew();
-    finishCraft();
-  });
-
   // ============================================================
   // Фаза G: Коллекция — статистика, лента идеалов, альбом стикеров,
   // репутация неписей. Читает только window.PotionProfile.data — ничего
@@ -5956,7 +6223,7 @@
   });
   $('newWeekBtn').addEventListener('click', ()=>{
     SFX.uiClick();
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0;
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
     if(!isDailyMode){
       // Фаза J: новый цикл — состав пассивок снова можно менять,
       // счётчики "за цикл" (picksCycle) в профиле обнуляются
@@ -6135,7 +6402,7 @@
     stopMatrixRain();
     setDjAmbientDuck(false);
     isDailyMode = false;
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0;
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
     cycleStarted = false;
     if(window.PotionProfile) window.PotionProfile.startCycle();
     $('scoreVal').textContent = score;

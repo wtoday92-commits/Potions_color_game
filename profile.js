@@ -154,7 +154,10 @@
       // Фаза 6: магазин. inventory — счётчики купленных расходников по грейдам
       // ({ itemId: [qtyG0, qtyG1, qtyG2] }). useTotals — суммарные применения
       // (для будущих ачивок открытия грейдов). Грейды сейчас гейтятся прогрессией.
-      shop: { inventory: {}, useTotals: {} }
+      shop: { inventory: {}, useTotals: {} },
+      // Фаза 7: умения игрока. charges — текущие заряды (0..3). perfectCounter —
+      // сколько идеалов накоплено за цикл в счёт бонусного заряда (сброс на 3).
+      skills: { charges: 0, perfectCounter: 0 }
     };
   }
 
@@ -386,6 +389,10 @@
       // Патч "Взаимоотношения": обида/уход — состояние ЗА ЦИКЛ, новый цикл
       // всех прощает (открытые связи в discoveredRelations при этом не трогаем)
       profile.npcRelationsState = {};
+      // Фаза 7: на новый цикл — +1 заряд умений (потолок 3), счётчик идеалов сброс
+      const s = this._ensureSkills();
+      s.charges = Math.min(3, s.charges + 1);
+      s.perfectCounter = 0;
       save();
     },
 
@@ -628,6 +635,38 @@
       return true;
     },
     getItemUseTotal(itemId){ load(); return this._ensureShop().useTotals[itemId] || 0; },
+
+    // ---------- Фаза 7: умения игрока (заряды) ----------
+    _ensureSkills(){
+      if(!profile.skills) profile.skills = { charges: 0, perfectCounter: 0 };
+      if(typeof profile.skills.charges !== 'number') profile.skills.charges = 0;
+      if(typeof profile.skills.perfectCounter !== 'number') profile.skills.perfectCounter = 0;
+      return profile.skills;
+    },
+    getCharges(){ load(); return this._ensureSkills().charges; },
+    addCharge(n){
+      load(); const s = this._ensureSkills();
+      s.charges = Math.max(0, Math.min(3, s.charges + (n || 1)));
+      save(); return s.charges;
+    },
+    spendCharge(){
+      load(); const s = this._ensureSkills();
+      if(s.charges <= 0) return false;
+      s.charges--; save(); return true;
+    },
+    // +1 к счётчику идеалов за цикл; на 3-м — выдаём заряд и обнуляем счётчик.
+    // Возвращает true, если заряд был выдан.
+    bumpPerfectCharge(){
+      load(); const s = this._ensureSkills();
+      s.perfectCounter = (s.perfectCounter || 0) + 1;
+      if(s.perfectCounter >= 3){
+        s.perfectCounter = 0;
+        const before = s.charges;
+        s.charges = Math.min(3, s.charges + 1);
+        save(); return s.charges > before;
+      }
+      save(); return false;
+    },
 
     // ---------- Режим разработчика (тестовый) ----------
     // Вход: реальный профиль игрока сохраняется в отдельный ключ-бэкап, ставится

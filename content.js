@@ -45,10 +45,10 @@ const UI_TEXT = {
   VOLUME_TITLE:      { ru:'Громкость эмбиента', en:'Ambient volume' },
   LANG_BTN_TITLE:    { ru:'Сменить язык', en:'Switch language' },
   DIFF_BTN_LABEL:    { ru:'УР.', en:'LV.' },
-  DIFF_BTN_TITLE_1:  { ru:'Сложность 1 — доступен только цвет.', en:'Difficulty 1 — only color available.' },
-  DIFF_BTN_TITLE_2:  { ru:'Сложность 2 — цвет, оттенок и размер банки.', en:'Difficulty 2 — color, tint and jar size.' },
-  DIFF_BTN_TITLE_3:  { ru:'Сложность 3 — все регуляторы.', en:'Difficulty 3 — all regulators.' },
-  DIFF_BTN_TITLE_4:  { ru:'Сложность 4 — все регуляторы, плюс "плохие" пузыри: растут сами по себе, убирай их кликом, иначе лопнут и собьют случайный ползунок. Больше времени, больше награда.', en:'Difficulty 4 — all regulators, plus "bad" bubbles: they grow on their own, click to clear them or they pop and knock a random slider off. More time, more reward.' },
+  DIFF_BTN_TITLE_1:  { ru:'Сложность 1 — размер банки и цвет.', en:'Difficulty 1 — jar size and color.' },
+  DIFF_BTN_TITLE_2:  { ru:'Сложность 2 — плюс количество сгустков.', en:'Difficulty 2 — plus blob count.' },
+  DIFF_BTN_TITLE_3:  { ru:'Сложность 3 — плюс размер сгустков.', en:'Difficulty 3 — plus blob size.' },
+  DIFF_BTN_TITLE_4:  { ru:'Сложность 4 — все регуляторы и накал, плюс усиленная уникальная механика персонажа. Больше времени, больше награда.', en:'Difficulty 4 — all regulators and tint, plus the character\'s enhanced unique mechanic. More time, more reward.' },
   BAD_BUBBLE_BADGE:  { ru:'риск', en:'risk' },
   SELECT_TITLE:      { ru:'Кто пришвартовался к лавке?', en:"Who's docked at the shop?" },
   ORDER_LABEL:       { ru:'Заявка №', en:'Order #' },
@@ -91,6 +91,7 @@ const UI_TEXT = {
   PROG_MECH_UNLOCK_TOAST: { ru:'Открыто', en:'Unlocked' },
   // ---------- Фаза 5: чаевые ----------
   TIPS_TITLE:             { ru:'Чаевые', en:'Tips' },
+  GRADE_UP_TAG:           { ru:'Гость этого дня поднялся грейдом выше своего — сложнее и щедрее.', en:'This day\'s visitor stepped up a grade — harder and more generous.' },
   TIPS_EARNED_TOAST:      { ru:'Чаевые за цикл', en:'Tips for the cycle' },
   // ---------- Фаза 6: магазин / инвентарь ----------
   SHOP_BTN_TITLE:         { ru:'Магазин (только в 1-й день цикла)', en:'Shop (first day of the cycle only)' },
@@ -112,6 +113,23 @@ const UI_TEXT = {
   INV_PICK_CANCEL:        { ru:'Отмена', en:'Cancel' },
   ITEM_BOUGHT_TOAST:      { ru:'Куплено', en:'Bought' },
   ITEM_USED_TOAST:        { ru:'Применено', en:'Used' },
+  ITEM_NO_TARGET:         { ru:'Некому применить', en:'No valid target' },
+  // ---------- Фаза 7: умения игрока ----------
+  SKILLS_TITLE:           { ru:'Умения', en:'Skills' },
+  SKILL_CHARGES_TITLE:    { ru:'Заряды умений', en:'Skill charges' },
+  SKILL_NO_CHARGES:       { ru:'Нет зарядов умений', en:'No skill charges' },
+  SKILL_PICK_WHO_TITLE:   { ru:'Кто там? Выбери гостя', en:"Who's there? Pick a guest" },
+  SKILL_PICK_BAN_TITLE:   { ru:'Этих не пускайте (до 3)', en:'Keep them out (up to 3)' },
+  SKILL_PICK_CONFIRM:     { ru:'Готово', en:'Confirm' },
+  SKILL_PICK_CANCEL:      { ru:'Отмена', en:'Cancel' },
+  SKILL_STUB_NOTE:        { ru:'Откроется с системой грейдов (Фаза 9)', en:'Unlocks with the grade system (Phase 9)' },
+  SKILL_ONLY_SELECT:      { ru:'Умения — только на экране выбора заказа', en:'Skills work only on the order-select screen' },
+  SKILL_GUARANTEED_TOAST: { ru:'Гость придёт в ближайших заданиях', en:'Guest will arrive soon' },
+  SKILL_BANNED_TOAST:     { ru:'Не появятся до конца цикла', en:'Barred until the cycle ends' },
+  SKILL_REFRESH_TOAST:    { ru:'Гости дня обновлены', en:'Day refreshed' },
+  SKILL_CHARGE_GAINED:    { ru:'+1 заряд умения', en:'+1 skill charge' },
+  SHOP_UNIQUE_TAG:        { ru:'уникальный', en:'unique' },
+  SHOP_UNIQUE_LOCKED:     { ru:'откроется на высокой прогрессии', en:'unlocks at high progression' },
   ITEM_TIME_TOAST:        { ru:'Секундомер заведён — время добавится', en:'Stopwatch wound — time will be added' },
   ITEM_GRADE_LABEL:       { ru:'Грейд', en:'Grade' },
   PROG_BAR_LEVEL:         { ru:'Лавка ур.', en:'Shop lv.' },
@@ -1137,7 +1155,68 @@ const NPC_STAT_EXPLAIN = {
         { price:450, lock:0.75, label:{ ru:'¾ бонуса',  en:'¾ bonus' } },
         { price:1200, lock:1.0, label:{ ru:'полный',    en:'full' } }
       ]
+    },
+
+    {
+      id:'charge', icon:'🔋', usePhase:'select', effect:'charge',
+      name:{ ru:'Батарейка вдохновения', en:'Inspiration Cell' },
+      desc:{ ru:'Подзаряжает умения игрока (потолок — 3 заряда).',
+             en:'Recharges your skills (cap is 3 charges).' },
+      grades:[
+        { price:200,  add:1, label:{ ru:'+1 заряд',  en:'+1 charge' } },
+        { price:550,  add:2, label:{ ru:'+2 заряда', en:'+2 charges' } },
+        { price:1300, add:3, label:{ ru:'+3 заряда', en:'+3 charges' } }
+      ]
+    },
+
+    // ---------- Уникальные предметы (без грейдов, откр. на Ур.8, unique_items) ----------
+    {
+      id:'brawltoken', icon:'🎟️', unique:true, usePhase:'select', effect:'addmod',
+      name:{ ru:'Жетон дебоша', en:'Brawl Token' },
+      desc:{ ru:'Суёшь его гостю — и его заказ обрастает случайным модификатором (иногда не одним, если гость буйный). Дорого и хаотично.',
+             en:'Slip it to a guest and their order sprouts a random modifier (sometimes more, if they are rowdy). Pricey and chaotic.' },
+      grades:[ { price:2500, label:{ ru:'★ уникальный', en:'★ unique' } } ]
+    },
+    {
+      id:'starmap', icon:'🗺️', unique:true, usePhase:'craft', effect:'revealall',
+      name:{ ru:'Звёздная карта', en:'Star Chart' },
+      desc:{ ru:'Разворачивает карту вкусов: на КАЖДОМ доступном регуляторе загорается зелёная зона верного значения.',
+             en:'Unfurls a taste-map: a green zone of the right value lights on EVERY available regulator.' },
+      grades:[ { price:2000, zone:0.12, label:{ ru:'★ уникальный', en:'★ unique' } } ]
+    },
+    {
+      id:'philosopher', icon:'🪨', unique:true, usePhase:'craft', effect:'truesolve',
+      name:{ ru:'Философский камень', en:"Philosopher's Stone" },
+      desc:{ ru:'Знает истину. Ставит два регулятора точно на верные значения и фиксирует их.',
+             en:'Knows the truth. Sets two regulators exactly right and locks them.' },
+      grades:[ { price:3000, count:2, label:{ ru:'★ уникальный', en:'★ unique' } } ]
     }
+  ];
+
+  // ---------- Фаза 7: умения игрока ----------
+  // flag — флаг прогрессии открытия (skill_1..4). mode — как ведёт себя кнопка:
+  //   'who'     — окно выбора одного гостя (гарантированно придёт);
+  //   'ban'     — окно выбора до 3 гостей (не появятся до конца цикла);
+  //   'refresh' — сразу обновляет гостей дня (без окна);
+  //   'stub'    — заглушка (зависит от системы грейдов, Фаза 9).
+  // icon — эмодзи-плейсхолдер (ART-SWAP через visualHTML).
+  const SKILLS = [
+    { id:'who',     flag:'skill_1', mode:'who',     icon:'👀',
+      name:{ ru:'Кто там?', en:"Who's there?" },
+      desc:{ ru:'Выбери гостя — он гарантированно придёт в ближайших заданиях.',
+             en:'Pick a guest — they are guaranteed to arrive soon.' } },
+    { id:'ban',     flag:'skill_2', mode:'ban',     icon:'🚫',
+      name:{ ru:'Этих не пускайте', en:'Keep them out' },
+      desc:{ ru:'Выбери до трёх — они не появятся до конца цикла.',
+             en:"Pick up to three — they won't appear until the cycle ends." } },
+    { id:'grade',   flag:'skill_3', mode:'stub',    icon:'🔁',
+      name:{ ru:'Повторите!', en:'Do it again!' },
+      desc:{ ru:'Случайному гостю — грейд выше. Откроется с системой грейдов (Фаза 9).',
+             en:'Bumps a random guest up a grade. Unlocks with the grade system (Phase 9).' } },
+    { id:'refresh', flag:'skill_4', mode:'refresh', icon:'🔄',
+      name:{ ru:'Вам уже пора', en:'Time to go' },
+      desc:{ ru:'Обновляет всех гостей дня на новых (те же не повторяются).',
+             en:'Refreshes the whole day with new guests (no repeats).' } }
   ];
 
   const SHAPE_NAMES = [

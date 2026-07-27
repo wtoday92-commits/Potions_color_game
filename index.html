@@ -92,6 +92,22 @@
   </div>
 </div>
 
+<!-- Фаза 7: окно выбора персонажей для умений «Кто там?» / «Этих не пускайте».
+     Сетка персонажей рендерится в #skillPickGrid из game.js. -->
+<div class="week-overlay skill-overlay" id="skillOverlay">
+  <div class="week-card shop-card skill-card">
+    <div class="shop-panel-bg" aria-hidden="true"></div>
+    <div class="shop-head">
+      <h3 id="skillPickTitle">Умение</h3>
+    </div>
+    <div class="skill-pick-grid" id="skillPickGrid"></div>
+    <div class="skill-pick-btns">
+      <button class="next-btn skill-pick-confirm" id="skillPickConfirm" data-i18n="SKILL_PICK_CONFIRM">Готово</button>
+      <button class="next-btn skill-pick-cancel" id="skillPickCancel" data-i18n="SKILL_PICK_CANCEL">Отмена</button>
+    </div>
+  </div>
+</div>
+
 <!-- Режим разработчика (тест): маленькая кнопка внизу справа. Вкл — много
      чаевых, вся прогрессия и максимум репутации; выкл — возврат реального
      профиля игрока (см. toggleDevMode в game.js). -->
@@ -135,12 +151,19 @@
       </div>
     </div>
   </div>
-  <!-- Фаза 6: док магазина/инвентаря — справа, между тонким топбаром и шапкой.
-       Умения (Фаза 7) позже встанут аналогичным доком слева. Скрыт до Ур.4
-       прогрессии и в дейлике (см. updateProgressionGates). -->
-  <div class="shop-dock" id="shopDock" style="display:none">
-    <button id="shopBtn" class="shop-dock-btn" data-i18n-title="SHOP_BTN_TITLE" title="Магазин">🛒</button>
-    <button id="inventoryBtn" class="shop-dock-btn" data-i18n-title="INV_BTN_TITLE" title="Инвентарь">🎒</button>
+  <!-- Доки между тонким топбаром и шапкой: слева умения (Фаза 7), справа магазин/
+       инвентарь (Фаза 6). Оба скрыты в дейлике и до открытия по прогрессии. -->
+  <div class="dock-bar">
+    <!-- Фаза 7: панель умений (2×2) + индикатор зарядов. Скрыта до Ур.3. -->
+    <div class="skill-dock" id="skillDock" style="display:none">
+      <div class="skill-grid" id="skillGrid"></div>
+      <div class="skill-charges" id="skillCharges" data-i18n-title="SKILL_CHARGES_TITLE" title="Заряды умений"></div>
+    </div>
+    <!-- Фаза 6: магазин/инвентарь. Скрыт до Ур.4. -->
+    <div class="shop-dock" id="shopDock" style="display:none">
+      <button id="shopBtn" class="shop-dock-btn" data-i18n-title="SHOP_BTN_TITLE" title="Магазин">🛒</button>
+      <button id="inventoryBtn" class="shop-dock-btn" data-i18n-title="INV_BTN_TITLE" title="Инвентарь">🎒</button>
+    </div>
   </div>
 
   <!-- UI-патч: шапка собрана в один блок, чтобы заголовок/подзаголовок/стикеры
