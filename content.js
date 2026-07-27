@@ -246,9 +246,12 @@ const UI_TEXT = {
   LABEL_COUNT_B: { ru:'Сгустки Б', en:'Blobs B' },
   FASHION_CONFIRM_BTN: { ru:'Дальше', en:'Next' },
   TASTE_BTN: { ru:'Дегустировать', en:'Taste' },
+  TASTE_SERVE_BTN: { ru:'Подать', en:'Serve' },
   TASTE_HALF_TAG: { ru:'½ рейтинга — гурман не впечатлён', en:'½ rating — the gourmet is unimpressed' },
   TASTE_RETRY_NOTE: { ru:'Это никуда не годится. Доделывай — я подожду.', en:"This won't do at all. Fix it - I'll wait." },
   INSPECTOR_TOL_BTN: { ru:'Допуски', en:'Tolerances' },
+  INSPECTOR_INTERROGATE_BTN: { ru:'Протокол допроса', en:'Interrogation record' },
+  LOGIC9_SHOOT_HINT: { ru:'Веди самолётик — сбей все сгустки!', en:'Steer the plane — shoot every blob!' },
   INSPECTOR_TOL_CLOSE: { ru:'Ознакомлен', en:'Acknowledged' },
   // УР.4 (Стажёр Бип): надпись-реплика (не кнопка) + кнопка "Готово" (её
   // роль берёт на себя главная brew-btn, см. TASTE_BTN — тот же приём) +

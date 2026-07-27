@@ -1475,6 +1475,28 @@ body::after{
 /* иконка-картинка в тосте об ачивке (когда владелец задал img) */
 .ach-toast-icon img.ach-toast-img{width:30px;height:30px;object-fit:contain;display:block;}
 
+/* ---------- Фаза 8 (Парфюмер УР.4): цветовой круг вместо пэда ---------- */
+.l4-pad.l4-wheel{ border-radius:50%; aspect-ratio:1; height:auto; }
+.l4-pad.l4-wheel .l4-pad-cursor{ /* курсор позиционируется в % от центра — стили как у пэда */ }
+
+/* ---------- Фаза 8 (Дрон УР.4): курсор-«прицел» с инерцией ---------- */
+.l4-drone-cursor{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  z-index:8; pointer-events:none; /* обязательно: elementFromPoint должен «видеть» пузырь под курсором */
+  font-size:30px; line-height:1; color:#9ff2ff;
+  text-shadow:0 0 10px rgba(53,224,255,.9), 0 0 4px #fff;
+  will-change:left,top;
+}
+.l4-drone-cursor-active{ cursor:none; }
+
+/* ---------- Фаза 8 (Гурман УР.4): подсветка близости ползунка при дегустации ---------- */
+.vslide-wrap.l4-prox-4 .vslide-thumb{ box-shadow:0 0 10px 2px #ff4d4d, inset 0 0 0 2px #ff4d4d; }
+.vslide-wrap.l4-prox-3 .vslide-thumb{ box-shadow:0 0 10px 2px #ff9a3d, inset 0 0 0 2px #ff9a3d; }
+.vslide-wrap.l4-prox-2 .vslide-thumb{ box-shadow:0 0 10px 2px #ffd24d, inset 0 0 0 2px #ffd24d; }
+.vslide-wrap.l4-prox-1 .vslide-thumb{ box-shadow:0 0 12px 2px #5dff9f, inset 0 0 0 2px #5dff9f; }
+.vslide-wrap.l4-prox-exact .vslide-thumb{ box-shadow:0 0 14px 3px #35e0ff, inset 0 0 0 2px #35e0ff; }
+.vslide-wrap.l4-prox-exact{ opacity:.9; }
+
 /* ---------- Фаза 9: бейдж «грейд выше своего» на карточке ---------- */
 .grade-badge{
   position:absolute; top:-4px; left:-4px; z-index:3;
@@ -1577,6 +1599,18 @@ body::after{
 }
 /* ---------- Дальнобойщик: ползунки-"передачи" — ветвистая SVG-дорожка ---------- */
 .l4-trucker-col{ flex-direction:column !important; align-items:center; gap:12px; }
+/* Правка (пользователь): «коробка передач» — в линию (ряд под банкой), а не
+   столбцом. control-row перестраивается: банка+цвет сверху, гирпаты — ряд ниже. */
+.control-row.l4-trucker-layout{
+  display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start;
+  column-gap:20px; row-gap:14px;
+}
+.control-row.l4-trucker-layout .window-wrap{ order:1; }
+.control-row.l4-trucker-layout #leftCol{ order:2; }
+.control-row.l4-trucker-layout #rightCol.l4-trucker-col{
+  order:3; flex-basis:100%; width:auto;
+  flex-direction:row !important; flex-wrap:wrap; justify-content:center; gap:16px;
+}
 /* Патч: цвет/накал больше сюда не переезжают (остаются обычными ползунками
    слева) — "коробка передач" теперь только у правых регуляторов, поэтому её
    можно сделать немного крупнее без риска переполнить колонку */
@@ -1716,6 +1750,42 @@ body::after{
   position:absolute;bottom:0;left:0;width:100%;height:100%;
   background:linear-gradient(to top, var(--danger), var(--good));transition:height .15s linear;
 }
+/* Аптекарь УР.4: бегущая полоса сердцебиения (ЭКГ) поверх зелья */
+.l4-heartbeat{
+  position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:100%;height:38%;overflow:hidden;pointer-events:none;z-index:5;opacity:.8;
+}
+.l4-hb-svg{ width:200%;height:100%;animation:l4HbScroll 2.4s linear infinite; }
+.l4-hb-line{
+  fill:none;stroke:#54ff9e;stroke-width:2;vector-effect:non-scaling-stroke;
+  filter:drop-shadow(0 0 4px rgba(84,255,158,.85));
+}
+@keyframes l4HbScroll{ from{transform:translateX(0);} to{transform:translateX(-50%);} }
+
+/* Логик-9 УР.4: бонус-раунд «сбей сгустки» (самолётик) */
+.l4-logic-layer{ position:absolute; inset:0; z-index:7; pointer-events:none; overflow:hidden; }
+.l4-logic-hint{
+  position:absolute; top:6%; left:50%; transform:translateX(-50%);
+  padding:4px 12px; border-radius:9px; font-size:11.5px; white-space:nowrap;
+  background:rgba(10,13,32,.8); border:1px solid rgba(53,224,255,.4); color:#dff; z-index:8;
+}
+.l4-logic-plane{
+  position:absolute; top:86%; left:50%; transform:translate(-50%,-50%);
+  font-size:24px; line-height:1; filter:drop-shadow(0 0 5px rgba(53,224,255,.7));
+  transition:left .05s linear;
+}
+.l4-logic-blob{
+  position:absolute; transform:translate(-50%,-50%);
+  font-size:20px; line-height:1; color:#ffd98a;
+  filter:drop-shadow(0 0 4px rgba(255,120,60,.6)); transition:opacity .2s ease, transform .2s ease;
+}
+.l4-logic-blob.hit{ color:#8affc0; opacity:0; transform:translate(-50%,-50%) scale(1.8); }
+.l4-logic-blob.miss{ opacity:0; transform:translate(-50%,-50%) translateY(8px); }
+.l4-logic-bullet{
+  position:absolute; transform:translate(-50%,-50%);
+  width:5px; height:12px; border-radius:3px;
+  background:linear-gradient(#eaffff,#35e0ff); box-shadow:0 0 6px rgba(53,224,255,.9);
+}
 /* ---------- Модница: реплика + кнопка "дальше" (один ползунок за раз) ---------- */
 .l4-fashion-phrase{
   position:absolute;bottom:14%;left:50%;transform:translateX(-50%);
@@ -1829,6 +1899,12 @@ body::after{
   background:rgba(0,0,0,.25); border:1px solid rgba(255,217,138,.3); border-radius:10px;
   padding:16px; margin:10px 0 16px; max-height:52vh; overflow-y:auto;
 }
+/* Инспектор УР.4 (допрос): показания абзацами + подсвеченное заключение */
+.inspector-tol-text p{ margin:0 0 10px; }
+.inspector-tol-text .insp-concl{
+  margin-top:12px; color:#ffd98a;
+  border-top:1px dashed rgba(255,217,138,.35); padding-top:10px;
+}
 
 /* ---------- Хозяин Роя: мухи вместо пузырьков ---------- */
 .l4-fly{
@@ -1847,7 +1923,11 @@ body::after{
   width:30px;height:30px;font-size:0;
   background-size:contain;background-repeat:no-repeat;background-position:center;
 }
-.l4-fly-hidden{visibility:hidden;}
+/* Навигатор Роя: «Сгустки»/«Разм. сгуст.» ведутся перетаскиванием деталей —
+   слайдеры убираем ПОЛНОСТЬЮ из раскладки (display:none), а не visibility:hidden
+   (иначе на УР.3 остаётся пустой слот и count «дублирует» детали). JS-значение
+   S.count при этом читается (пишется l4FlyUpdateCount), скоринг цел. */
+.l4-fly-hidden{display:none !important;}
 /* Патч: крупная реплика Хозяина Роя внизу циферблата на фазе запоминания —
    плюс белая обводка, иначе красный текст теряется на фоне циферблата */
 .l4-swarm-hint{
@@ -2140,6 +2220,8 @@ body::after{
 .item-body{ flex:1 1 auto; min-width:0; }
 .item-name{ font-weight:700; font-size:15px; margin-bottom:3px; }
 .item-desc{ font-size:12.5px; opacity:.78; line-height:1.35; margin-bottom:8px; }
+/* строка эффекта текущего грейда — меняется при переключении грейда */
+.item-eff{ display:block; margin-top:4px; color:#8affc0; font-weight:600; opacity:.95; }
 .item-owned{ font-size:11.5px; opacity:.6; font-family:'IBM Plex Mono',monospace; }
 /* столбик иконок-грейдов справа: клик переключает выбранный грейд */
 .item-grades{ display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
