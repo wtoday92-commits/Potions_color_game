@@ -6,7 +6,7 @@
 <title>Зельеварня — лавка на краю вселенной</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Jura:wght@500;700&family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 
@@ -181,31 +181,28 @@
       </div>
     </div>
   </div>
-  <!-- Доки между тонким топбаром и шапкой: слева умения (Фаза 7), справа магазин/
-       инвентарь (Фаза 6). Оба скрыты в дейлике и до открытия по прогрессии. -->
-  <div class="dock-bar">
+  <!-- Правка пользователя: доки В ОДНОМ РЯДУ с шапкой — умения слева, магазин/
+       инвентарь справа, высотой от верха заголовка до низа стикеров. Оба скрыты
+       в дейлике и до открытия по прогрессии. -->
+  <div class="header-row">
     <!-- Фаза 7: панель умений (2×2) + индикатор зарядов. Скрыта до Ур.3. -->
     <div class="skill-dock" id="skillDock" style="display:none">
       <div class="skill-grid" id="skillGrid"></div>
       <div class="skill-charges" id="skillCharges" data-i18n-title="SKILL_CHARGES_TITLE" title="Заряды умений"></div>
     </div>
+    <!-- UI-патч: шапка собрана в один блок (заголовок/подзаголовок/стикеры). -->
+    <div class="game-header">
+      <img class="title-plate-img" src="assets/ui/title_plate.png" alt="">
+      <div class="game-header-inner">
+        <h1 class="title">Sector Seven Saloon</h1>
+        <p class="subtitle" data-i18n="SUBTITLE">лавка смесей // сектор Ω // край вселенной</p>
+        <div class="sticker-tally" id="stickerTally"></div>
+      </div>
+    </div>
     <!-- Фаза 6: магазин/инвентарь. Скрыт до Ур.4. -->
     <div class="shop-dock" id="shopDock" style="display:none">
       <button id="shopBtn" class="shop-dock-btn" data-i18n-title="SHOP_BTN_TITLE" title="Магазин">🛒</button>
       <button id="inventoryBtn" class="shop-dock-btn" data-i18n-title="INV_BTN_TITLE" title="Инвентарь">🎒</button>
-    </div>
-  </div>
-
-  <!-- UI-патч: шапка собрана в один блок, чтобы заголовок/подзаголовок/стикеры
-       не висели в воздухе отдельными строками -->
-  <div class="game-header">
-    <!-- плашка-картинка: показывается в СВОИХ пропорциях (width:100%, height:auto),
-         не тянется. Размер задаётся шириной .game-header (--plate-w). -->
-    <img class="title-plate-img" src="assets/ui/title_plate.png" alt="">
-    <div class="game-header-inner">
-      <h1 class="title">Sector Seven Saloon</h1>
-      <p class="subtitle" data-i18n="SUBTITLE">лавка смесей // сектор Ω // край вселенной</p>
-      <div class="sticker-tally" id="stickerTally"></div>
     </div>
   </div>
 
@@ -501,8 +498,8 @@
   </div>
 </div>
 <!-- порядок важен: сначала профиль (Фаза F), потом контент, потом логика -->
-<script src="profile.js?v=8"></script>
-<script src="content.js?v=8"></script>
-<script src="game.js?v=8"></script>
+<script src="profile.js?v=10"></script>
+<script src="content.js?v=10"></script>
+<script src="game.js?v=10"></script>
 </body>
 </html>

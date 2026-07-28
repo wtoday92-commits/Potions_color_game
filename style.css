@@ -1656,7 +1656,7 @@ body::after{
 /* правка пользователя: рамка ВОКРУГ регулятора (панелька) — анимация переключения
    клипается ею и не вылезает; кнопка ▸ живёт СНАРУЖИ этой рамки, рядом. */
 .l4-trucker-col .vslider-group{
-  overflow:hidden; position:relative; padding:10px 6px;
+  overflow:hidden; position:relative; box-sizing:border-box; width:196px; padding:10px 16px;
   border:1.5px solid rgba(53,224,255,.4); border-radius:14px;
   background:rgba(53,224,255,.05);
 }
@@ -1842,9 +1842,10 @@ body::after{
 }
 .l4-logic-blob{
   position:absolute; transform:translate(-50%,-50%);
-  font-size:28px; line-height:1; color:#ff9a5a; z-index:8;
-  filter:drop-shadow(0 0 7px rgba(255,120,60,.9)); transition:opacity .2s ease, transform .2s ease;
+  width:34px; height:34px; z-index:8;
+  filter:drop-shadow(0 0 6px rgba(125,255,106,.75)); transition:opacity .2s ease, transform .2s ease;
 }
+.l4-logic-blob svg{ width:100%; height:100%; display:block; }
 .l4-logic-blob.hit{ color:#8affc0; opacity:0; transform:translate(-50%,-50%) scale(2); }
 .l4-logic-blob.miss{ opacity:0; transform:translate(-50%,-50%) translateY(10px); }
 .l4-logic-bullet{
@@ -2046,6 +2047,8 @@ body::after{
 }
 
 /* Фаза 10 (Инженер навигатора): треугольный указатель справа от трека + кнопка «стоп» */
+/* правка пользователя: сам бегунок ползунка скрыт — остаётся трек с зонами + указатель */
+.vslide-wrap.eng-no-thumb .vslide-thumb{ display:none; }
 .eng-pointer{
   position:absolute;right:-15px;width:0;height:0;
   border-top:8px solid transparent;border-bottom:8px solid transparent;
@@ -2066,7 +2069,10 @@ body::after{
 /* правка пользователя: банку не трогаем, сдвигаем влево — панель занимает остаток */
 .control-row.mk-row{ justify-content:flex-start !important; gap:12px; }
 .marketer-panel{
-  position:relative;flex:1 1 auto;min-width:0;align-self:stretch;min-height:340px;
+  /* правка пользователя: КВАДРАТ, высотой как циферблат (align-self:stretch даёт
+     высоту строки = высоте банки, aspect-ratio:1 → ширина = высоте). Не тянемся. */
+  position:relative;flex:0 0 auto;align-self:stretch;aspect-ratio:1;
+  min-height:300px;max-width:min(56vw,360px);
   /* рамка всей панельки (пользователь потом подставит фон-газету картинкой) */
   border:3px solid rgba(255,217,138,.55);border-radius:12px;overflow:hidden;
   background:#e8e2d0;box-shadow:inset 0 0 34px rgba(0,0,0,.28), 0 0 0 2px rgba(0,0,0,.35);
@@ -2277,6 +2283,22 @@ body::after{
   box-sizing:border-box; min-height:2px;
 }
 .shop-dock{ display:flex; gap:10px; }
+
+/* Правка пользователя: доки в одном ряду с шапкой — умения слева, магазин справа,
+   высотой от верха заголовка до низа стикеров (align-items:stretch), крупнее. */
+.header-row{
+  display:flex; align-items:stretch; justify-content:center;
+  width:100%; max-width:min(98vw, 780px); margin:6px auto 4px;
+  box-sizing:border-box; padding:0 4px; gap:8px;
+}
+.header-row .game-header{ min-width:0; flex-shrink:1; }
+.header-row .skill-dock{ margin-right:auto; justify-content:center; flex-shrink:0; }
+.header-row .shop-dock{ margin-left:auto; align-items:center; flex-shrink:0; }
+.header-row .skill-grid{ grid-template-columns:repeat(2, 48px); grid-auto-rows:48px; gap:7px; }
+.header-row .skill-btn{ width:48px; height:48px; font-size:23px; }
+.header-row .shop-dock{ gap:12px; }
+.header-row .shop-dock-btn{ width:56px; height:56px; font-size:28px; }
+.header-row .shop-dock-btn img{ width:34px; height:34px; }
 /* ---- Фаза 7: панель умений ---- */
 .skill-dock{ display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
 .skill-grid{ display:grid; grid-template-columns:repeat(2, 40px); grid-auto-rows:40px; gap:6px; }

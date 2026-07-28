@@ -2353,7 +2353,8 @@
   function l4Logic9Cleanup(){
     if(l4L9Raf){ cancelAnimationFrame(l4L9Raf); l4L9Raf = null; }
     if(l4L9FireTimer){ clearInterval(l4L9FireTimer); l4L9FireTimer = null; }
-    if(l4L9ReleaseTimer){ clearInterval(l4L9ReleaseTimer); l4L9ReleaseTimer = null; }
+    if(l4L9ReleaseTimer){ clearTimeout(l4L9ReleaseTimer); clearInterval(l4L9ReleaseTimer); l4L9ReleaseTimer = null; }
+    if(typeof target !== 'undefined' && target) target._l9HideBlobs = false;
     if(l4L9IntroTimer){ clearTimeout(l4L9IntroTimer); l4L9IntroTimer = null; }
     if(l4L9EndTimer){ clearTimeout(l4L9EndTimer); l4L9EndTimer = null; }
     const wf = $('windowFrame');
@@ -2424,13 +2425,21 @@
     hint.textContent = LT(UI_TEXT.LOGIC9_SHOOT_HINT); layer.appendChild(hint);
     const plane = document.createElement('div'); plane.className = 'l4-logic-plane'; plane.id = 'l4LogicPlane';
     plane.textContent = '🛩️'; plane.style.left = '50%'; layer.appendChild(plane);
-    // сгустки собираются ВМЕСТЕ наверху (кучкой у центра), пока не «выпущены»
+    // правка пользователя: сгустки «уходят» из банки наверх — прячем их в зелье
+    target._l9HideBlobs = true; updatePlayerJar();
+    // сгустки собираются ВМЕСТЕ наверху (кучкой у центра), пока не «выпущены».
+    // Правка: выглядят как настоящие сгустки зелья (тот же blobPath), а не ⚫.
     for(let i=0;i<N;i++){
-      const el = document.createElement('div'); el.className = 'l4-logic-blob'; el.textContent = '⚫';
+      const el = document.createElement('div'); el.className = 'l4-logic-blob';
+      const seed = randInt(1, 99999), bp = blobPath(20, 20, 14, seed);
+      el.innerHTML = `<svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="21" fill="rgba(125,255,106,.16)"/>`
+        + `<path d="${bp}" fill="rgba(125,255,106,.85)" stroke="#0a0d18" stroke-width="2.4"/>`
+        + `<path d="${bp}" fill="none" stroke="rgba(220,255,210,.7)" stroke-width="0.9"/>`
+        + `<circle cx="15.5" cy="15.5" r="4.2" fill="rgba(255,255,255,.8)"/></svg>`;
       layer.appendChild(el);
-      // раскладываем по горизонтали кучкой у центра (чтобы падали в разные X)
       const x = 22 + (i + 0.5) * (56 / N);
-      const b = { x, y: 8, vy: 0.22 + Math.random()*0.05, alive:true, released:false, el };
+      // правка: падают заметно БЫСТРЕЕ
+      const b = { x, y: 8, vy: 0.55 + Math.random()*0.35, alive:true, released:false, el };
       el.style.left = x+'%'; el.style.top = '8%';
       l4L9Blobs.push(b);
     }
@@ -2445,12 +2454,18 @@
       if(!l4L9Layer) return;
       l4L9FireTimer = setInterval(l4Logic9Fire, 700);
       l4Logic9Fire();
-      // выпускаем сгустки ПО ОЧЕРЕДИ (первый сразу, дальше с паузой)
-      let ri = 0;
-      const releaseOne = ()=>{ if(l4L9Blobs[ri]) l4L9Blobs[ri].released = true; ri++;
-        if(ri >= l4L9Blobs.length){ clearInterval(l4L9ReleaseTimer); l4L9ReleaseTimer = null; } };
-      releaseOne();
-      l4L9ReleaseTimer = setInterval(releaseOne, 1500);
+      // правка пользователя: сгустки летят в СЛУЧАЙНОМ порядке, с РАЗНЫМ интервалом —
+      // иногда почти одновременно два подряд (крошечный разрыв), максимум тоже урезан.
+      const order = shuffleArr(l4L9Blobs.map((_, i) => i));
+      let oi = 0;
+      const releaseNext = ()=>{
+        if(!l4L9Layer || oi >= order.length){ l4L9ReleaseTimer = null; return; }
+        const b = l4L9Blobs[order[oi]]; if(b) b.released = true; oi++;
+        // 35% — почти сразу следующий (40-170мс), иначе умеренный разрыв (220-820мс)
+        const gap = Math.random() < 0.35 ? randInt(40, 170) : randInt(220, 820);
+        l4L9ReleaseTimer = setTimeout(releaseNext, gap);
+      };
+      releaseNext();
       l4L9EndTimer = setTimeout(l4Logic9Finish, 30000); // страховка
       l4L9Raf = requestAnimationFrame(l4Logic9Frame);
     }, 2000);
@@ -3227,12 +3242,10 @@
   // правка пользователя: лапы возвращаются заметно медленнее
   function l4PawReturnMs(lvl){ return ({1:5200, 2:4200, 3:3400, 4:2600})[lvl] || 4200; }
   const L4_PAW_HITS_NEEDED = 3; // сколько БЫСТРЫХ кликов нужно, чтобы согнать лапу
-  // цели, которые лапа может перекрыть: видимые ползунки + сама банка
+  // цели, которые лапа может перекрыть: ТОЛЬКО видимые ползунки (правка
+  // пользователя — на само зелье/банку лапы не лезут).
   function l4PawTargets(){
-    const out = [...document.querySelectorAll('.vslider-group')].filter(g => !g.classList.contains('hidden'));
-    const jar = document.querySelector('.window-wrap');
-    if(jar) out.push(jar);
-    return out;
+    return [...document.querySelectorAll('.vslider-group')].filter(g => !g.classList.contains('hidden'));
   }
   function l4PawImg(){
     // ART-SWAP: положить ~10 картинок лап в assets/npc/paws/ и вписать пути в
@@ -3311,7 +3324,8 @@
     3: { green:{w:0.15, v:0.70}, dark:{w:0.08, v:0.85}, blue:{w:0.035, v:1.00} },
     4: { green:{w:0.14, v:0.70}, dark:{w:0.075, v:0.85}, blue:{w:0.03, v:1.00}, red:{w:0.24, v:0.00} }
   };
-  const ENG_PERIOD_MS = { 1:1700, 2:1500, 3:1300, 4:1100 }; // период пробега указателя
+  // правка пользователя: медленнее и плавнее (но не слишком)
+  const ENG_PERIOD_MS = { 1:2500, 2:2200, 3:1900, 4:1600 }; // период пробега указателя
   const ENG_KEYS = ['color','size','count','bsize'];
   let engState = null; // { pointers:{key:{el, frac, phase, trackH, wrap, stopped}}, rafId }
   function engScorableKey(k){ return ENG_KEYS.includes(k); }
@@ -3333,26 +3347,28 @@
     // мимо всех зон — мягкий распад по близости (чтоб не был чистый ноль)
     return Math.max(0, 0.35 * (1 - (dist - z.green.w) / 0.35));
   }
-  // фон-градиент трека с концентрическими зонами вокруг центра c (0..1)
+  // фон-градиент трека: правка пользователя — ПЛАВНЫЕ переходы между зонами
+  // (одиночные стопы, CSS сам интерполирует), а не резкие полосы. Центр c —
+  // ярче всего (bull's-eye), к краям зелёный тускнеет; на УР.4 снаружи — красный.
   function engGradient(c, lvl){
     const z = ENG_ZONES[lvl] || ENG_ZONES[1];
     const base = '#1a2233';
-    const bands = []; // [halfWidth, color] от узкой к широкой (внутренняя — первой)
-    if(z.blue) bands.push([z.blue.w, '#35a0ff']);
-    if(z.dark) bands.push([z.dark.w, '#1f8f3d']);
-    bands.push([z.green.w, 'rgba(125,255,106,.92)']);
-    if(z.red) bands.push([z.red.w, 'rgba(255,93,106,.9)']);
-    const colorAt = (f)=>{ const d = Math.abs(f-c); for(const [w,col] of bands){ if(d<=w) return col; } return base; };
-    const edges = new Set([0,1]);
-    bands.forEach(([w])=>{ edges.add(engClamp01(c-w)); edges.add(engClamp01(c+w)); });
-    const sorted = [...edges].sort((a,b)=>a-b);
-    let g = 'linear-gradient(to top';
-    for(let i=0;i<sorted.length-1;i++){
-      const a = sorted[i], b = sorted[i+1];
-      const col = colorAt((a+b)/2);
-      g += `, ${col} ${(a*100).toFixed(1)}%, ${col} ${(b*100).toFixed(1)}%`;
-    }
-    return g + ')';
+    const core = z.blue ? '#48b4ff' : '#5cff77';        // ядро (синий/яркий-зелёный)
+    const mid  = 'rgba(125,255,106,.92)';               // тёмно-зелёная зона
+    const soft = 'rgba(125,255,106,.34)';               // край зелёной, тускнеет
+    const red  = 'rgba(255,93,106,.85)';                // красная ловушка (УР.4)
+    const gw = z.green.w, dw = z.dark ? z.dark.w : gw * 0.5;
+    const st = (f, col) => `${col} ${(engClamp01(f) * 100).toFixed(1)}%`;
+    const s = [ st(0, base) ];
+    if(z.red){ const rw = z.red.w; s.push(st(c - rw, base)); s.push(st(c - (gw + rw) / 2, red)); }
+    s.push(st(c - gw, soft));
+    s.push(st(c - dw, mid));
+    s.push(st(c, core));
+    s.push(st(c + dw, mid));
+    s.push(st(c + gw, soft));
+    if(z.red){ const rw = z.red.w; s.push(st(c + (gw + rw) / 2, red)); s.push(st(c + rw, base)); }
+    s.push(st(1, base));
+    return 'linear-gradient(to top,' + s.join(',') + ')';
   }
   function engStopKey(key){
     if(!engState) return;
@@ -3378,6 +3394,7 @@
     if(!wrap || !track || !group) return;
     const s = S[key];
     if(s) s.setDisabled(true); // перетаскивать нельзя — только «стоп»
+    wrap.classList.add('eng-no-thumb'); // правка: сам ползунок (бегунок) скрыт
     const c = engCenterFrac(key);
     track.style.background = engGradient(c, lvl);
     const trackH = track.getBoundingClientRect().height || parseFloat(track.style.height) || 260;
@@ -3394,7 +3411,10 @@
       group.appendChild(btn);
     }
     btn.disabled = false; btn.classList.remove('eng-stopped');
-    btn.onclick = (e)=>{ e.preventDefault(); engStopKey(key); };
+    // правка пользователя: стоп РОВНО в момент НАЖАТИЯ (pointerdown), а не отпускания —
+    // click срабатывает на release и ощущался как «пинг». engStopKey защищён от повтора.
+    btn.onclick = null;
+    btn.addEventListener('pointerdown', (e)=>{ e.preventDefault(); engStopKey(key); });
     engState.pointers[key] = { el, btn, frac:0.5, phase: Math.random()*Math.PI*2, trackH, stopped:false };
   }
   function engFrame(now){
@@ -3641,7 +3661,7 @@
       const p = new Set(['size', 'color', 'fill']);
       if(level >= 2) p.add('count');
       if(level >= 3) p.add('bsize');
-      if(level >= 4) p.add('degree');
+      if(level >= 4){ p.add('degree'); if(allSet.has('sat')) p.add('sat'); } // накал на УР.4
       return p;
     }
 
@@ -4616,9 +4636,14 @@
         kinds.push('rampage');
       }
       if(kinds.length){
-        // обычно 1 модификатор; на Ур.7 у красных+ — 2 (изредка 3), без дублей
+        // правка пользователя: почти всегда 1 модификатор. На Ур.7 у красных+
+        // ИНОГДА 2 (редко — за цикл можно и не встретить), а 3 — почти невозможно.
         let count = 1;
-        if(multiOn && cfg.tier >= 4) count = Math.random() < 0.22 ? 3 : 2;
+        if(multiOn && cfg.tier >= 4){
+          const r = Math.random();
+          if(r < 0.015) count = 3;       // 3 модификатора — невероятно редко (~1.5%)
+          else if(r < 0.12) count = 2;   // 2 — редко (~10%)
+        }
         count = Math.min(count, kinds.length);
         shuffleArr(kinds).slice(0, count).forEach(k=>{
           if(k === 'focus') focus = pick(focusTypesFor(cfg.id));
@@ -5047,6 +5072,9 @@
     // Парфюмер (Фаза 8: механика с УР.1): «накал» доступен ему на ВСЕХ уровнях —
     // его фишка это пэд цвет×накал (обычно sat требует tier>=4, у него исключение).
     if(cfg.id === 'perfumer') flags.hasSat = true;
+    // Пит (правка пользователя): накал у него ЕСТЬ на УР.4 (хоть он и зелёный —
+    // обычно sat только tier>=4). Включаем флаг; активируется на УР.4 в computeActiveKeys.
+    if(cfg.id === 'pete') flags.hasSat = true;
     const hueIdx = randInt(0, cfg.colorSteps-1);
     const sizeIdx = randInt(0, cfg.sizeSteps-1);
     let bsizeIdx = randInt(0, cfg.bsizeSteps-1);
@@ -5593,7 +5621,8 @@
     const noBubbles = target.activeKeys && !target.activeKeys.has('count') && !target.activeKeys.has('bsize');
     const isFlySwarm = mechActive('swarm_navigator');
     const isVexDrag = cfg.id === 'vex';
-    const effCount = (noBubbles || isFlySwarm || isVexDrag) ? 0 : count;
+    // Логик-9 УР.4: во время бонус-раунда сгустки «уходят» из банки наверх — прячем их
+    const effCount = (noBubbles || isFlySwarm || isVexDrag || target._l9HideBlobs) ? 0 : count;
     drawJar({ hue, hue2, sat, sizePct:size, heightPct, bubbleCount:effCount, bubbleR:r, shapeIdx,
       rotationDeg, fillPct,
       splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? S.countB.value : 0,
