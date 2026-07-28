@@ -2383,6 +2383,9 @@
     l4L9Blobs.forEach(b=>{
       if(!b.alive || !b.released) return;
       b.y += b.vy;
+      b.x += (b.vx || 0);                                   // диагональ
+      if(b.x < 12){ b.x = 12; b.vx = Math.abs(b.vx); }      // отскок от стенок банки
+      if(b.x > 88){ b.x = 88; b.vx = -Math.abs(b.vx); }
       if(b.y >= 84){ b.alive = false; b.el.classList.add('miss'); setTimeout(()=>{ if(b.el) b.el.remove(); }, 220); return; }
       b.el.style.left = b.x+'%'; b.el.style.top = b.y+'%';
       for(const bl of l4L9Bullets){
@@ -2438,8 +2441,8 @@
         + `<circle cx="15.5" cy="15.5" r="4.2" fill="rgba(255,255,255,.8)"/></svg>`;
       layer.appendChild(el);
       const x = 22 + (i + 0.5) * (56 / N);
-      // правка: падают заметно БЫСТРЕЕ
-      const b = { x, y: 8, vy: 0.55 + Math.random()*0.35, alive:true, released:false, el };
+      // правка: медленнее на ~50% + могут лететь по ДИАГОНАЛИ (небольшой vx, отскок от стенок)
+      const b = { x, y: 8, vy: 0.28 + Math.random()*0.17, vx: (Math.random()-0.5)*0.55, alive:true, released:false, el };
       el.style.left = x+'%'; el.style.top = '8%';
       l4L9Blobs.push(b);
     }
@@ -2452,7 +2455,7 @@
     l4L9IntroTimer = setTimeout(()=>{
       l4L9IntroTimer = null;
       if(!l4L9Layer) return;
-      l4L9FireTimer = setInterval(l4Logic9Fire, 700);
+      l4L9FireTimer = setInterval(l4Logic9Fire, 470); // правка: стреляет в ~1.5 раза чаще
       l4Logic9Fire();
       // правка пользователя: сгустки летят в СЛУЧАЙНОМ порядке, с РАЗНЫМ интервалом —
       // иногда почти одновременно два подряд (крошечный разрыв), максимум тоже урезан.
@@ -3712,28 +3715,41 @@
   // ============================================================
   const PROG = (typeof PROGRESSION !== 'undefined') ? PROGRESSION : null;
   const PROG_CUM = (()=>{ const cum=[]; let s=0; if(PROG) PROG.levels.forEach(l=>{ s+=l.xp; cum.push(s); }); return cum; })();
+  const PROG_MAX = PROG ? PROG.levels.length : 0;
+  // Правка пользователя: после последнего уровня прогрессия ПРОДОЛЖАЕТСЯ бесконечно —
+  // каждый следующий уровень требует всё больше рейтинга и даёт немного чаевых.
+  const PROG_BEYOND_STEP = 5000; // насколько растёт требуемый xp за каждый уровень сверх последнего
+  const PROG_BEYOND_TIPS = 200;  // фикс. чаевые за каждый новый уровень сверх последнего
   function progXp(){ return window.PotionProfile ? window.PotionProfile.getProgressionXp() : 0; }
+  function progLevelIncrement(level){ // xp, нужный чтобы достичь этого уровня (1-based)
+    if(!PROG) return Infinity;
+    if(level <= PROG_MAX) return PROG.levels[level-1].xp;
+    const lastInc = PROG.levels[PROG_MAX-1].xp;
+    return lastInc + (level - PROG_MAX) * PROG_BEYOND_STEP; // растёт линейно
+  }
+  function progCumXp(level){ let s=0; for(let l=1;l<=level;l++) s += progLevelIncrement(l); return s; }
   function progLevel(xp){
     if(xp == null) xp = progXp();
-    let lvl = 0;
-    for(let i=0;i<PROG_CUM.length;i++){ if(xp >= PROG_CUM[i]) lvl = i+1; else break; }
-    return lvl; // число завершённых баров (0..9)
+    if(!PROG) return 0;
+    let lvl = 0, s = 0, guard = 0;
+    for(let l=1; guard++ < 10000; l++){ s += progLevelIncrement(l); if(xp >= s) lvl = l; else break; }
+    return lvl; // число завершённых баров (0..9 и ВЫШЕ — бесконечно)
   }
   function progCycleDays(){
     if(!PROG) return 10;
-    let d = PROG.startCycleDays; const lvl = progLevel();
+    let d = PROG.startCycleDays; const lvl = Math.min(progLevel(), PROG_MAX);
     for(let i=0;i<lvl;i++){ if(PROG.levels[i].cycleDays != null) d = PROG.levels[i].cycleDays; }
     return d;
   }
   function progPoolSize(){
     if(!PROG) return 3;
-    let p = PROG.startPoolSize; const lvl = progLevel();
+    let p = PROG.startPoolSize; const lvl = Math.min(progLevel(), PROG_MAX);
     for(let i=0;i<lvl;i++){ if(PROG.levels[i].poolSize != null) p = PROG.levels[i].poolSize; }
     return p;
   }
   function progMechUnlocked(name){
     if(!PROG) return true; // без конфига — всё открыто (легаси)
-    const lvl = progLevel();
+    const lvl = Math.min(progLevel(), PROG_MAX); // сверх-уровни не открывают новых механик
     for(let i=0;i<lvl;i++){ if((PROG.levels[i].mechanics||[]).includes(name)) return true; }
     return false;
   }
@@ -3761,7 +3777,14 @@
     const levelsGained = [];
     for(let l = before.lvl + 1; l <= after.lvl; l++) levelsGained.push(l);
     const newNpcs = [...after.npcs].filter(id => !before.npcs.has(id));
-    return { levelsGained, newNpcs };
+    // Правка пользователя: за каждый новый уровень СВЕРХ последнего — немного чаевых
+    const beyondCount = levelsGained.filter(l => l > PROG_MAX).length;
+    let beyondTips = 0;
+    if(beyondCount && !isDailyMode && window.PotionProfile && window.PotionProfile.addTips){
+      beyondTips = beyondCount * PROG_BEYOND_TIPS;
+      window.PotionProfile.addTips(beyondTips);
+    }
+    return { levelsGained, newNpcs, beyondTips };
   }
   // Фаза 3 (3D): скрываем кнопки/UI существующих систем, пока они не открыты
   // прогрессией. В дейлике прогрессия не действует — показываем как раньше.
@@ -4369,10 +4392,13 @@
     const xp = progXp(), level = progLevel();
     const track = $('progBarTrack'), fill = $('progBarFill');
     track.querySelectorAll('.prog-mark').forEach(m => m.remove());
-    if(level >= PROG.levels.length){ // всё развито
+    if(level >= PROG_MAX){ // лавка развита — но уровни продолжаются (за каждый — чаевые)
+      const startCum = progCumXp(level);          // xp для достижения текущего уровня
+      const inc = progLevelIncrement(level + 1);  // сколько до следующего
+      const inBar = Math.max(0, xp - startCum);
+      fill.style.width = (Math.max(0, Math.min(1, inBar / inc)) * 100).toFixed(1) + '%';
       $('progBarLevel').textContent = LT(UI_TEXT.PROG_BAR_LEVEL) + ' ' + level;
-      $('progBarXp').textContent = LT(UI_TEXT.PROG_BAR_MAX);
-      fill.style.width = '100%';
+      $('progBarXp').textContent = Math.round(inBar) + ' / ' + inc;
       return;
     }
     const barStart = level > 0 ? PROG_CUM[level-1] : 0;

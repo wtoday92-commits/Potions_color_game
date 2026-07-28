@@ -1249,14 +1249,15 @@ const NPC_STAT_EXPLAIN = {
       name:{ ru:'Этих не пускайте', en:'Keep them out' },
       desc:{ ru:'Выбери до трёх — они не появятся до конца цикла.',
              en:"Pick up to three — they won't appear until the cycle ends." } },
-    { id:'grade',   flag:'skill_3', mode:'stub',    icon:'🔁',
-      name:{ ru:'Повторите!', en:'Do it again!' },
-      desc:{ ru:'Случайному гостю — грейд выше. Откроется с системой грейдов (Фаза 9).',
-             en:'Bumps a random guest up a grade. Unlocks with the grade system (Phase 9).' } },
-    { id:'refresh', flag:'skill_4', mode:'refresh', icon:'🔄',
+    // правка пользователя: «Вам уже пора» — на Ур.6 (skill_3), «Повторите» — на Ур.8 (skill_4)
+    { id:'refresh', flag:'skill_3', mode:'refresh', icon:'🔄',
       name:{ ru:'Вам уже пора', en:'Time to go' },
       desc:{ ru:'Обновляет всех гостей дня на новых (те же не повторяются).',
-             en:'Refreshes the whole day with new guests (no repeats).' } }
+             en:'Refreshes the whole day with new guests (no repeats).' } },
+    { id:'grade',   flag:'skill_4', mode:'stub',    icon:'🔁',
+      name:{ ru:'Повторите!', en:'Do it again!' },
+      desc:{ ru:'Случайному гостю — грейд выше. Откроется с системой грейдов (Фаза 9).',
+             en:'Bumps a random guest up a grade. Unlocks with the grade system (Phase 9).' } }
   ];
 
   const SHAPE_NAMES = [

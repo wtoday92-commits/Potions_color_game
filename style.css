@@ -1656,7 +1656,7 @@ body::after{
 /* правка пользователя: рамка ВОКРУГ регулятора (панелька) — анимация переключения
    клипается ею и не вылезает; кнопка ▸ живёт СНАРУЖИ этой рамки, рядом. */
 .l4-trucker-col .vslider-group{
-  overflow:hidden; position:relative; box-sizing:border-box; width:196px; padding:10px 16px;
+  overflow:hidden; position:relative; box-sizing:border-box; width:230px; padding:12px 20px;
   border:1.5px solid rgba(53,224,255,.4); border-radius:14px;
   background:rgba(53,224,255,.05);
 }
@@ -1674,7 +1674,7 @@ body::after{
 .l4-gearpath-holder{ width:104px; height:104px; margin:0 auto; }
 /* крупный gearpath (одна коробка за раз) — по высоте ~как левые слайдеры; ширину
    держим так, чтобы вместе со стрелкой влезать в правую колонку (~216px) */
-.l4-gearpath-holder.l4-gearpath-big{ width:160px; height:240px; }
+.l4-gearpath-holder.l4-gearpath-big{ width:184px; height:300px; }
 .l4-gearpath-svg{ width:100%; height:100%; overflow:visible; touch-action:none; cursor:pointer; }
 .l4-gearpath-track{
   fill:none; stroke:rgba(53,224,255,.45); stroke-width:5;
@@ -1842,7 +1842,7 @@ body::after{
 }
 .l4-logic-blob{
   position:absolute; transform:translate(-50%,-50%);
-  width:34px; height:34px; z-index:8;
+  width:28px; height:28px; z-index:8;
   filter:drop-shadow(0 0 6px rgba(125,255,106,.75)); transition:opacity .2s ease, transform .2s ease;
 }
 .l4-logic-blob svg{ width:100%; height:100%; display:block; }
@@ -2034,7 +2034,11 @@ body::after{
   animation:pawIn .18s ease-out;
 }
 .l4-paw-img{width:82%;max-width:120px;height:auto;pointer-events:none;
-  transform:rotate(var(--paw-rot,0deg));filter:drop-shadow(0 3px 6px rgba(0,0,0,.55));}
+  transform:rotate(var(--paw-rot,0deg));filter:drop-shadow(0 3px 6px rgba(0,0,0,.55));
+  /* правка пользователя: мягко растворяем нижний край картинки, чтобы лапа не
+     обрывалась резкой линией по низу PNG */
+  -webkit-mask-image:linear-gradient(to bottom,#000 62%,rgba(0,0,0,.35) 84%,transparent 100%);
+  mask-image:linear-gradient(to bottom,#000 62%,rgba(0,0,0,.35) 84%,transparent 100%);}
 .l4-paw-off{animation:pawOut .18s ease-in forwards;}
 @keyframes pawIn{from{transform:translateY(-42%) scale(.8);opacity:0;}to{transform:none;opacity:1;}}
 @keyframes pawOut{to{transform:translateY(-55%) scale(.65);opacity:0;}}
@@ -2066,13 +2070,13 @@ body::after{
 
 /* Фаза 10 (Маркетолог): хаос-панель случайных контролов на фоне газеты */
 .mk-hidden{display:none !important;}
-/* правка пользователя: банку не трогаем, сдвигаем влево — панель занимает остаток */
-.control-row.mk-row{ justify-content:flex-start !important; gap:12px; }
+/* правка пользователя: вся группа [банка + панель] по ЦЕНТРУ; банку не растягиваем
+   (align-items:center — иначе циферблат превращался в овал). */
+.control-row.mk-row{ justify-content:center !important; align-items:center !important; gap:18px; }
 .marketer-panel{
-  /* правка пользователя: КВАДРАТ, высотой как циферблат (align-self:stretch даёт
-     высоту строки = высоте банки, aspect-ratio:1 → ширина = высоте). Не тянемся. */
-  position:relative;flex:0 0 auto;align-self:stretch;aspect-ratio:1;
-  min-height:300px;max-width:min(56vw,360px);
+  /* правка пользователя: строго КВАДРАТ (ширина = высоте явно, без stretch/aspect) */
+  position:relative;flex:0 0 auto;
+  width:min(48vw,380px);height:min(48vw,380px);
   /* рамка всей панельки (пользователь потом подставит фон-газету картинкой) */
   border:3px solid rgba(255,217,138,.55);border-radius:12px;overflow:hidden;
   background:#e8e2d0;box-shadow:inset 0 0 34px rgba(0,0,0,.28), 0 0 0 2px rgba(0,0,0,.35);
