@@ -3253,7 +3253,11 @@
   function l4PawImg(){
     // ART-SWAP: положить ~10 картинок лап в assets/npc/paws/ и вписать пути в
     // CATLADY_PAW_IMG (content.js). Пока пусто → эмодзи-плейсхолдер 🐾.
-    const arr = (typeof CATLADY_PAW_IMG !== 'undefined' && CATLADY_PAW_IMG.length) ? CATLADY_PAW_IMG : null;
+    const arr = (typeof CATLADY_PAW_IMG !== 'undefined' && CATLADY_PAW_IMG.length) ? CATLADY_PAW_IMG : [
+  'assets/ui/paw1.png',
+  'assets/ui/paw2.png',
+  'assets/ui/paw3.png',
+];;
     return arr ? pick(arr) : '🐾';
   }
   function l4PawSpawnOne(){
@@ -3465,7 +3469,7 @@
   // но ни на что не влияют). На УР.4 текст газеты постоянно меняется (хаос).
   // Скоринг и фаза показа НЕ меняются — это чистая обфускация ввода.
   // ART-SWAP: MARKETER_BG_IMG — картинка-газета вместо процедурных обрывков.
-  const MARKETER_BG_IMG = null;
+  const MARKETER_BG_IMG = 'assets/bg/marketer_news.png';
   let marketerState = null;
   function mkRandType(){ return pick(['slider','dial','button']); }
   function mkMakeControl(type){
