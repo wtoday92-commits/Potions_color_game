@@ -1448,6 +1448,35 @@
       if(group) group.classList.toggle('l4-trucker-off', i !== l4TruckerCurIdx);
     });
   }
+  // правка пользователя: переключение ЗАКОЛЬЦОВАНО (size→count→bsize→size…) с
+  // анимацией «уезжает вбок и растворяется, с другой стороны заезжает новый»
+  // (клипается рамкой регулятора — .l4-trucker-col .vslider-group overflow:hidden).
+  let l4TruckerSwitching = false;
+  function l4TruckerHolder(i){
+    const m = $(L4_MOUNT_ID[l4TruckerKeys[i]]);
+    const g = m && m.closest('.vslider-group');
+    return { g, h: g && g.querySelector('.l4-gearpath-holder') };
+  }
+  function l4TruckerSwitch(){
+    if(l4TruckerSwitching || l4TruckerKeys.length < 2) return;
+    l4TruckerSwitching = true;
+    SFX.uiClick();
+    const oldO = l4TruckerHolder(l4TruckerCurIdx);
+    const newIdx = (l4TruckerCurIdx + 1) % l4TruckerKeys.length; // закольцовано
+    if(oldO.h) oldO.h.classList.add('l4-gp-out');
+    setTimeout(()=>{
+      if(oldO.g) oldO.g.classList.add('l4-trucker-off');
+      if(oldO.h) oldO.h.classList.remove('l4-gp-out');
+      l4TruckerCurIdx = newIdx;
+      const newO = l4TruckerHolder(newIdx);
+      if(newO.g) newO.g.classList.remove('l4-trucker-off');
+      if(newO.h){
+        newO.h.classList.add('l4-gp-prep'); void newO.h.offsetWidth;
+        newO.h.classList.remove('l4-gp-prep'); newO.h.classList.add('l4-gp-in');
+        setTimeout(()=>{ newO.h.classList.remove('l4-gp-in'); l4TruckerSwitching = false; }, 280);
+      } else { l4TruckerSwitching = false; }
+    }, 240);
+  }
   LEVEL4_FX.trucker_chrome = {
     memorizeStart(){
       $('windowFrame').classList.add('l4-shake');
@@ -1477,12 +1506,7 @@
         const btn = document.createElement('button');
         btn.type = 'button'; btn.id = 'l4TruckerNext'; btn.className = 'l4-trucker-next';
         btn.innerHTML = '▸'; btn.title = LT(UI_TEXT.TRUCKER_NEXT_TITLE);
-        btn.addEventListener('click', (e)=>{
-          e.stopPropagation();
-          l4TruckerCurIdx = (l4TruckerCurIdx + 1) % l4TruckerKeys.length;
-          l4TruckerUpdateVisible();
-          SFX.uiClick();
-        });
+        btn.addEventListener('click', (e)=>{ e.stopPropagation(); l4TruckerSwitch(); });
         rightCol.appendChild(btn);
       }
       target.craftDuration += 4000;
@@ -3200,7 +3224,9 @@
   let l4PawTimer = null, l4PawHosts = [];
   // сколько лап одновременно и как быстро возвращаются — по уровню сложности
   function l4PawMaxCount(lvl){ return ({1:1, 2:2, 3:2, 4:3})[lvl] || 2; }
-  function l4PawReturnMs(lvl){ return ({1:3500, 2:2600, 3:2000, 4:1400})[lvl] || 2600; }
+  // правка пользователя: лапы возвращаются заметно медленнее
+  function l4PawReturnMs(lvl){ return ({1:5200, 2:4200, 3:3400, 4:2600})[lvl] || 4200; }
+  const L4_PAW_HITS_NEEDED = 3; // сколько БЫСТРЫХ кликов нужно, чтобы согнать лапу
   // цели, которые лапа может перекрыть: видимые ползунки + сама банка
   function l4PawTargets(){
     const out = [...document.querySelectorAll('.vslider-group')].filter(g => !g.classList.contains('hidden'));
@@ -3226,15 +3252,26 @@
     const rot = randInt(-18, 18);
     paw.style.setProperty('--paw-rot', rot + 'deg');
     paw.innerHTML = visualHTML(l4PawImg(), 'l4-paw-img');
-    const remove = (e)=>{
+    // правка пользователя: одна лапа сгоняется НЕСКОЛЬКИМИ быстрыми кликами.
+    // Обычный (одиночный) клик — лапа лишь трясётся; серия из L4_PAW_HITS_NEEDED
+    // быстрых кликов (без пауз >800мс) — убирает её.
+    let hits = 0, lastHit = 0;
+    const onHit = (e)=>{
       if(e){ e.preventDefault(); e.stopPropagation(); }
-      SFX.pawClick(); SFX.meow();
-      paw.classList.add('l4-paw-off');
-      host.classList.remove('l4-paw-host');
-      l4PawHosts = l4PawHosts.filter(h => h !== host);
-      setTimeout(()=>paw.remove(), 180);
+      const now = performance.now();
+      if(now - lastHit > 800) hits = 0; // серия прервалась — считаем заново
+      lastHit = now; hits++;
+      SFX.pawClick();
+      paw.classList.remove('l4-paw-shake'); void paw.offsetWidth; paw.classList.add('l4-paw-shake');
+      if(hits >= L4_PAW_HITS_NEEDED){
+        SFX.meow();
+        paw.classList.add('l4-paw-off');
+        host.classList.remove('l4-paw-host');
+        l4PawHosts = l4PawHosts.filter(h => h !== host);
+        setTimeout(()=>paw.remove(), 180);
+      }
     };
-    paw.addEventListener('pointerdown', remove);
+    paw.addEventListener('pointerdown', onHit);
     host.appendChild(paw);
     l4PawHosts.push(host);
     return true;
@@ -3473,27 +3510,37 @@
     marketerStop();
     const row = document.querySelector('.control-row');
     if(!row) return;
+    // правка пользователя: банку НЕ меняем (размер/видимость), лишь сдвигаем влево —
+    // панель справа. leftCol/rightCol прячем.
+    row.classList.add('mk-row');
     const left = $('leftCol'), right = $('rightCol');
     if(left) left.classList.add('mk-hidden');
     if(right) right.classList.add('mk-hidden');
     const panel = document.createElement('div');
     panel.className = 'marketer-panel';
+    // фон-«газета»: ART-SWAP MARKETER_BG_IMG (пользователь подставит картинку),
+    // иначе процедурные обрывки. Рамка панели — в CSS (.marketer-panel).
     const bg = document.createElement('div');
     bg.className = 'mk-news';
     mkFillNews(bg);
     panel.appendChild(bg);
+    // правка пользователя: контролы КРУПНЫЕ и НЕ налезают друг на друга — раскладка
+    // сеткой (grid авто-заполнение), лёгкий случайный разворот для «хаоса».
+    const grid = document.createElement('div');
+    grid.className = 'mk-grid';
+    panel.appendChild(grid);
     row.appendChild(panel);
-    // по одному реальному контролу на каждый активный ключ + куча обманок
     const activeKeys = [...(target.activeKeys || [])].filter(k => S[k] && ['color','size','count','bsize'].includes(k));
     const specs = activeKeys.map(k => ({ real:true, key:k, type: mkRandType() }));
-    const decoyCount = 15;
+    const decoyCount = Math.max(6, 12 - activeKeys.length); // всего ~12 КРУПНЫХ контролов
     for(let i=0;i<decoyCount;i++) specs.push({ real:false, type: mkRandType() });
     shuffleArr(specs).forEach(spec=>{
+      const cell = document.createElement('div');
+      cell.className = 'mk-cell';
       const el = mkMakeControl(spec.type);
-      el.style.left = (5 + Math.random()*76).toFixed(1) + '%';
-      el.style.top  = (4 + Math.random()*82).toFixed(1) + '%';
-      el.style.setProperty('--mk-rot', randInt(-14,14) + 'deg');
-      panel.appendChild(el);
+      el.style.setProperty('--mk-rot', randInt(-13, 13) + 'deg');
+      cell.appendChild(el);
+      grid.appendChild(cell);
       mkWire(el, spec.type, spec.real ? spec.key : null);
     });
     marketerState = { panel, bg, textTimer:null };
@@ -3509,6 +3556,7 @@
       marketerState = null;
     }
     document.querySelectorAll('.marketer-panel').forEach(p => p.remove());
+    const row = document.querySelector('.control-row'); if(row) row.classList.remove('mk-row');
     const left = $('leftCol'), right = $('rightCol');
     if(left) left.classList.remove('mk-hidden');
     if(right) right.classList.remove('mk-hidden');
@@ -6396,42 +6444,37 @@
     startOrder(currentOrd, currentOrd.regLevel);
   });
 
-  // ---------- global leaderboard ----------
-  // URL базы задаётся в content.js -> CONFIG.FIREBASE_DB_URL
-  const FIREBASE_DB_URL = (typeof CONFIG !== 'undefined' && CONFIG.FIREBASE_DB_URL) || '';
+  // ---------- global leaderboard (Фаза 4) ----------
+  // Вошёл в аккаунт → ОБЩИЙ онлайн-лидерборд в Supabase (пишут только
+  // зарегистрированные — RLS auth.uid()=user_id; читают все). Гость → локальный
+  // лидерборд на localStorage, как раньше. Прежний Firebase-путь убран.
   const LOCAL_LB_KEY = 'potionshop_leaderboard_v1';
+  function lbOnline(){ return !!(window.PotionAuth && window.PotionAuth.isLoggedIn() && window.PotionAuth.isConfigured()); }
 
-  // boardKey — необязательный { local, remote }; без него — обычный
-  // аркадный общий рейтинг (как и раньше). Дневной режим передаёт свой ключ.
+  // boardKey — необязательный { local, remote }; без него — обычный аркадный
+  // рейтинг. remote — id доски в Supabase (arcade / daily/<diff>/<date>).
   async function loadLeaderboard(boardKey){
     const localKey = boardKey ? boardKey.local : LOCAL_LB_KEY;
-    const remotePath = boardKey ? boardKey.remote : 'leaderboard';
-    if(FIREBASE_DB_URL){
-      try{
-        const res = await fetch(FIREBASE_DB_URL + '/' + remotePath + '.json');
-        const data = await res.json();
-        // база может ответить 200 с телом {error:"Permission denied"} (например,
-        // если правила базы разрешают только путь /leaderboard) — это НЕ валидный
-        // список записей, нужно явно отличать от настоящих данных
-        if(res.ok && data && typeof data === 'object' && !data.error) return Object.values(data);
-      }catch(e){ /* fall through to local */ }
+    const board = boardKey ? boardKey.remote : 'arcade';
+    if(lbOnline()){
+      const rows = await window.PotionAuth.leaderboardLoad(board);
+      if(rows){
+        // created_at → date для рендера (renderLeaderboard ждёт .date)
+        return rows.map(r => ({ name: r.name, score: r.score,
+          date: r.created_at ? new Date(r.created_at).toLocaleDateString(LANG === 'ru' ? 'ru-RU' : 'en-US') : '' }));
+      }
     }
     try{ return JSON.parse(localStorage.getItem(localKey) || '[]'); }
     catch(e){ return []; }
   }
   async function saveLeaderboardEntry(name, finalScore, boardKey){
     const localKey = boardKey ? boardKey.local : LOCAL_LB_KEY;
-    const remotePath = boardKey ? boardKey.remote : 'leaderboard';
+    const board = boardKey ? boardKey.remote : 'arcade';
     const entry = { name: name || LT(UI_TEXT.ANONYMOUS), score: finalScore, date: new Date().toLocaleDateString(LANG === 'ru' ? 'ru-RU' : 'en-US') };
-    if(FIREBASE_DB_URL){
-      try{
-        // POST appends a new child with a unique key — never overwrites existing entries
-        const res = await fetch(FIREBASE_DB_URL + '/' + remotePath + '.json', { method:'POST', body: JSON.stringify(entry) });
-        const data = await res.json();
-        if(res.ok && data && !data.error) return await loadLeaderboard(boardKey);
-        // если база отказала (напр. правила не разрешают этот путь) — не теряем
-        // результат молча, падаем в локальное сохранение ниже
-      }catch(e){ /* fall through to local */ }
+    if(lbOnline()){
+      const ok = await window.PotionAuth.leaderboardSave(board, entry.name, finalScore);
+      if(ok) return await loadLeaderboard(boardKey);
+      // не удалось записать онлайн — не теряем результат, падаем в локальное
     }
     let list = [];
     try{ list = JSON.parse(localStorage.getItem(localKey) || '[]'); }catch(e){}

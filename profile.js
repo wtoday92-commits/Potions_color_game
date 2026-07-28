@@ -867,6 +867,28 @@
       const a = ensure(); a.best = a.best || {}; const k = boardId || 'arcade';
       if(score > (a.best[k] || 0)){ a.best[k] = score; save(a); return true; }
       return false;
+    },
+    // ---- Онлайн-лидерборд (Supabase, Фаза 4) ----
+    // Читают все (публичная политика), пишут только вошедшие (RLS auth.uid()=user_id).
+    async leaderboardLoad(board){
+      if(!configured()) return null;
+      const a = load();
+      try{
+        const q = '?board=eq.' + encodeURIComponent(board || 'arcade') + '&select=name,score,created_at&order=score.desc&limit=50';
+        const res = await fetch(SUPABASE_CONFIG.url + '/rest/v1/leaderboard' + q, { headers: headers(a.token) });
+        if(res.ok) return await res.json();
+      }catch(e){}
+      return null;
+    },
+    async leaderboardSave(board, name, score){
+      const a = load();
+      if(a.mode !== 'user' || !a.token || !a.userId || !configured()) return false;
+      try{
+        const res = await fetch(SUPABASE_CONFIG.url + '/rest/v1/leaderboard',
+          { method:'POST', headers: Object.assign(headers(a.token), { 'Prefer':'return=minimal' }),
+            body: JSON.stringify({ board: board || 'arcade', name: String(name || '').slice(0,20), score: Math.round(score), user_id: a.userId }) });
+        return res.ok;
+      }catch(e){ return false; }
     }
   };
 

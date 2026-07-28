@@ -1650,9 +1650,19 @@ body::after{
 /* Правка (пользователь): ОДИН крупный правый регулятор за раз + стрелка-
    переключатель справа. Колонка становится строкой [gearpath][стрелка]. */
 .l4-trucker-col{
-  flex-direction:row !important; align-items:center; justify-content:center; gap:8px;
+  flex-direction:row !important; align-items:center; justify-content:center; gap:12px;
 }
 .l4-trucker-off{ display:none !important; } /* скрытые (не текущие) правые регуляторы */
+/* правка пользователя: рамка ВОКРУГ регулятора (панелька) — анимация переключения
+   клипается ею и не вылезает; кнопка ▸ живёт СНАРУЖИ этой рамки, рядом. */
+.l4-trucker-col .vslider-group{
+  overflow:hidden; position:relative; padding:10px 6px;
+  border:1.5px solid rgba(53,224,255,.4); border-radius:14px;
+  background:rgba(53,224,255,.05);
+}
+.l4-gp-out{ transition:transform .24s ease-in, opacity .24s ease-in; transform:translateX(-130%); opacity:0; }
+.l4-gp-prep{ transform:translateX(130%); opacity:0; }
+.l4-gp-in{ transition:transform .26s ease-out, opacity .26s ease-out; transform:translateX(0); opacity:1; }
 .l4-trucker-next{
   flex:0 0 auto; width:32px; height:86px; border-radius:11px; cursor:pointer; padding:0;
   background:rgba(53,224,255,.12); border:1.5px solid rgba(53,224,255,.45); color:#dff;
@@ -2027,6 +2037,13 @@ body::after{
 .l4-paw-off{animation:pawOut .18s ease-in forwards;}
 @keyframes pawIn{from{transform:translateY(-42%) scale(.8);opacity:0;}to{transform:none;opacity:1;}}
 @keyframes pawOut{to{transform:translateY(-55%) scale(.65);opacity:0;}}
+/* правка пользователя: одиночный клик — лапа лишь трясётся (согнать = серия кликов) */
+.l4-paw.l4-paw-shake{animation:pawShake .2s ease-in-out;}
+@keyframes pawShake{
+  0%,100%{transform:rotate(var(--paw-rot,0deg));}
+  20%{transform:rotate(calc(var(--paw-rot,0deg) - 10deg)) translateY(2px);}
+  60%{transform:rotate(calc(var(--paw-rot,0deg) + 10deg)) translateY(-1px);}
+}
 
 /* Фаза 10 (Инженер навигатора): треугольный указатель справа от трека + кнопка «стоп» */
 .eng-pointer{
@@ -2046,28 +2063,38 @@ body::after{
 
 /* Фаза 10 (Маркетолог): хаос-панель случайных контролов на фоне газеты */
 .mk-hidden{display:none !important;}
+/* правка пользователя: банку не трогаем, сдвигаем влево — панель занимает остаток */
+.control-row.mk-row{ justify-content:flex-start !important; gap:12px; }
 .marketer-panel{
-  position:relative;flex:1;min-width:0;align-self:stretch;min-height:330px;
-  margin-left:8px;border:2px solid rgba(255,217,138,.45);border-radius:10px;
-  overflow:hidden;background:#e8e2d0;box-shadow:inset 0 0 30px rgba(0,0,0,.25);
+  position:relative;flex:1 1 auto;min-width:0;align-self:stretch;min-height:340px;
+  /* рамка всей панельки (пользователь потом подставит фон-газету картинкой) */
+  border:3px solid rgba(255,217,138,.55);border-radius:12px;overflow:hidden;
+  background:#e8e2d0;box-shadow:inset 0 0 34px rgba(0,0,0,.28), 0 0 0 2px rgba(0,0,0,.35);
 }
-.mk-news{position:absolute;inset:0;z-index:0;pointer-events:none;background:#e8e2d0;}
+.mk-news{position:absolute;inset:0;z-index:0;pointer-events:none;background:#e8e2d0;background-size:cover;background-position:center;}
 .mk-ad{
-  position:absolute;color:rgba(28,22,16,.34);font-weight:700;white-space:nowrap;
+  position:absolute;color:rgba(28,22,16,.32);font-weight:700;white-space:nowrap;
   font-family:'Times New Roman',Georgia,serif;text-transform:uppercase;letter-spacing:.5px;
 }
-.mk-ctrl{position:absolute;z-index:2;transform:rotate(var(--mk-rot,0deg));touch-action:none;}
-.mk-slider .mk-strack{width:20px;height:74px;background:rgba(18,20,32,.78);border:1px solid #465;border-radius:10px;position:relative;cursor:ns-resize;}
-.mk-slider .mk-sthumb{position:absolute;left:50%;transform:translateX(-50%);bottom:50%;width:26px;height:13px;background:#35e0ff;border-radius:4px;box-shadow:0 0 5px rgba(53,224,255,.7);}
-.mk-dial .mk-knob{width:42px;height:42px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#5a6072,#20242f);border:2px solid #7a8296;position:relative;cursor:grab;}
+/* КРУПНЫЕ контролы БЕЗ наложений — авто-сетка, каждый в своей ячейке */
+.mk-grid{
+  position:relative;z-index:2;height:100%;box-sizing:border-box;padding:12px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));
+  gap:10px 8px;align-content:center;justify-items:center;align-items:center;
+}
+.mk-cell{display:flex;align-items:center;justify-content:center;width:100%;min-height:96px;}
+.mk-ctrl{position:relative;transform:rotate(var(--mk-rot,0deg));touch-action:none;}
+.mk-slider .mk-strack{width:28px;height:94px;background:rgba(18,20,32,.82);border:1.5px solid #465;border-radius:12px;position:relative;cursor:ns-resize;}
+.mk-slider .mk-sthumb{position:absolute;left:50%;transform:translateX(-50%);bottom:50%;width:36px;height:17px;background:#35e0ff;border-radius:5px;box-shadow:0 0 7px rgba(53,224,255,.8);}
+.mk-dial .mk-knob{width:60px;height:60px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#5a6072,#20242f);border:2.5px solid #7a8296;position:relative;cursor:grab;box-shadow:0 2px 6px rgba(0,0,0,.4);}
 .mk-dial .mk-knob:active{cursor:grabbing;}
-.mk-dial .mk-knob-mark{position:absolute;left:50%;top:4px;width:3px;height:15px;background:#ffd98a;border-radius:2px;transform-origin:50% 17px;transform:translateX(-50%);}
-.mk-button{display:flex;flex-direction:column;gap:3px;}
-.mk-btn{width:36px;height:22px;font-size:12px;font-weight:700;background:#2a2f45;color:#ffd98a;border:1px solid #566;border-radius:5px;cursor:pointer;line-height:1;}
+.mk-dial .mk-knob-mark{position:absolute;left:50%;top:5px;width:4px;height:22px;background:#ffd98a;border-radius:2px;transform-origin:50% 25px;transform:translateX(-50%);}
+.mk-button{display:flex;flex-direction:column;gap:5px;}
+.mk-btn{width:50px;height:32px;font-size:16px;font-weight:700;background:#2a2f45;color:#ffd98a;border:1.5px solid #566;border-radius:7px;cursor:pointer;line-height:1;}
 .mk-btn:active{background:#3a4a6a;}
 @keyframes mkWiggle{0%,100%{transform:rotate(var(--mk-rot,0deg));}25%{transform:rotate(calc(var(--mk-rot,0deg) - 7deg));}75%{transform:rotate(calc(var(--mk-rot,0deg) + 7deg));}}
 .mk-ctrl.mk-wiggle{animation:mkWiggle .22s ease-in-out;}
-.mk-ctrl.mk-real-hit .mk-strack,.mk-ctrl.mk-real-hit .mk-knob{box-shadow:0 0 8px rgba(125,255,106,.9);}
+.mk-ctrl.mk-real-hit .mk-strack,.mk-ctrl.mk-real-hit .mk-knob{box-shadow:0 0 10px rgba(125,255,106,.95);}
 
 /* реплика НПС на экране результата */
 .npc-note{
