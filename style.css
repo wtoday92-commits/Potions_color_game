@@ -1686,14 +1686,18 @@ body::after{
   filter:drop-shadow(0 0 6px rgba(53,224,255,.9));
 }
 /* ---------- Векс: перетаскиваемые сгустки ---------- */
+/* правка пользователя: сгусток Векса теперь такая же «клякса», как сгустки в
+   банке (SVG blobPath внутри), а размер задаётся ползунком «Разм. сгуст.».
+   Сам div — лишь позиционируемый хитбокс; визуал даёт вложенный <svg>. */
 .l4-vex-blob{
-  position:absolute;width:26px;height:26px;border-radius:50%;
-  transform:translate(-50%,-50%);cursor:grab;z-index:6;touch-action:none;user-select:none;
-  background:radial-gradient(circle at 35% 30%, #d9ffd0, rgba(125,255,106,.85) 55%, rgba(30,70,25,.9));
-  border:2px solid #0a0d18;box-shadow:0 0 8px rgba(125,255,106,.6);
-  transition:left .5s ease, top .5s ease;
+  position:absolute;transform:translate(-50%,-50%);
+  cursor:grab;z-index:6;touch-action:none;user-select:none;
+  display:flex;align-items:center;justify-content:center;
+  transition:left .5s ease, top .5s ease, width .12s ease, height .12s ease;
+  filter:drop-shadow(0 0 6px rgba(125,255,106,.5));
 }
-.l4-vex-blob.dragging{cursor:grabbing;transition:none;z-index:9;box-shadow:0 0 14px rgba(125,255,106,.95);}
+.l4-vex-blob svg{pointer-events:none;width:100%;height:100%;}
+.l4-vex-blob.dragging{cursor:grabbing;transition:left 0s, top 0s, width .12s ease, height .12s ease;z-index:9;filter:drop-shadow(0 0 12px rgba(125,255,106,.95));}
 .l4-vex-line{
   position:absolute;bottom:5%;left:50%;transform:translateX(-50%);
   max-width:88%;padding:6px 12px;text-align:center;z-index:7;
@@ -2030,7 +2034,8 @@ body::after{
   position:absolute;inset:-6px;z-index:40;
   display:flex;align-items:center;justify-content:center;
   font-size:60px;line-height:1;cursor:pointer;touch-action:none;
-  background:rgba(18,12,24,.5);border-radius:12px;
+  /* правка пользователя: убрана полупрозрачная подложка под лапой */
+  background:transparent;
   animation:pawIn .18s ease-out;
 }
 .l4-paw-img{width:82%;max-width:120px;height:auto;pointer-events:none;
@@ -2070,9 +2075,25 @@ body::after{
 
 /* Фаза 10 (Маркетолог): хаос-панель случайных контролов на фоне газеты */
 .mk-hidden{display:none !important;}
-/* правка пользователя: вся группа [банка + панель] по ЦЕНТРУ; банку не растягиваем
-   (align-items:center — иначе циферблат превращался в овал). */
-.control-row.mk-row{ justify-content:center !important; align-items:center !important; gap:18px; }
+/* правка пользователя: вся группа [банка + панель] по ЦЕНТРУ.
+   Важно: базовый .control-row — это GRID (216px auto 216px). Пока скрытые
+   боковые колонки держали свои треки, а панель уезжала в 4-й (неявный) трек —
+   поэтому «зелье прибито», панель не по центру, а циферблат сплющивался в овал
+   (auto-трек резал ШИРИНУ круга, но не высоту). Переводим mk-row в FLEX: скрытые
+   колонки схлопываются, [банка][панель] честно центрируются, а банке задаём
+   равные width/height (одинаковые vw → всегда круг, а не овал). */
+.control-row.mk-row{
+  display:flex !important;
+  justify-content:center !important;
+  align-items:center !important;
+  flex-wrap:nowrap;
+  gap:22px;
+}
+.control-row.mk-row .window-wrap{ flex:0 0 auto; }
+.control-row.mk-row .window-frame{
+  width:min(460px,42vw); height:min(460px,42vw);
+  max-width:none; max-height:none;
+}
 .marketer-panel{
   /* правка пользователя: строго КВАДРАТ (ширина = высоте явно, без stretch/aspect) */
   position:relative;flex:0 0 auto;

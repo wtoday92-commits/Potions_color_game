@@ -129,6 +129,8 @@ const UI_TEXT = {
   SKILL_GUARANTEED_TOAST: { ru:'Гость придёт в ближайших заданиях', en:'Guest will arrive soon' },
   SKILL_BANNED_TOAST:     { ru:'Не появятся до конца цикла', en:'Barred until the cycle ends' },
   SKILL_REFRESH_TOAST:    { ru:'Гости дня обновлены', en:'Day refreshed' },
+  SKILL_GRADE_TOAST:      { ru:'Грейд поднят', en:'Grade bumped up' },
+  SKILL_GRADE_NONE:       { ru:'Некому поднимать грейд', en:'No guest to bump up' },
   SKILL_CHARGE_GAINED:    { ru:'+1 заряд умения', en:'+1 skill charge' },
   CATLADY_YARN_TOAST:     { ru:'Бабушка Мурра дарит клубок ниток!', en:'Grandma Murr gives you a ball of yarn!' },
   ENG_STOP_BTN:           { ru:'СТОП', en:'STOP' },
@@ -1254,10 +1256,10 @@ const NPC_STAT_EXPLAIN = {
       name:{ ru:'Вам уже пора', en:'Time to go' },
       desc:{ ru:'Обновляет всех гостей дня на новых (те же не повторяются).',
              en:'Refreshes the whole day with new guests (no repeats).' } },
-    { id:'grade',   flag:'skill_4', mode:'stub',    icon:'🔁',
+    { id:'grade',   flag:'skill_4', mode:'grade',   icon:'🔁',
       name:{ ru:'Повторите!', en:'Do it again!' },
-      desc:{ ru:'Случайному гостю — грейд выше. Откроется с системой грейдов (Фаза 9).',
-             en:'Bumps a random guest up a grade. Unlocks with the grade system (Phase 9).' } }
+      desc:{ ru:'Случайному гостю дня — грейд выше (сложнее, но дороже).',
+             en:'Bumps a random guest of the day up a grade (harder, but pays more).' } }
   ];
 
   const SHAPE_NAMES = [

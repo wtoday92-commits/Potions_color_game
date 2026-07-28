@@ -738,10 +738,24 @@
   function genGuestNick(){ return 'Гость-' + Math.floor(1000 + Math.random()*9000); }
   function ensure(){
     let a = load(), changed = false;
-    if(!a.nickname){ a.nickname = genGuestNick(); changed = true; }
     if(!a.mode){ a.mode = 'guest'; changed = true; }
+    // Правка пользователя: гостевой ник и ник аккаунта храним ОТДЕЛЬНО. Раньше
+    // оба лежали в a.nickname, поэтому после выхода/протухшей сессии в слоте
+    // гостя оставался висеть логин-ник (баг из отчёта). guestNick — то, что
+    // показываем «не вошедшему»; nickname — ник аккаунта.
+    if(!a.guestNick){
+      a.guestNick = (a.mode !== 'user' && a.nickname) ? a.nickname : genGuestNick();
+      changed = true;
+    }
+    if(!a.nickname){ a.nickname = a.guestNick; changed = true; }
     if(changed) save(a);
     return a;
+  }
+  // «Вошёл по-настоящему» = режим user И есть живой (не протухший) токен.
+  // Протухшая сессия после обновления страницы теперь честно показывается как
+  // гость (кнопки Логин/Регистрация), а не залипшим ником аккаунта.
+  function sessionAlive(a){
+    return a.mode === 'user' && !!a.token && (!a.expiresAt || a.expiresAt > Date.now());
   }
   function configured(){ return !!(SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey); }
   function loginToEmail(login){
@@ -809,13 +823,14 @@
     get data(){ return ensure(); },
     isConfigured(){ return configured(); },
     getMode(){ return ensure().mode; },            // 'guest' | 'user'
-    isLoggedIn(){ return ensure().mode === 'user'; },
-    getNickname(){ return ensure().nickname; },
+    isLoggedIn(){ return sessionAlive(ensure()); },
+    getNickname(){ const a = ensure(); return sessionAlive(a) ? a.nickname : a.guestNick; },
     setNickname(name){
       name = String(name || '').trim().slice(0, 20);
       if(!name) return false;
-      const a = ensure(); a.nickname = name; save(a);
-      if(a.mode === 'user') pushProfile(); // синхронизируем ник онлайн
+      const a = ensure();
+      if(sessionAlive(a)){ a.nickname = name; save(a); pushProfile(); } // ник аккаунта → онлайн
+      else { a.guestNick = name; save(a); }                             // гостевой ник — локально
       return true;
     },
     async register(login, password, nickname){

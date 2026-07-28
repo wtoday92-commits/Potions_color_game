@@ -293,6 +293,54 @@
       }
     }
     updatePlayerJar();
+    // Пит (правка пользователя): живые эффекты «градуса» — при движении его ползунка
+    if(key === 'degree') applyPeteDegreeFx();
+    // Векс (правка пользователя): «Разм. сгуст.» вживую меняет размер сгустков-клякс
+    if(key === 'bsize' && l4VexIsCraft) l4VexUpdateSize();
+  }
+
+  // ---------- Фаза 10 (Пьяница Пит): «градус» — риск/награда с живыми эффектами ----------
+  // правка пользователя: теперь градус ОЩУЩАЕТСЯ. Чем выше — тем сильнее размыта
+  // банка (труднее оценить на глаз), тем медленнее идёт таймер (до x2 — времени
+  // на воссоздание больше) и тем глуше музыка (низкочастотный фильтр — «как из
+  // бочки», будто слышишь пьяным). Рейтинговый штраф/чаевые — прежние (finalize).
+  function peteDegreeG(){
+    if(!target || target.cfg.id !== 'pete' || target.regLevel !== 4 || !S.degree) return 0;
+    const mx = S.degree.max || 10;
+    return Math.max(0, Math.min(1, S.degree.value / mx));
+  }
+  let drunkCtx = null, drunkFilter = null, drunkWired = false;
+  function setDrunkMuffle(g){
+    if(!ambientAudio) return;
+    if(!drunkWired){
+      if(g <= 0) return; // пока градус 0 — аудиограф не трогаем вовсе
+      try{
+        drunkCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const src = drunkCtx.createMediaElementSource(ambientAudio);
+        drunkFilter = drunkCtx.createBiquadFilter();
+        drunkFilter.type = 'lowpass';
+        drunkFilter.frequency.value = 20000; // прозрачно по умолчанию
+        src.connect(drunkFilter); drunkFilter.connect(drunkCtx.destination);
+        drunkWired = true;
+      }catch(e){ drunkWired = false; return; }
+    }
+    if(drunkCtx && drunkCtx.state === 'suspended'){ try{ drunkCtx.resume(); }catch(e){} }
+    // 20кГц (прозрачно) → ~550Гц (глухо, «из бочки»); плавно, чтобы не щёлкало
+    const freq = 20000 - g*(20000-550);
+    try{ drunkFilter.frequency.setTargetAtTime(freq, drunkCtx.currentTime, 0.05); }
+    catch(e){ try{ drunkFilter.frequency.value = freq; }catch(_){} }
+  }
+  function applyPeteDegreeFx(){
+    const g = peteDegreeG();
+    const jar = $('jarSvg');
+    if(jar) jar.style.filter = g > 0 ? `blur(${(g*3.4).toFixed(2)}px)` : '';
+    timerRate = 1 - 0.5*g; // макс. градус → таймер вдвое медленнее
+    setDrunkMuffle(g);
+  }
+  function resetPeteDegreeFx(){
+    timerRate = 1;
+    const jar = $('jarSvg'); if(jar) jar.style.filter = '';
+    setDrunkMuffle(0);
   }
 
   // (контент вынесен в content.js)
@@ -305,6 +353,9 @@
   let peteDegreeTipBonus = 0;
   let target = null;
   let rafId = null;
+  // Пит (правка пользователя): «градус» замедляет ход таймера. 1 = обычно,
+  // 0.5 = вдвое медленнее (макс. градус). Для всех прочих заказов всегда 1.
+  let timerRate = 1;
   let craftLocked = false;
   let craftStartTime = 0;
   let ingTimerHandle = null;
@@ -379,13 +430,18 @@
   let timerDurationMs = 0;
   function runTimer(durationMs, onDone){
     cancelAnimationFrame(rafId);
-    const start = performance.now();
+    let last = performance.now();
+    let acc = 0; // накопленное «игровое» время с учётом timerRate (см. Пит/градус)
     timerDurationMs = durationMs;
     let lastCountdownSec = -1;
     $('windowFrame').classList.remove('urgent');
     function frame(now){
       const durationMs = timerDurationMs;
-      const elapsed = now - start;
+      // ход времени масштабируется timerRate: у Пита градус его замедляет (до x2),
+      // у всех прочих timerRate=1 → как раньше (реальное время)
+      acc += (now - last) * (timerRate > 0 ? timerRate : 0);
+      last = now;
+      const elapsed = acc;
       const frac = Math.min(1, elapsed/durationMs);
       setRingFraction(frac);
       const remaining = durationMs - elapsed;
@@ -1820,6 +1876,46 @@
     });
     return best;
   }
+  // --- размер сгустка Векса (как в банке: r = 3 + bsize% * 0.09 в ед. viewBox) ---
+  // масштаб «единица viewBox → px на экране» у #jarSvg (то же, что в
+  // l4VexViewBoxToWfPercent), чтобы сгустки Векса были ровно того же размера,
+  // что нарисовал бы движок банки для того же bsize
+  function l4VexSvgScale(){
+    const svg = $('jarSvg');
+    if(!svg) return 1.6;
+    const svgRect = svg.getBoundingClientRect();
+    const vb = (svg.viewBox && svg.viewBox.baseVal) || { width:200, height:260 };
+    if(!svgRect.width) return 1.6;
+    return Math.min(svgRect.width/vb.width, svgRect.height/vb.height);
+  }
+  function l4VexBsizePct(){
+    // показ — целевой размер; игра — ползунок игрока
+    if(l4VexIsCraft && S.bsize) return idxToVal(S.bsize.value, target.cfg.bsizeSteps, 100);
+    return target.bsize != null ? target.bsize
+         : idxToVal(target.bsizeIdx || 0, target.cfg.bsizeSteps, 100);
+  }
+  function l4VexBlobRadiusPx(){
+    const rSvg = 3 + (l4VexBsizePct()/100)*9;   // ровно как bubbleR в updatePlayerJar
+    return rSvg * l4VexSvgScale();
+  }
+  // разметка одной «кляксы» — тот же blobPath/заливка/блик, что и у сгустков банки
+  function l4VexBlobMarkup(rPx, seed){
+    const c = rPx*1.75, box = rPx*3.5;          // запас под неровности/свечение
+    return `<svg width="${box.toFixed(1)}" height="${box.toFixed(1)}" viewBox="0 0 ${box.toFixed(1)} ${box.toFixed(1)}" style="overflow:visible;display:block">`
+      + `<circle cx="${c.toFixed(1)}" cy="${c.toFixed(1)}" r="${(rPx*1.55).toFixed(1)}" fill="rgba(125,255,106,.16)"/>`
+      + `<path d="${blobPath(c, c, rPx, seed)}" fill="rgba(125,255,106,.78)" stroke="#0a0d18" stroke-width="2.2"/>`
+      + `<path d="${blobPath(c, c, rPx, seed)}" fill="none" stroke="rgba(220,255,210,.7)" stroke-width="0.8"/>`
+      + `<circle cx="${(c-rPx*0.25).toFixed(1)}" cy="${(c-rPx*0.25).toFixed(1)}" r="${(rPx*0.3).toFixed(1)}" fill="rgba(255,255,255,.8)"/>`
+      + `</svg>`;
+  }
+  function l4VexApplyBlobVisual(item){
+    if(!item || !item.el) return;
+    const rPx = l4VexBlobRadiusPx(), box = rPx*3.5;
+    item.el.style.width = box.toFixed(1)+'px';
+    item.el.style.height = box.toFixed(1)+'px';
+    item.el.innerHTML = l4VexBlobMarkup(rPx, item.seed);
+  }
+  function l4VexUpdateSize(){ l4VexItems.forEach(l4VexApplyBlobVisual); }
   function l4VexCreateEl(item){
     const wf = $('windowFrame');
     if(!wf) return;
@@ -1828,6 +1924,7 @@
     el.style.left = item.x+'%'; el.style.top = item.y+'%';
     wf.appendChild(el);
     item.el = el;
+    l4VexApplyBlobVisual(item);
     el.addEventListener('pointerdown', e=>{
       if(!l4VexIsCraft) return;
       e.stopPropagation();
@@ -1863,8 +1960,9 @@
     },
     memorizeStart(){
       l4VexIsCraft = false;
-      l4VexItems = (target.vexPositions||[]).map(p=>({ x:p.x, y:p.y, gridIdx:p.idx, dragging:false, el:null }));
-      l4VexItems.forEach(item=>l4VexCreateEl(item));
+      // seed на каждый сгусток — чтобы форма «кляксы» не прыгала при ресайзе
+      l4VexItems = (target.vexPositions||[]).map((p,i)=>({ x:p.x, y:p.y, gridIdx:p.idx, dragging:false, el:null, seed:(target.seed||1)+i*31 }));
+      l4VexItems.forEach(item=>l4VexCreateEl(item)); // рисуются целевым размером (bsize показа)
       // Патч (Фаза 0): убрали нижнюю реплику Векса (l4VexLine) — она была
       // нечитаема на фоне циферблата и перекрывала зелье. Механика подсказки
       // не требует. Удаление в craftStart/stop оставлено (безвредно).
@@ -1878,12 +1976,12 @@
         item.x = scattered[i].x; item.y = scattered[i].y; item.gridIdx = scattered[i].idx; item.dragging = false;
         if(item.el){ item.el.style.left = item.x+'%'; item.el.style.top = item.y+'%'; item.el.classList.add('l4-vex-scatter'); }
       });
-      // Патч: "Сгустки" и "Разм. сгуст." Вексу не нужны — позиция сгустков и
-      // так фиксированного размера/числа, эти ползунки только сбивали с толку
+      // теперь размер сгустков берётся с ползунка игрока (l4VexIsCraft=true)
+      l4VexUpdateSize();
+      // "Сгустки" (число) Вексу не нужны — оно задаётся уровнем. А вот
+      // "Разм. сгуст." (bsize) теперь его рабочий ползунок — НЕ прячем.
       const countGroup = $('mCount') && $('mCount').closest('.vslider-group');
       if(countGroup) countGroup.classList.add('l4-fly-hidden');
-      const bsizeGroup = $('mBsize') && $('mBsize').closest('.vslider-group');
-      if(bsizeGroup) bsizeGroup.classList.add('l4-fly-hidden');
     },
     stop(){
       l4VexIsCraft = false;
@@ -3469,7 +3567,10 @@
   // но ни на что не влияют). На УР.4 текст газеты постоянно меняется (хаос).
   // Скоринг и фаза показа НЕ меняются — это чистая обфускация ввода.
   // ART-SWAP: MARKETER_BG_IMG — картинка-газета вместо процедурных обрывков.
-  const MARKETER_BG_IMG = 'assets/bg/marketer_news.png';
+  // Правка пользователя: файл лежит по assets/ui/marketer_news.jpg (пользователь
+  // положил его именно туда), а путь в коде указывал на несуществующий
+  // assets/bg/marketer_news.png — оттого фон был «белым». Синхронизируем.
+  const MARKETER_BG_IMG = 'assets/ui/marketer_news.jpg';
   let marketerState = null;
   function mkRandType(){ return pick(['slider','dial','button']); }
   function mkMakeControl(type){
@@ -3523,8 +3624,7 @@
       thumb.style.bottom = (norm*100).toFixed(0) + '%';
     }
   }
-  function mkFillNews(bg){
-    if(MARKETER_BG_IMG){ bg.style.backgroundImage = `url(${MARKETER_BG_IMG})`; bg.innerHTML = ''; return; }
+  function mkFillNewsProcedural(bg){
     const ads = (typeof MARKETER_ADS !== 'undefined' && MARKETER_ADS.length) ? MARKETER_ADS : [{ru:'РАСПРОДАЖА',en:'SALE'}];
     let html = '';
     for(let i=0;i<11;i++){
@@ -3532,6 +3632,20 @@
       html += `<span class="mk-ad" style="left:${randInt(1,68)}%;top:${randInt(1,90)}%;font-size:${randInt(9,19)}px;transform:rotate(${randInt(-10,10)}deg)">${a}</span>`;
     }
     bg.innerHTML = html;
+  }
+  // Правка пользователя: если картинка-газета (MARKETER_BG_IMG) не подгрузилась
+  // (нет файла по пути / другое имя), раньше оставался просто белый/кремовый
+  // прямоугольник. Теперь пробуем загрузить картинку, а при ошибке падаем на
+  // процедурные обрывки объявлений — «белого» фона больше не бывает.
+  function mkFillNews(bg){
+    if(MARKETER_BG_IMG){
+      const probe = new Image();
+      probe.onload = ()=>{ bg.style.backgroundImage = `url(${MARKETER_BG_IMG})`; bg.innerHTML = ''; };
+      probe.onerror = ()=>{ bg.style.backgroundImage = ''; mkFillNewsProcedural(bg); };
+      probe.src = MARKETER_BG_IMG;
+      return;
+    }
+    mkFillNewsProcedural(bg);
   }
   function marketerBuild(){
     marketerStop();
@@ -3628,9 +3742,14 @@
     // положение сгустков (их таскают к узлам сетки)
     if(cfg.id === 'vex') allKeys.push('vexPosition');
     const allSet = new Set(allKeys);
-    // Векс: сгустки фиксированного числа/размера — обычные "Сгустки"/"Разм. сгуст."
-    // ему не нужны ни на экране, ни в очках (число задаётся уровнем, размер — дрэгом)
-    if(cfg.id === 'vex'){ allSet.delete('count'); allSet.delete('bsize'); }
+    // Векс: число сгустков задаётся уровнем (не ползунком), а "Объём" (size)
+    // убран — сетка-магнит/узлы/подсчёт позиций завязаны на фиксированный
+    // target.size, и отдельный ползунок «Объём» рассинхронил бы стекло с сеткой
+    // (freezeLockedValue пинит size на target.sizeIdx → стекло всегда = сетке).
+    // Правка пользователя: зато «Разм. сгуст.» (bsize) Вексу ВОЗВРАЩЁН — теперь
+    // это его подгоняемый параметр: показ демонстрирует размер сгустков, игрок
+    // ловит его ползунком (сами сгустки при этом ещё и таскаются к узлам).
+    if(cfg.id === 'vex'){ allSet.delete('count'); allSet.delete('size'); }
     // Патч "УР.4" (Хозяин Роя): детали — фиксированные иконки без размера,
     // "Разм. сгуст." тут нечего оценивать (счётчик "Сгустки" при этом остаётся —
     // он и есть механика "сколько деталей вернули в банку")
@@ -4323,6 +4442,28 @@
       refreshSkillDock();
       return;
     }
+    // «Повторите!» (правка пользователя): раньше был заглушкой до системы
+    // грейдов. Система грейдов есть (gradeUpCfg), поэтому реализуем: случайному
+    // гостю дня поднимаем грейд на +1 (не выше тира 4 — «фиолетовыми» не делаем).
+    if(sk.mode === 'grade'){
+      const eligibleIdx = currentOrders
+        .map((o,i)=>({o,i}))
+        .filter(({o}) => o.cfg.tier < 4)
+        .map(({i})=>i);
+      if(!eligibleIdx.length){ SFX.badPop(); showToast({ icon:sk.icon, prefix:UI_TEXT.SKILL_GRADE_NONE, name:'' }); return; }
+      PP.spendCharge();
+      const i = pick(eligibleIdx);
+      const prev = currentOrders[i];
+      const bumped = gradeUpCfg(prev.cfg, prev.cfg.tier + 1);
+      // сохраняем личность гостя (тот же cfg.id), пересобираем описание под новый
+      // тир; форс-фокус переносим, если он был
+      currentOrders[i] = buildOrderDescriptor(bumped, prev.focus || undefined);
+      renderSelectBanners();
+      renderCustomerCards(currentOrders);
+      showToast({ icon:sk.icon, prefix:UI_TEXT.SKILL_GRADE_TOAST, name: LT(bumped.name) });
+      refreshSkillDock();
+      return;
+    }
     openSkillPicker(sk); // who / ban
   }
 
@@ -4591,10 +4732,21 @@
   const GRADE_REWARD_MULT = [1, 1.6, 2.3, 3.2, 4.5];
   function gradeUpCfg(cfg, targetTier){
     const gap = Math.min(targetTier - cfg.tier, GRADE_REWARD_MULT.length - 1);
+    // Правка пользователя: «грейд выше своего» должен ИГРАТЬСЯ как этот тир, а не
+    // как родной. Раньше менялись только tier+reward, поэтому «зернистость»
+    // регуляторов (кол-во позиций) оставалась родной, а накал появлялся только
+    // если родной тир ≥4. Берём числовые характеристики целевого тира из
+    // DIFFICULTIES[targetTier-1]: больше делений на ползунках + tier≥4 включает
+    // накал (hasSat) сам по себе. Личность/механика/тайминги персонажа не трогаем.
+    const base = (typeof DIFFICULTIES !== 'undefined' && DIFFICULTIES[targetTier-1]) || {};
+    const stepOverride = {};
+    ['colorSteps','sizeSteps','countMax','bsizeSteps'].forEach(k=>{
+      if(base[k] != null) stepOverride[k] = base[k];
+    });
     // клон (НЕ мутируем общий ALL_NPCS): тот же id/механика/имя, но выше тир и
     // награда. Тир влияет на цвет карточки/пузыря, пороги (тир-5), доступность
     // модификаторов; id/имя неизменны — репутация/связи/LEVEL4_FX работают как есть.
-    return Object.assign({}, cfg, { tier: targetTier, gradedFrom: cfg.tier,
+    return Object.assign({}, cfg, stepOverride, { tier: targetTier, gradedFrom: cfg.tier,
       reward: Math.round(cfg.reward * GRADE_REWARD_MULT[gap]) });
   }
   function pickConfigForTier(tierNum, usedNames){
@@ -5114,12 +5266,12 @@
       count = Math.random() < 0.82 ? randInt(6, cfg.countMax) : randInt(1, 5);
     }
     // Векс (Фаза 8: механика на всех уровнях): число сгустков растёт по уровню —
-    // 3 / 4 / 5 / (5-7). Размер — средний (никогда не самый большой и не самый
-    // маленький — их удобно хватать и таскать к узлам сетки).
+    // 3 / 4 / 5 / (5-7). Правка пользователя: размер сгустков теперь угадывается
+    // ползунком, поэтому берём широкий разброс (от четверти шкалы до максимума) —
+    // но не самый мелкий, чтобы сгусток оставалось удобно хватать/тащить к узлам.
     if(cfg.id === 'vex'){
       count = regLevel >= 4 ? randInt(5, 7) : (regLevel === 3 ? 5 : (regLevel === 2 ? 4 : 3));
-      const bLo = Math.round(cfg.bsizeSteps*0.35), bHi = Math.round(cfg.bsizeSteps*0.7);
-      bsizeIdx = randInt(Math.max(0,bLo), Math.min(cfg.bsizeSteps-1, Math.max(bLo,bHi)));
+      bsizeIdx = randInt(Math.round(cfg.bsizeSteps*0.25), cfg.bsizeSteps-1);
     }
 
     target = {
@@ -5356,6 +5508,7 @@
     setTimeout(()=>{ $('fog').classList.remove('show'); }, 450);
     $('jarSvg').classList.add('brewing');
     currentPhase = 'craft';
+    resetPeteDegreeFx(); // сброс размытия/скорости таймера/глухоты музыки с прошлого заказа
     refreshShopDockState(); // Фаза 6: в фазе варки инвентарь снова доступен
     refreshSkillDock();     // Фаза 7: умения вне экрана выбора недоступны
     $('phaseLabel').textContent = LT(UI_TEXT.PHASE_CRAFT);
@@ -5462,6 +5615,19 @@
     // только ТЕПЕРЬ, когда все .configure() выше уже поставили ползунки
     // на стартовые для этого раунда позиции — игрок больше не видит,
     // как они "прыгают" в дефолт в момент открытия фазы воссоздания.
+    // Правка пользователя (баг «ползунки рандомно пропали у ВСЕХ»): некоторые
+    // механики (Коллекционер, Маркетолог, …) прячут колонки классом .hidden/
+    // .mk-hidden = display:none!important, а восстанавливают их своим stop().
+    // Если stop() по какой-то ветке не отработал, класс оставался и .show
+    // (visibility) уже не мог перебить display:none — сгустки/ползунки исчезали
+    // на СЛЕДУЮЩИХ заказах у любого персонажа. Снимаем эти классы принудительно
+    // при каждом входе в фазу воссоздания; механике, которой прятать колонки
+    // нужно, вернёт их её craftStart() ниже (level4StartCraft, ~50 строк спустя).
+    ['leftCol','rightCol','panel'].forEach(id=>{
+      const el = $(id); if(el) el.classList.remove('hidden','mk-hidden');
+    });
+    const winWrap = $('windowFrame') && $('windowFrame').closest('.window-wrap');
+    if(winWrap) winWrap.classList.remove('hidden');
     $('panel').classList.add('show');
     $('leftCol').classList.add('show');
     $('rightCol').classList.add('show');
@@ -5900,6 +6066,7 @@
     $('windowFrame').classList.remove('urgent');
     $('windowFrame').classList.remove('ir-mono'); // Патч (Ир): мир снова цветной
     $('jarSvg').classList.remove('brewing');
+    resetPeteDegreeFx(); // снять размытие/глухоту/замедление, чтобы не тянулись на экран результата
     $('brewBtn').disabled = true;
     $('panel').classList.add('locked');
     Object.values(S).forEach(s=>s.setDisabled(true));
@@ -7393,15 +7560,20 @@
     $('finalScoreVal').textContent = score;
     // Фаза 4: ник вписывается автоматически из профиля игрока
     $('nameInput').value = authNick();
-    // Фаза 4: в лидерборд записываем только если результат ВЫШЕ личного рекорда
-    const boardId = isDailyMode ? currentDailyBoardKey().local : 'arcade';
-    const isRecord = !window.PotionAuth || score > window.PotionAuth.getBest(boardId);
+    // Правка пользователя: «рекорд» считаем по ВИДИМОЙ таблице рекордов, а не по
+    // скрытому локальному best. Раньше сравнивали со скрытым best, который мог
+    // остаться высоким от прошлых прогонов — экран писал «рекорд не побит» даже
+    // когда таблица рекордов пуста. Теперь: пустая таблица или результат выше
+    // текущего лидера = рекорд (можно сохранить), иначе — «не побит».
+    const boardKey = isDailyMode ? currentDailyBoardKey() : undefined;
+    const list = await loadLeaderboard(boardKey);
+    const boardTop = (list || []).reduce((m,e)=> Math.max(m, (e && e.score) || 0), 0);
+    const isRecord = score > 0 && score > boardTop;
     const sbtn = $('saveScoreBtn');
     if(sbtn){
-      sbtn.disabled = !isRecord || score <= 0;
+      sbtn.disabled = !isRecord;
       sbtn.textContent = LT(isRecord ? UI_TEXT.SAVE_SCORE_BTN : UI_TEXT.SAVE_SCORE_NOT_RECORD);
     }
-    const list = await loadLeaderboard(isDailyMode ? currentDailyBoardKey() : undefined);
     renderLeaderboard(list, null, 'leaderboardList');
     $('weekOverlay').classList.add('show');
   }
