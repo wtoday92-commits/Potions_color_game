@@ -63,6 +63,8 @@ const UI_TEXT = {
   LABEL_SPECTRUM_B:  { ru:'Спектр Б', en:'Spectrum B' },
   LABEL_SATURATION:  { ru:'Накал', en:'Intensity' },
   LABEL_VOLUME:      { ru:'Объём', en:'Volume' },
+  LABEL_FILL:        { ru:'Уровень', en:'Level' },
+  LABEL_DEGREE:      { ru:'Градус', en:'Proof' },
   LABEL_COUNT:       { ru:'Сгустки', en:'Blobs' },
   LABEL_BSIZE:       { ru:'Разм. сгуст.', en:'Blob size' },
   LABEL_SHAPE:       { ru:'Форма', en:'Shape' },
@@ -128,6 +130,28 @@ const UI_TEXT = {
   SKILL_BANNED_TOAST:     { ru:'Не появятся до конца цикла', en:'Barred until the cycle ends' },
   SKILL_REFRESH_TOAST:    { ru:'Гости дня обновлены', en:'Day refreshed' },
   SKILL_CHARGE_GAINED:    { ru:'+1 заряд умения', en:'+1 skill charge' },
+  CATLADY_YARN_TOAST:     { ru:'Бабушка Мурра дарит клубок ниток!', en:'Grandma Murr gives you a ball of yarn!' },
+  ENG_STOP_BTN:           { ru:'СТОП', en:'STOP' },
+  // Фаза 4: авторизация
+  AUTH_LOGIN:             { ru:'Логин', en:'Log in' },
+  AUTH_REGISTER:          { ru:'Регистрация', en:'Sign up' },
+  AUTH_LOGOUT:            { ru:'Выйти', en:'Log out' },
+  AUTH_TAB_LOGIN:         { ru:'Вход', en:'Sign in' },
+  AUTH_TAB_REGISTER:      { ru:'Регистрация', en:'Sign up' },
+  AUTH_LOGIN_PH:          { ru:'Логин', en:'Login' },
+  AUTH_PW_PH:             { ru:'Пароль', en:'Password' },
+  AUTH_NICK_PH:           { ru:'Ник (виден в лидерборде)', en:'Nickname (shown on leaderboard)' },
+  AUTH_REMEMBER:          { ru:'Запомнить это устройство', en:'Remember this device' },
+  AUTH_SUBMIT_LOGIN:      { ru:'Войти', en:'Sign in' },
+  AUTH_SUBMIT_REGISTER:   { ru:'Создать аккаунт', en:'Create account' },
+  AUTH_PLAY_GUEST:        { ru:'Играть гостем', en:'Play as guest' },
+  AUTH_CLOSE:             { ru:'Закрыть', en:'Close' },
+  AUTH_CHANGE_NICK:       { ru:'Сменить ник', en:'Change nickname' },
+  AUTH_NICK_PROMPT:       { ru:'Твой ник (до 20 символов):', en:'Your nickname (up to 20 chars):' },
+  AUTH_SOON:              { ru:'Онлайн-профили скоро! Пока играй гостем — прогресс сохраняется на этом устройстве.', en:'Online profiles coming soon! Play as guest for now — progress is saved on this device.' },
+  AUTH_NEED_FIELDS:       { ru:'Впиши логин и пароль.', en:'Enter a login and password.' },
+  AUTH_GUEST_LABEL:       { ru:'Гость', en:'Guest' },
+  SAVE_SCORE_NOT_RECORD:  { ru:'Рекорд не побит', en:'No new record' },
   SHOP_UNIQUE_TAG:        { ru:'уникальный', en:'unique' },
   SHOP_UNIQUE_LOCKED:     { ru:'откроется на высокой прогрессии', en:'unlocks at high progression' },
   ITEM_TIME_TOAST:        { ru:'Секундомер заведён — время добавится', en:'Stopwatch wound — time will be added' },
@@ -252,6 +276,7 @@ const UI_TEXT = {
   INSPECTOR_TOL_BTN: { ru:'Допуски', en:'Tolerances' },
   INSPECTOR_INTERROGATE_BTN: { ru:'Протокол допроса', en:'Interrogation record' },
   LOGIC9_SHOOT_HINT: { ru:'Веди самолётик — сбей все сгустки!', en:'Steer the plane — shoot every blob!' },
+  TRUCKER_NEXT_TITLE: { ru:'Переключить регулятор', en:'Switch regulator' },
   INSPECTOR_TOL_CLOSE: { ru:'Ознакомлен', en:'Acknowledged' },
   // УР.4 (Стажёр Бип): надпись-реплика (не кнопка) + кнопка "Готово" (её
   // роль берёт на себя главная brew-btn, см. TASTE_BTN — тот же приём) +
@@ -1049,15 +1074,18 @@ const NPC_STAT_EXPLAIN = {
   //   effect    — тег эффекта, game.js смотрит по нему, что делать.
   //   grades[]  — по одному объекту на грейд: price + параметры эффекта + label.
   const SHOP_ITEMS = [
+    // Фаза 6 (правки пользователя): у каждого грейда своё имя И иконка (эмодзи —
+    // плейсхолдеры под ART; тематическая эскалация). Рендер берёт grade.name/
+    // grade.icon с фолбэком на item.name/item.icon.
     {
       id:'stopwatch', icon:'⏱️', usePhase:'select', effect:'time',
       name:{ ru:'Сломанный секундомер', en:'Broken Stopwatch' },
       desc:{ ru:'Заедает на полпути. Добавляет время на воссоздание следующего заказа.',
              en:'Jams halfway. Adds crafting time to your next order.' },
       grades:[
-        { price:80,  bonusMs:1000, label:{ ru:'+1 сек', en:'+1s' } },
-        { price:260, bonusMs:2000, label:{ ru:'+2 сек', en:'+2s' } },
-        { price:700, bonusMs:4000, label:{ ru:'+4 сек', en:'+4s' } }
+        { price:80,  bonusMs:1000, icon:'⏱️', name:{ ru:'Сломанный секундомер', en:'Broken Stopwatch' }, label:{ ru:'+1 сек', en:'+1s' } },
+        { price:260, bonusMs:2000, icon:'⏲️', name:{ ru:'Карманный хронометр', en:'Pocket Chronometer' }, label:{ ru:'+2 сек', en:'+2s' } },
+        { price:700, bonusMs:4000, icon:'🕰️', name:{ ru:'Атомные часы контрабандиста', en:'Smuggler’s Atomic Clock' }, label:{ ru:'+4 сек', en:'+4s' } }
       ]
     },
     {
@@ -1066,20 +1094,20 @@ const NPC_STAT_EXPLAIN = {
       desc:{ ru:'Мятый мерный стакан. Отключает регулятор — он больше не влияет на рейтинг.',
              en:'A dented measuring cup. Disables a regulator — it no longer affects your score.' },
       grades:[
-        { price:120,  mode:'random',      label:{ ru:'случайный', en:'random' } },
-        { price:380,  mode:'choose',      label:{ ru:'на выбор',  en:'you pick' } },
-        { price:1000, mode:'choose_safe', label:{ ru:'на выбор',  en:'you pick' } }
+        { price:120,  mode:'random',  icon:'🥃', name:{ ru:'Потрёпанный джиггер', en:'Battered Jigger' }, label:{ ru:'случайный', en:'random' } },
+        { price:380,  mode:'choose',  icon:'🍶', name:{ ru:'Металлический джиггер', en:'Steel Jigger' }, label:{ ru:'на выбор',  en:'you pick' } },
+        { price:1000, mode:'random2', icon:'🍾', name:{ ru:'Джиггер Пьяницы Пита', en:'Drunkard Pete’s Jigger' }, label:{ ru:'2 случайных', en:'2 random' } }
       ]
     },
     {
-      id:'paprika', icon:'🌶️', usePhase:'craft', effect:'paprika',
+      id:'paprika', icon:'🌶️', usePhase:'craft', effect:'repboost',
       name:{ ru:'Космическая паприка', en:'Cosmic Paprika' },
-      desc:{ ru:'Щепотка звёздной пыльцы. Подсвечивает на регуляторе зелёную зону, где прячется верное значение.',
-             en:'A pinch of stellar dust. Lights a green zone on a regulator where the right value hides.' },
+      desc:{ ru:'Щепотка звёздной пыльцы распаляет гостя. За годноту+ он даст больше репутации, за брак — сильнее обидится.',
+             en:'A pinch of stellar dust fires the guest up. On a good+ result they grant more reputation; on a botch they take it harder.' },
       grades:[
-        { price:150,  zone:0.22, label:{ ru:'широкая зона', en:'wide zone' } },
-        { price:480,  zone:0.14, label:{ ru:'уже зона',     en:'tighter zone' } },
-        { price:1300, zone:0.08, label:{ ru:'узкая зона',   en:'narrow zone' } }
+        { price:150,  rep:2, icon:'🌶️', name:{ ru:'Космическая паприка', en:'Cosmic Paprika' }, label:{ ru:'±2 репутации', en:'±2 rep' } },
+        { price:480,  rep:4, icon:'🫑', name:{ ru:'Перец сверхновой', en:'Supernova Pepper' }, label:{ ru:'±4 репутации', en:'±4 rep' } },
+        { price:1300, rep:6, icon:'🔥', name:{ ru:'Пламя чёрной дыры', en:'Black-Hole Blaze' }, label:{ ru:'±6 репутации', en:'±6 rep' } }
       ]
     },
     {
@@ -1088,9 +1116,9 @@ const NPC_STAT_EXPLAIN = {
       desc:{ ru:'Затёртая покерная фишка. В конце меняет итоговый рейтинг заказа на случайную величину.',
              en:"A worn poker chip. At the end, shifts the order's final score by a random amount." },
       grades:[
-        { price:100, lo:-0.05, hi:0.05, label:{ ru:'−5%…+5%', en:'−5%…+5%' } },
-        { price:320, lo:-0.03, hi:0.07, label:{ ru:'−3%…+7%', en:'−3%…+7%' } },
-        { price:850, lo:0.0,   hi:0.10, label:{ ru:'0%…+10%', en:'0%…+10%' } }
+        { price:100, lo:-0.05, hi:0.05, icon:'🎲', name:{ ru:'Фишка неудачника', en:"Loser's Chip" }, label:{ ru:'−5%…+5%', en:'−5%…+5%' } },
+        { price:320, lo:-0.03, hi:0.07, icon:'🃏', name:{ ru:'Фишка шулера', en:"Cardsharp's Chip" }, label:{ ru:'−3%…+7%', en:'−3%…+7%' } },
+        { price:850, lo:0.0,   hi:0.10, icon:'🎰', name:{ ru:'Фишка казино «Край Вселенной»', en:'Edge-of-Universe Chip' }, label:{ ru:'0%…+10%', en:'0%…+10%' } }
       ]
     },
     {
@@ -1099,9 +1127,9 @@ const NPC_STAT_EXPLAIN = {
       desc:{ ru:'Проясняет взгляд. Добавляет время на фазу запоминания следующего заказа.',
              en:'Sharpens your eye. Adds memorize time to your next order.' },
       grades:[
-        { price:90,  bonusMs:1000, label:{ ru:'+1 сек',   en:'+1s' } },
-        { price:300, bonusMs:2000, label:{ ru:'+2 сек',   en:'+2s' } },
-        { price:800, bonusMs:3500, label:{ ru:'+3.5 сек', en:'+3.5s' } }
+        { price:90,  bonusMs:1000, icon:'💧', name:{ ru:'Тоник ясности', en:'Clarity Tonic' }, label:{ ru:'+1 сек',   en:'+1s' } },
+        { price:300, bonusMs:2000, icon:'🧪', name:{ ru:'Эликсир фокуса', en:'Focus Elixir' }, label:{ ru:'+2 сек',   en:'+2s' } },
+        { price:800, bonusMs:3500, icon:'🔮', name:{ ru:'Роса третьего глаза', en:'Third-Eye Dew' }, label:{ ru:'+3.5 сек', en:'+3.5s' } }
       ]
     },
     {
@@ -1110,9 +1138,9 @@ const NPC_STAT_EXPLAIN = {
       desc:{ ru:'Щепотка на удачу. Прибавляет фиксированный рейтинг, если заказ вышел годным.',
              en:'A pinch for luck. Adds flat rating if the order lands good.' },
       grades:[
-        { price:110, flat:40,  label:{ ru:'+40',  en:'+40' } },
-        { price:340, flat:90,  label:{ ru:'+90',  en:'+90' } },
-        { price:900, flat:180, label:{ ru:'+180', en:'+180' } }
+        { price:110, flat:40,  icon:'🧂', name:{ ru:'Звёздная соль', en:'Stardust Salt' }, label:{ ru:'+40',  en:'+40' } },
+        { price:340, flat:90,  icon:'☄️', name:{ ru:'Соль кометного хвоста', en:'Comet-Tail Salt' }, label:{ ru:'+90',  en:'+90' } },
+        { price:900, flat:180, icon:'💎', name:{ ru:'Кристалл первотворения', en:'Firstborn Crystal' }, label:{ ru:'+180', en:'+180' } }
       ]
     },
     {
@@ -1121,9 +1149,9 @@ const NPC_STAT_EXPLAIN = {
       desc:{ ru:'Бьёт солиднее. Увеличивает рейтинг за годный или идеальный заказ.',
              en:'Hits heavier. Boosts rating for a good or perfect order.' },
       grades:[
-        { price:160,  mult:0.15, label:{ ru:'+15%', en:'+15%' } },
-        { price:520,  mult:0.30, label:{ ru:'+30%', en:'+30%' } },
-        { price:1400, mult:0.50, label:{ ru:'+50%', en:'+50%' } }
+        { price:160,  mult:0.15, icon:'⚖️', name:{ ru:'Утяжелённый шейкер', en:'Weighted Shaker' }, label:{ ru:'+15%', en:'+15%' } },
+        { price:520,  mult:0.30, icon:'🏋️', name:{ ru:'Свинцовый шейкер', en:'Leaden Shaker' }, label:{ ru:'+30%', en:'+30%' } },
+        { price:1400, mult:0.50, icon:'🔩', name:{ ru:'Шейкер из нейтронной стали', en:'Neutron-Steel Shaker' }, label:{ ru:'+50%', en:'+50%' } }
       ]
     },
     {
@@ -1132,20 +1160,20 @@ const NPC_STAT_EXPLAIN = {
       desc:{ ru:'Ловит падение. Смягчает потерю рейтинга, если заказ ушёл в брак.',
              en:'Catches the fall. Softens rating loss if the order flops.' },
       grades:[
-        { price:130,  cut:0.5,  label:{ ru:'−½ штрафа',  en:'half loss' } },
-        { price:420,  cut:0.75, label:{ ru:'−¾ штрафа',  en:'quarter loss' } },
-        { price:1100, cut:1.0,  label:{ ru:'без потерь',  en:'no loss' } }
+        { price:130,  cut:0.5,  icon:'🪢', name:{ ru:'Страховочный трос', en:'Safety Line' }, label:{ ru:'−½ штрафа',  en:'half loss' } },
+        { price:420,  cut:0.75, icon:'🧷', name:{ ru:'Гравитационный трос', en:'Grav Tether' }, label:{ ru:'−¾ штрафа',  en:'quarter loss' } },
+        { price:1100, cut:1.0,  icon:'🛟', name:{ ru:'Силовой якорь', en:'Force Anchor' }, label:{ ru:'без потерь',  en:'no loss' } }
       ]
     },
     {
-      id:'eye', icon:'👁️', usePhase:'craft', effect:'mark',
+      id:'eye', icon:'👁️', usePhase:'craft', effect:'nudge',
       name:{ ru:'Барменский глаз', en:"Barkeep's Eye" },
-      desc:{ ru:'Намётанный глаз. Ставит на регуляторе точную метку верного значения.',
-             en:'A trained eye. Puts an exact marker of the right value on a regulator.' },
+      desc:{ ru:'Намётанный глаз. В конце игры сам подвинет ползунки на деление ближе к верному значению.',
+             en:'A trained eye. At the end it nudges sliders one notch closer to the right value.' },
       grades:[
-        { price:180,  zone:0.03,  label:{ ru:'метка', en:'marker' } },
-        { price:560,  zone:0.02,  label:{ ru:'точнее', en:'sharper' } },
-        { price:1500, zone:0.012, label:{ ru:'в точку', en:'pinpoint' } }
+        { price:180,  count:1,     icon:'👁️',   name:{ ru:'Барменский глаз', en:"Barkeep's Eye" }, label:{ ru:'1 ползунок', en:'1 slider' } },
+        { price:560,  count:2,     icon:'👁️‍🗨️', name:{ ru:'Глаз оракула', en:"Oracle's Eye" }, label:{ ru:'2 ползунка', en:'2 sliders' } },
+        { price:1500, count:'all', icon:'🪬',    name:{ ru:'Всевидящее око', en:'All-Seeing Eye' }, label:{ ru:'все', en:'all' } }
       ]
     },
     {
@@ -1154,9 +1182,9 @@ const NPC_STAT_EXPLAIN = {
       desc:{ ru:'Подстёгивает руки. Гарантирует минимальный бонус за скорость, даже если возишься долго.',
              en:'Quickens the hands. Guarantees a minimum speed bonus even if you take your time.' },
       grades:[
-        { price:140, lock:0.5,  label:{ ru:'½ бонуса',  en:'½ bonus' } },
-        { price:450, lock:0.75, label:{ ru:'¾ бонуса',  en:'¾ bonus' } },
-        { price:1200, lock:1.0, label:{ ru:'полный',    en:'full' } }
+        { price:140, lock:0.5,  icon:'⚡', name:{ ru:'Ускоритель варки', en:'Brew Accelerant' }, label:{ ru:'½ бонуса',  en:'½ bonus' } },
+        { price:450, lock:0.75, icon:'💨', name:{ ru:'Катализатор спешки', en:'Haste Catalyst' }, label:{ ru:'¾ бонуса',  en:'¾ bonus' } },
+        { price:1200, lock:1.0, icon:'🚀', name:{ ru:'Импульс сверхсветовой', en:'Superluminal Impulse' }, label:{ ru:'полный',    en:'full' } }
       ]
     },
 
@@ -1166,9 +1194,9 @@ const NPC_STAT_EXPLAIN = {
       desc:{ ru:'Подзаряжает умения игрока (потолок — 3 заряда).',
              en:'Recharges your skills (cap is 3 charges).' },
       grades:[
-        { price:200,  add:1, label:{ ru:'+1 заряд',  en:'+1 charge' } },
-        { price:550,  add:2, label:{ ru:'+2 заряда', en:'+2 charges' } },
-        { price:1300, add:3, label:{ ru:'+3 заряда', en:'+3 charges' } }
+        { price:200,  add:1, icon:'🔋', name:{ ru:'Батарейка вдохновения', en:'Inspiration Cell' }, label:{ ru:'+1 заряд',  en:'+1 charge' } },
+        { price:550,  add:2, icon:'🔌', name:{ ru:'Аккумулятор музы', en:'Muse Accumulator' }, label:{ ru:'+2 заряда', en:'+2 charges' } },
+        { price:1300, add:3, icon:'⚛️', name:{ ru:'Ядерный источник идей', en:'Nuclear Idea Core' }, label:{ ru:'+3 заряда', en:'+3 charges' } }
       ]
     },
 
@@ -1193,6 +1221,15 @@ const NPC_STAT_EXPLAIN = {
       desc:{ ru:'Знает истину. Ставит два регулятора точно на верные значения и фиксирует их.',
              en:'Knows the truth. Sets two regulators exactly right and locks them.' },
       grades:[ { price:3000, count:2, label:{ ru:'★ уникальный', en:'★ unique' } } ]
+    },
+    // Фаза 10: НЕ продаётся (grantOnly) — выдаётся Бабушкой Муррой за идеал на
+    // УР.4. Кошачья лапа ставит один регулятор точно на верное значение.
+    {
+      id:'yarn', icon:'🧶', unique:true, grantOnly:true, usePhase:'craft', effect:'truesolve',
+      name:{ ru:'Клубок ниток', en:'Ball of Yarn' },
+      desc:{ ru:'Подарок Бабушки Мурры. Размотай — и кошачья лапа поставит один регулятор точно на верное значение.',
+             en:'A gift from Grandma Murr. Unravel it and a cat’s paw sets one regulator exactly right.' },
+      grades:[ { price:0, count:1, label:{ ru:'★ подарок', en:'★ gift' } } ]
     }
   ];
 
@@ -1270,10 +1307,10 @@ const NPC_STAT_EXPLAIN = {
   const NPC_CAP_STYLE = {
     drone:0, tentacloid:1, gourmet_vega:2, logic9:3, last_of_ir:4,
     nebula_chef:5, twofaced_priestess:6, plasma_bartender:7,
-    janitor:1, intern_beep:2, trucker_chrome:3,
-    fashionista:4, collector_gz:5, dj_pulsar:6,
+    janitor:1, intern_beep:2, trucker_chrome:3, pete:0,
+    fashionista:4, collector_gz:5, dj_pulsar:6, marketer:7,
     perfumer:7, guild_inspector:0, apothecary_mo:1,
-    swarm_navigator:2, vex:3, racer_kai:4,
+    swarm_navigator:2, vex:3, racer_kai:4, catlady:6, engineer:5,
     archivist:5, supernova_child:6, the_waiter:7
   };
 
@@ -1425,23 +1462,23 @@ const NPC_STAT_EXPLAIN = {
   const PROGRESSION = {
     startCycleDays: 5,
     startPoolSize: 2,
-    startNpcs: ['drone', 'janitor', 'intern_beep', 'trucker_chrome', 'collector_gz', 'guild_inspector'],
+    startNpcs: ['drone', 'janitor', 'intern_beep', 'trucker_chrome', 'pete', 'collector_gz', 'guild_inspector'],
     levels: [
       // Ур.1 — шкала 1: жёлтые (Коллекционер уже открыт со старта)
       { xp: 600,  cycleDays: 6, mechanics: ['collection'],
-        npcMarks: [ {at:0.33, id:'tentacloid'}, {at:0.66, id:'fashionista'}, {at:0.9, id:'dj_pulsar'} ] },
+        npcMarks: [ {at:0.25, id:'tentacloid'}, {at:0.5, id:'marketer'}, {at:0.72, id:'fashionista'}, {at:0.9, id:'dj_pulsar'} ] },
       // Ур.2 — шкала 2: 1-я половина оранжевых (Инспектор уже открыт со старта)
       { xp: 1200, mechanics: ['characters'],
         npcMarks: [ {at:0.4, id:'gourmet_vega'}, {at:0.85, id:'perfumer'} ] },
       // Ур.3 — шкала 3: 2-я половина оранжевых
       { xp: 2000, cycleDays: 7, mechanics: ['skill_1', 'modifiers'],
-        npcMarks: [ {at:0.6, id:'apothecary_mo'} ] },
+        npcMarks: [ {at:0.3, id:'engineer'}, {at:0.6, id:'apothecary_mo'} ] },
       // Ур.4 — шкала 4: 1-я половина красных
       { xp: 3200, mechanics: ['tips', 'shop', 'shop_grade_1', 'skill_2', 'modifiers_new3'],
         npcMarks: [ {at:0.4, id:'logic9'}, {at:0.85, id:'swarm_navigator'} ] },
       // Ур.5 — шкала 5: 2-я половина красных
       { xp: 4800, cycleDays: 8, poolSize: 3, mechanics: ['shop_grade_2'],
-        npcMarks: [ {at:0.4, id:'vex'}, {at:0.85, id:'racer_kai'} ] },
+        npcMarks: [ {at:0.4, id:'vex'}, {at:0.62, id:'catlady'}, {at:0.85, id:'racer_kai'} ] },
       // Ур.6 — шкала 6: 1-я половина фиолетовых
       { xp: 7000, mechanics: ['skill_3', 'relations'],
         npcMarks: [ {at:0.25, id:'last_of_ir'}, {at:0.5, id:'archivist'}, {at:0.72, id:'supernova_child'}, {at:0.92, id:'the_waiter'} ] },
@@ -1458,15 +1495,30 @@ const NPC_STAT_EXPLAIN = {
   // Фаза 3 (3C): приветственные фразы — показываются РОВНО ОДИН РАЗ, при первой
   // встрече персонажа (см. markNpcMet/startOrder в game.js). Кратко и художественно
   // намекают на уникальную механику НПС. После показа больше не всплывают.
+  // Фаза 10 (Маркетолог): обрывки рекламных объявлений — «газета» под хаос-панелью.
+  // На УР.4 они постоянно перетасовываются. ART-SWAP: можно заменить всю подложку
+  // картинкой газеты через MARKETER_BG_IMG (game.js).
+  const MARKETER_ADS = [
+    { ru:'РАСПРОДАЖА', en:'BIG SALE' }, { ru:'ТОЛЬКО СЕГОДНЯ', en:'TODAY ONLY' },
+    { ru:'СКИДКА 50%', en:'50% OFF' }, { ru:'НОВИНКА!', en:'NEW!' },
+    { ru:'КУПИ 1 — ПОЛУЧИ 2', en:'BUY 1 GET 1' }, { ru:'ХИТ СЕЗОНА', en:'HOT DEAL' },
+    { ru:'ЗВОНИ СЕЙЧАС', en:'CALL NOW' }, { ru:'БЕСПЛАТНО', en:'FREE' },
+    { ru:'ЛУЧШАЯ ЦЕНА', en:'BEST PRICE' }, { ru:'СПЕШИТЕ', en:'HURRY' },
+    { ru:'ЭКСКЛЮЗИВ', en:'EXCLUSIVE' }, { ru:'ГАРАНТИЯ', en:'GUARANTEED' },
+    { ru:'АКЦИЯ', en:'OFFER' }, { ru:'ПОСЛЕДНИЙ ШАНС', en:'LAST CHANCE' }
+  ];
+
   const NPC_GREETINGS = {
     drone:            { ru:'Служебный протокол: приветствую. Внимание — в смеси всплывают бракованные пузыри. Лопай их, пока не рванули.', en:'Service protocol: greetings. Note — defective bubbles surface in the mix. Pop them before they burst.' },
     janitor:          { ru:'О, покупатель! Извини за грязь на стекле — придётся протирать прямо на ходу.', en:'Oh, a customer! Sorry about the grime on the glass — you’ll be wiping as you work.' },
     intern_beep:      { ru:'Бип-бип! Я стажёр, только учусь. Давай с чего попроще, лады?', en:'Beep-beep! I’m an intern, still learning. Let’s start simple, okay?' },
     trucker_chrome:   { ru:'Здоро́во! У меня регуляторы — как коробка передач. По прямой не выйдет, привыкай.', en:'Howdy! My sliders run like a gearbox. No straight line here — get used to it.' },
+    pete:             { ru:'О, наливают! Мне главное — уровень поймать. Есть у тебя ползунок, чтоб плеснуть повыше-пониже? Вот им и балуйся.', en:'Oh, they’re pouring! For me it’s all about the level. Got a slider to fill it higher or lower? That’s the one to play with.' },
     tentacloid:       { ru:'Мои щупальца ценят в смеси лишь одно... а вот что именно — угадывай сам.', en:'My tentacles care about only one thing in the mix... which one, you’ll have to guess.' },
     fashionista:      { ru:'Дорогуша! Я занимаюсь всем строго по очереди — один регулятор за раз, не части.', en:'Darling! I do everything strictly in turn — one slider at a time, don’t rush.' },
     collector_gz:     { ru:'Коллекционер к услугам. Я не кручу ручки — я выбираю нужную баночку из целой сетки.', en:'Collector at your service. I don’t twist knobs — I pick the right jar from a whole grid.' },
     dj_pulsar:        { ru:'Йоу! Чувствуешь бит? Весь интерфейс качает в такт — лови ритм.', en:'Yo! Feel the beat? The whole interface pulses in time — catch the rhythm.' },
+    marketer:         { ru:'Приветствую, партнёр! Забудь скучные ползунки — вот тебе панель на сотню кнопок! Работает, правда, не всё. Угадаешь — что?', en:'Greetings, partner! Forget those dull sliders — here’s a panel with a hundred buttons! Not all of them work, though. Care to guess which do?' },
     gourmet_vega:     { ru:'Гурман пробует, прежде чем принять. Одну неудачную пробу прощу — доделаешь.', en:'A gourmet tastes before accepting. I’ll forgive one bad sip — you can fix it.' },
     perfumer:         { ru:'Парфюмер приветствует. Цвет и накал я свожу в одну точку — это пэд, а не два ползунка.', en:'The perfumer greets you. I merge hue and intensity into one point — a pad, not two sliders.' },
     guild_inspector:  { ru:'Инспекция Гильдии. Образца не будет — все допуски прописаны в бумагах. Читай внимательно.', en:'Guild inspection. No sample — all tolerances are written in the papers. Read carefully.' },
@@ -1475,6 +1527,8 @@ const NPC_STAT_EXPLAIN = {
     swarm_navigator:  { ru:'Навигатор Роя. Детали разлетятся по циферблату — верни их на места руками.', en:'Swarm Navigator. The parts scatter across the dial — drag them back by hand.' },
     vex:              { ru:'Векс, механик-хирург. Сгустки садятся строго в узлы сетки — перетащи точно.', en:'Vex, mechanic-surgeon. Blobs snap only to grid nodes — place them precisely.' },
     racer_kai:        { ru:'Гонщица Кай! Банку потряхивает, отсчёт бежит по кольцу — держи темп до финиша.', en:'Racer Kai! The jar shakes, the countdown runs along the ring — keep pace to the finish.' },
+    catlady:          { ru:'Ах, новый мальчик за прилавком! Мои котики уже облюбовали твои ползунки. Согнать их можно только лаской... или щелчком по носу.', en:'Ah, a new boy behind the counter! My kitties have already claimed your sliders. You can only shoo them with love... or a flick on the nose.' },
+    engineer:         { ru:'Инженер навигатора. Образца не жди — цель на самих шкалах, зелёным. Стрелка бежит, под ней «стоп»: лови зону вовремя.', en:'Navigator’s engineer. Expect no sample — the target is on the scales themselves, in green. A needle runs, STOP is below it: catch the zone in time.' },
     last_of_ir:       { ru:'Я — последний из Ир. Доверься мне... или нет. От этого зависит следующая смесь.', en:'I am the last of the Ir. Trust me... or don’t. Your next mix depends on it.' },
     archivist:        { ru:'Хранитель Архива. Один регулятор я впечатаю сам — по одному, раз в несколько секунд.', en:'Keeper of the Archive. I’ll type one slider myself — one at a time, every few seconds.' },
     supernova_child:  { ru:'Дитя Сверхновой. Мне важны и ширина, и высота сосуда — и его поворот.', en:'Child of the Supernova. Width and height of the vessel both matter to me — and its rotation.' },
@@ -1691,6 +1745,30 @@ const EXTRA_NPCS = [
              en:['It has to fit the cab holder. Size — strict.',"Too big won't fit, too small will rattle. You get it."] }
     } },
 
+  // Фаза 10: новый зелёный персонаж. Механика (с УР.1) — «уровень жидкости»:
+  // отдельный ползунок высоты налива в банке. На УР.4 добавляется «градус» —
+  // риск/награда: больше градус → меньше рейтинга, но больше чаевых.
+  // ART: пока эмодзи-плейсхолдер (без img) — портрет положить в assets/npc/pete.png.
+  { tier:1, id:'pete', emoji:'🍺',
+    name:{ ru:'Пьяница Пит', en:'Drunkard Pete' },
+    flavors:{ ru:[
+      'Плесни как обычно. И налей до краёв... или не до краёв, тебе решать.',
+      'Смесь. Главное — сколько налито. Остальное я и не разгляжу уже.',
+      'Ту же, что вчера. Уровень запомни — это важнее цвета, поверь старику.'
+    ], en:[
+      "Pour me the usual. Fill it to the brim... or not to the brim, your call.",
+      "A mixture. What matters is how full it is. The rest I can't make out anymore.",
+      "Same as yesterday. Remember the level — it matters more than color, trust an old man."
+    ]},
+    ff:{
+      bubbles:{ ru:['Сгустки? А, эти... пусть будут по счёту, как в прошлый раз.','Считай сгустки, торговец. Я-то уже сбился на третьем.'],
+                en:["Blobs? Ah, those... let there be the right count, like last time.","Count the blobs, merchant. I lost track after the third."] },
+      color:{ ru:['Цвет — как закат над баром, где меня ещё пускают. Тот самый.','Не тот колер — и я не узна́ю свою же смесь. А это грустно.'],
+              en:['The color, like the sunset over the bar that still lets me in. That exact one.',"Wrong shade and I won't recognize my own mixture. And that's sad."] },
+      size:{ ru:['Банку под мою полку. Ровно, чтоб между пустых бутылок влезла.','Габарит — строго. Дрожащими руками большую не удержу.'],
+             en:['A jar to fit my shelf. Exactly, so it slots between the empties.',"Size — strict. With shaky hands I can't hold a big one."] }
+    } },
+
   /* ---------- УРОВЕНЬ 2 — с запросами ---------- */
   { tier:2, id:'fashionista', emoji:'💅', img: 'assets/npc/fashionista.png',
     name:{ ru:'Модница с Кассиопеи', en:'Cassiopeia Fashionista' },
@@ -1748,6 +1826,31 @@ const EXTRA_NPCS = [
               en:['Color is the key. Light me up exactly on the note!','To match my light board. Shade for shade, or it\u2019s dissonance!'] },
       size:{ ru:['Флакон встанет на пульт. Габарит — как слот под винил.','Объём — это громкость. Мне нужна точная громкость!'],
              en:['The vial goes on the board. Size — like a vinyl slot.','Volume is loudness. I need exact loudness!'] }
+    } },
+
+  // Фаза 10: жёлтый персонаж. Механика (с УР.1) — хаос-панель: в фазе игры
+  // обычные ползунки прячутся, справа десятки случайных крутилок/кнопок/ползунков
+  // на фоне газеты; реально работает лишь по одному случайному на характеристику,
+  // остальные — обманки. На УР.4 текст фона постоянно меняется (см. LEVEL4_FX.marketer).
+  // ART: эмодзи-плейсхолдер 📺 (портрет — assets/npc/marketer.png; фон — MARKETER_BG_IMG).
+  { tier:2, id:'marketer', emoji:'📺',
+    name:{ ru:'Маркетолог с безлюдного спутника', en:'Marketer from the Empty Satellite' },
+    flavors:{ ru:[
+      'Смесь — по последнему тренду! Пульт настройки? О, он где-то там, ищи.',
+      'Уникальное предложение! Регуляторы разбросаны — но работают не все, ха!',
+      'Верю в тебя, партнёр! Крути что хочешь — сработает лишь то, что нужно.'
+    ], en:[
+      'A mixture per the latest trend! The tuning panel? Oh, it’s somewhere in there, go find it.',
+      'A unique offer! The controls are scattered — but not all of them work, ha!',
+      'I believe in you, partner! Twist whatever you like — only the right one will do a thing.'
+    ]},
+    ff:{
+      bubbles:{ ru:['Сгустки — ключевой показатель охвата! Найди рабочую ручку, крути.','Число сгустков — это KPI. Где-то на панели живёт нужный регулятор.'],
+                en:['The blobs are a key reach metric! Find the working knob, turn it.','The blob count is a KPI. Somewhere on the panel lives the right control.'] },
+      color:{ ru:['Цвет бренда — святое! Но кнопка цвета спряталась среди обманок.','Оттенок — по гайдлайну. Тыкай, крути — что-то из этого и есть цвет.'],
+              en:['The brand color is sacred! But the color control hides among decoys.','The shade is per the guideline. Poke, twist — one of these is the color.'] },
+      size:{ ru:['Габарит — под нашу упаковку. Найди тот самый ползунок в этом хаосе.','Объём флакона — по медиаплану. Нужный регулятор где-то тут.'],
+             en:['The size fits our packaging. Find that one slider in this chaos.','The vial volume is per the media plan. The right control is around here somewhere.'] }
     } },
 
   /* ---------- УРОВЕНЬ 3 — тонкая работа ---------- */
@@ -1809,6 +1912,30 @@ const EXTRA_NPCS = [
              en:['The course volume is calculated for the treatment cycle. Exactly.','The vial has to fit the dispenser. Size is critical, merchant.'] }
     } },
 
+  // Фаза 10: оранжевый персонаж. Механика (с УР.1) — БЕЗ фазы показа: цель дана
+  // зелёными зонами прямо на треках, вместо перетаскивания — бегающий указатель
+  // и кнопка «стоп» под каждым ползунком (см. LEVEL4_FX.engineer в game.js).
+  // ART: эмодзи-плейсхолдер 🛰️ (портрет положить в assets/npc/engineer.png).
+  { tier:3, id:'engineer', emoji:'🛰️',
+    name:{ ru:'Инженер навигатора', en:'Navigator’s Engineer' },
+    flavors:{ ru:[
+      'Смесь для юстировки курсографа. Ловить будешь на лету — образца я не дам.',
+      'Настрой по зонам на шкалах. Стрелка бежит — жми «стоп» вовремя, вот и весь фокус.',
+      'Мне некогда объяснять. Зелёное — верно. Указатель не ждёт. Работай.'
+    ], en:[
+      "A mixture to align the coursegraph. You’ll catch it on the fly — I give no sample.",
+      "Tune it by the zones on the scales. The needle runs — hit STOP in time, that’s the whole trick.",
+      "No time to explain. Green is right. The pointer won’t wait. Get to it."
+    ]},
+    ff:{
+      bubbles:{ ru:['Сгустки — метки курса. Останови стрелку в зелёном по счёту.','Число сгустков — это отсчёт до манёвра. Поймай зону.'],
+                en:['The blobs are course markers. Stop the needle in the green by count.','The blob count is the countdown to the maneuver. Catch the zone.'] },
+      color:{ ru:['Цвет — спектр маяка. Зелёная зона на шкале — туда и целься.','Ошибёшься спектром — навигатор уведёт корабль не туда.'],
+              en:['The color is the beacon’s spectrum. Aim for the green zone on the scale.',"Miss the spectrum and the navigator takes the ship the wrong way."] },
+      size:{ ru:['Габарит — под гнездо прибора. Стрелка, зона, «стоп». Ровно.','Мимо зоны по размеру — и юстировка насмарку.'],
+             en:['The size fits the instrument socket. Needle, zone, STOP. Exactly.','Miss the size zone and the alignment is wasted.'] }
+    } },
+
   /* ---------- УРОВЕНЬ 4 — жёсткие требования ---------- */
   { tier:4, id:'swarm_navigator', emoji:'🐝', img: 'assets/npc/swarm.png',
     name:{ ru:'Навигатор Роя', en:'Swarm Navigator' },
@@ -1866,6 +1993,31 @@ const EXTRA_NPCS = [
               en:["The fuel's color has to match my livery. Sponsors will check!","My mechanic reads the octane by the shade. Don't screw him over."] },
       size:{ ru:['Бак утоплен в раму. Объём — впритык, так и надо.','Лишний габарит — лишний вес. Лишний вес — второе место.'],
              en:["The tank's built into the frame. Volume's tight, as it should be.",'Extra size is extra weight. Extra weight is second place.'] }
+    } },
+
+  // Фаза 10: красный персонаж. Механика (с УР.1) — кошачьи лапы: с начала фазы
+  // игры на ползунки/банку вылезают огромные лапы и НЕ уходят сами, их надо
+  // сгонять кликом (мяу+шлепок); чем выше уровень — тем быстрее возвращаются и
+  // тем больше их. На УР.4 за идеал даёт предмет «клубок ниток» (см. game.js).
+  // ART: эмодзи-плейсхолдеры (🐈 портрет, 🐾 лапы — CATLADY_PAW_IMG в game.js).
+  { tier:4, id:'catlady', emoji:'🐈',
+    name:{ ru:'Бабушка Мурра', en:'Grandma Murr' },
+    flavors:{ ru:[
+      'Смесь для моих деток. И не обращай внимания на лапки — они любопытные.',
+      'Мурке нужна смесь. Точная. Если коты не мешают — значит, ты им не нравишься.',
+      'Составь как надо, дорогуша. Только сперва прогони этих проглотов с прилавка.'
+    ], en:[
+      "A mixture for my little ones. And pay no mind to the paws — they’re curious.",
+      "Murka needs a mixture. Exact. If the cats aren’t bothering you, they don’t like you.",
+      "Mix it right, dearie. But first shoo these gluttons off the counter."
+    ]},
+    ff:{
+      bubbles:{ ru:['Сгустки — как клубочки для котят. Число ровно то, что нужно.','Мои коты пересчитают сгустки лапками. Не ошибись.'],
+                en:['The blobs are like little yarn balls for the kittens. The count must be exact.','My cats will count the blobs with their paws. Don’t miss.'] },
+      color:{ ru:['Цвет — как шёрстка моего первого кота. Земля ему пухом.','Не тот оттенок — и коты отвернутся. А они разбираются.'],
+              en:['The color, like my first cat’s fur. May he rest.',"Wrong shade and the cats turn away. And they know their shades."] },
+      size:{ ru:['Банку под мою полку с кормом. Ровно, чтоб коты не столкнули.','Габарит важен: большую банку коты непременно уронят.'],
+             en:['A jar for my food shelf. Just right, so the cats don’t knock it off.','Size matters: a big jar the cats will surely tip over.'] }
     } },
 
   /* ---------- УРОВЕНЬ 5 — на грани миров ---------- */
@@ -2013,10 +2165,12 @@ const NPC_REWARDS = {
   logic9:'background',   last_of_ir:'background', nebula_chef:'bottle',
   twofaced_priestess:'background', plasma_bartender:'bottle',
   janitor:'bottle',      intern_beep:'bottle',    trucker_chrome:'background',
+  pete:'bottle',         marketer:'background',
   fashionista:'bottle',  collector_gz:'bottle',   dj_pulsar:'background',
   perfumer:'bottle',     guild_inspector:'background', apothecary_mo:'bottle',
   swarm_navigator:'background', vex:'bottle',     racer_kai:'background',
-  archivist:'background', supernova_child:'background', the_waiter:'background'
+  archivist:'background', supernova_child:'background', the_waiter:'background',
+  catlady:'background', engineer:'bottle'
 };
 
 // ---------- Фаза I: ачивки по каждому НПС ----------
@@ -2045,6 +2199,31 @@ const NPC_ACHIEVEMENTS = {
     { id:'lvl4', kind:'level4_perfects', t:[1,5,15], icon:'🧨',
       name:{ ru:'Штатная нештатная ситуация', en:'Routine emergency' },
       hint:{ ru:'Когда в баке заводится что-то лишнее — протокол требует идеала всё равно.', en:'When something extra breeds in the tank, protocol still demands perfection.' } }
+  ],
+
+  /* ===== Пьяница Пит (тир 1) ===== */
+  pete: [
+    { id:'visits', kind:'orders', t:[6,20,50], icon:'🍺',
+      name:{ ru:'Завсегдатай', en:'Regular' },
+      hint:{ ru:'Хорошего наливалу запоминают. И возвращаются. Снова и снова.', en:'A good pourer is remembered. And returned to. Again and again.' } },
+    { id:'perf', kind:'perfects', t:[3,12,30], icon:'✨',
+      name:{ ru:'До последней капли', en:'To the last drop' },
+      hint:{ ru:'Идеальный уровень налива — это уважение. Пит уважение чувствует.', en:'A perfect pour level is respect. Pete can feel respect.' } },
+    { id:'streak', kind:'perfect_streak', t:[2,4,7], icon:'🍻',
+      name:{ ru:'По второй, по третьей', en:'Another round' },
+      hint:{ ru:'Один идеальный стакан — случайность. Несколько подряд — праздник.', en:'One perfect glass is chance. Several in a row is a celebration.' } },
+    { id:'cycle', kind:'picks_cycle', t:[3,5,8], icon:'🔁',
+      name:{ ru:'Не просыхает', en:'Never sobers up' },
+      hint:{ ru:'За один цикл Пит может зайти... ну, столько раз, сколько нальёшь.', en:'In a single cycle Pete may drop by... well, as often as you pour.' } },
+    { id:'hard', kind:'hard_perfects', t:[2,8,20], icon:'🎚',
+      name:{ ru:'Твёрдая рука', en:'Steady hand' },
+      hint:{ ru:'Все регуляторы в деле — и уровень всё равно ровно тот. Даже с похмелья.', en:'Every slider in play — and the level still spot on. Even hungover.' } },
+    { id:'fast', kind:'fast_perfects', t:[1,5,12], icon:'⚡',
+      name:{ ru:'Пока пена не осела', en:'Before the foam settles' },
+      hint:{ ru:'Налито идеально, и таймер едва тронулся. Пит ценит расторопных.', en:'Poured perfectly, and the timer barely moved. Pete values the quick.' } },
+    { id:'lvl4', kind:'level4_perfects', t:[1,5,15], icon:'🥃',
+      name:{ ru:'Крепче некуда', en:'As strong as it gets' },
+      hint:{ ru:'Идеал даже когда градус зашкаливает и рейтинг тает. Вот это характер.', en:'Perfect even as the proof spikes and the rating melts. Now that’s character.' } }
   ],
 
   /* ===== Тентаклоид (тир 2) ===== */
@@ -2382,6 +2561,31 @@ const NPC_ACHIEVEMENTS = {
       hint:{ ru:'Сгустки — это биты. Число решает грув, чувак. Каждый раз.', en:'Blobs are beats. The count decides the groove, dude. Every time.' } }
   ],
 
+  /* ===== Маркетолог с безлюдного спутника (тир 2) ===== */
+  marketer: [
+    { id:'visits', kind:'orders', t:[5,16,40], icon:'📺',
+      name:{ ru:'Постоянный клиент воронки', en:'A loyal funnel lead' },
+      hint:{ ru:'Лучший лид — тот, что возвращается сам. Снова и снова.', en:'The best lead is one that returns on its own. Again and again.' } },
+    { id:'perf', kind:'perfects', t:[3,10,25], icon:'💯',
+      name:{ ru:'Конверсия 100%', en:'100% conversion' },
+      hint:{ ru:'Нашёл рабочую ручку среди сотни обманок — и попал точно.', en:'Found the working knob among a hundred decoys — and nailed it.' } },
+    { id:'streak', kind:'perfect_streak', t:[2,4,7], icon:'📈',
+      name:{ ru:'Растущий тренд', en:'An upward trend' },
+      hint:{ ru:'Один идеал — выброс. Серия — это уже кривая роста.', en:'One perfect is an outlier. A series is a growth curve.' } },
+    { id:'cycle', kind:'picks_cycle', t:[3,5,8], icon:'🔁',
+      name:{ ru:'Агрессивная кампания', en:'An aggressive campaign' },
+      hint:{ ru:'В горячий сезон маркетолог запускает касания одно за другим.', en:'In peak season the marketer fires touchpoints one after another.' } },
+    { id:'hard', kind:'hard_perfects', t:[2,8,20], icon:'🎛',
+      name:{ ru:'Вся панель под контролем', en:'The whole panel under control' },
+      hint:{ ru:'Все характеристики разом, все ручки спрятаны — и всё равно точно.', en:'Every characteristic at once, every knob hidden — and still precise.' } },
+    { id:'fast', kind:'fast_perfects', t:[1,5,12], icon:'⚡',
+      name:{ ru:'Реклама не ждёт', en:'The ad won’t wait' },
+      hint:{ ru:'Слот эфира горит. Найди рабочий регулятор быстрее таймера.', en:'The ad slot is burning. Find the working control faster than the timer.' } },
+    { id:'lvl4', kind:'level4_perfects', t:[1,5,15], icon:'🗞',
+      name:{ ru:'Сквозь мельтешение', en:'Through the flicker' },
+      hint:{ ru:'Когда газета за панелью не стоит на месте — идеал ценится вдвойне.', en:'When the newspaper behind the panel won’t hold still, a perfect is worth twice as much.' } }
+  ],
+
   /* ===== Парфюмер Тысячи Лун (тир 3) ===== */
   perfumer: [
     { id:'visits', kind:'orders', t:[5,14,35], icon:'🧴',
@@ -2457,6 +2661,31 @@ const NPC_ACHIEVEMENTS = {
       hint:{ ru:'Иногда лекарство нужно было ещё вчера. Сделай его сегодня, но быстро.', en:'Sometimes the medicine was needed yesterday. Make it today — but fast.' } }
   ],
 
+  /* ===== Инженер навигатора (тир 3) ===== */
+  engineer: [
+    { id:'visits', kind:'orders', t:[5,14,35], icon:'🛰️',
+      name:{ ru:'Штатный юстировщик', en:'The staff aligner' },
+      hint:{ ru:'Курсографы калибруют регулярно. Регулярно — значит, у тебя.', en:'Coursegraphs are calibrated regularly. Regularly — meaning at your place.' } },
+    { id:'perf', kind:'perfects', t:[3,10,25], icon:'🎯',
+      name:{ ru:'В яблочко', en:'Bullseye' },
+      hint:{ ru:'Стрелка замерла точно в тёмно-зелёном. Снова и снова.', en:'The needle froze dead in the dark green. Again and again.' } },
+    { id:'streak', kind:'perfect_streak', t:[2,4,7], icon:'📍',
+      name:{ ru:'Серия точных остановок', en:'A run of clean stops' },
+      hint:{ ru:'Одна идеальная остановка — реакция. Серия — мастерство.', en:'One perfect stop is reflex. A series is mastery.' } },
+    { id:'cycle', kind:'picks_cycle', t:[3,5,8], icon:'🔁',
+      name:{ ru:'Плотный график юстировок', en:'A tight alignment schedule' },
+      hint:{ ru:'Перед дальним прыжком приборы калибруют не по разу за цикл.', en:'Before a long jump, instruments get calibrated more than once a cycle.' } },
+    { id:'hard', kind:'hard_perfects', t:[2,8,20], icon:'🎛',
+      name:{ ru:'Все шкалы разом', en:'Every scale at once' },
+      hint:{ ru:'Указателей столько же, сколько шкал — и ни один не проскочил зону.', en:'As many needles as there are scales — and not one overshot its zone.' } },
+    { id:'fast', kind:'fast_perfects', t:[1,5,12], icon:'⚡',
+      name:{ ru:'Реакция навигатора', en:'A navigator’s reflex' },
+      hint:{ ru:'Стрелка бежит быстро. Твоя рука — быстрее.', en:'The needle runs fast. Your hand runs faster.' } },
+    { id:'lvl4', kind:'level4_perfects', t:[1,5,15], icon:'🟥',
+      name:{ ru:'Мимо красного', en:'Past the red' },
+      hint:{ ru:'Когда на шкалах появляются ловушки — идеал ценится вдвойне.', en:'When traps appear on the scales, a perfect is worth twice as much.' } }
+  ],
+
   /* ===== Навигатор Роя (тир 4) ===== */
   swarm_navigator: [
     { id:'visits', kind:'orders', t:[4,12,30], icon:'🐝',
@@ -2530,6 +2759,31 @@ const NPC_ACHIEVEMENTS = {
     { id:'focus', kind:'focus_perfects', focus:'size', t:[2,6,15], icon:'📏',
       name:{ ru:'Впритык — так и надо', en:'Tight — as it should be' },
       hint:{ ru:'Бак утоплен в раму. Лишний габарит — второе место. Не бывай вторым.', en:'The tank sits in the frame. Extra size is second place. Don’t be second.' } }
+  ],
+
+  /* ===== Бабушка Мурра (тир 4) ===== */
+  catlady: [
+    { id:'visits', kind:'orders', t:[4,12,30], icon:'🐈',
+      name:{ ru:'Любимый лавочник', en:'Favorite shopkeeper' },
+      hint:{ ru:'Коты привыкают к рукам. И приводят хозяйку снова и снова.', en:'Cats grow used to gentle hands. And bring their owner back, again and again.' } },
+    { id:'perf', kind:'perfects', t:[2,8,20], icon:'😻',
+      name:{ ru:'Одобрено котами', en:'Cat-approved' },
+      hint:{ ru:'Когда смесь идеальна, даже самый вредный кот мурлычет. Добейся мурлыканья.', en:'When the mixture is perfect, even the crankiest cat purrs. Earn that purr.' } },
+    { id:'streak', kind:'perfect_streak', t:[2,4,6], icon:'🧶',
+      name:{ ru:'Клубок удачи', en:'A ball of luck' },
+      hint:{ ru:'Один идеал — везение. Ниточка идеалов подряд — уже вязание.', en:'One perfect is luck. A thread of perfects in a row is knitting.' } },
+    { id:'cycle', kind:'picks_cycle', t:[3,5,7], icon:'🔁',
+      name:{ ru:'Ходит как к себе домой', en:'Comes and goes like home' },
+      hint:{ ru:'За один цикл бабушка с котами заглядывает столько раз, сколько ты выдержишь.', en:'In a single cycle the cat granny drops by as many times as you can bear.' } },
+    { id:'hard', kind:'hard_perfects', t:[2,8,20], icon:'🎛',
+      name:{ ru:'Сквозь лапы и когти', en:'Through paws and claws' },
+      hint:{ ru:'Все регуляторы в деле, лапы застят весь прилавок — а смесь всё равно идеальна.', en:'Every slider in play, paws blocking the whole counter — and the mixture still perfect.' } },
+    { id:'fast', kind:'fast_perfects', t:[1,4,10], icon:'⚡',
+      name:{ ru:'Быстрее, чем кот моргнёт', en:'Faster than a cat blinks' },
+      hint:{ ru:'Идеально и до того, как лапа успела вернуться. Коты уважают проворных.', en:'Perfect before the paw could return. Cats respect the quick.' } },
+    { id:'lvl4', kind:'level4_perfects', t:[1,5,15], icon:'🧶',
+      name:{ ru:'Заслужил клубок', en:'Earned the yarn' },
+      hint:{ ru:'За идеал под самой тучей лап бабушка достаёт из кармана кое-что мягкое.', en:'For a perfect under the thickest swarm of paws, granny pulls something soft from her pocket.' } }
   ],
 
   /* ===== Хранитель Архива (тир 5) ===== */
@@ -2645,17 +2899,21 @@ const NPC_LORE_DESC = {
   twofaced_priestess: { ru:'Жрица культа двойного заката. Говорит от имени двух богов и различает их по оттенку.', en:'Priestess of the double-sunset cult. Speaks for two gods and tells them apart by shade.' },
   plasma_bartender: { ru:'Держит бар, где напитки живые в буквальном смысле. Ритм для него — единица измерения всего.', en:'Runs a bar where the drinks are literally alive. Rhythm is his unit for measuring everything.' },
   janitor: { ru:'Уборщик Пятого Дока. Знает станцию лучше её строителей, потому что отмывал каждый её угол.', en:'The Dock Five janitor. Knows the station better than its builders — he has scrubbed every corner of it.' },
+  pete: { ru:'Пьяница Пит. Когда-то был кем-то важным на этой станции — теперь важен только уровень в его стакане. Уверяет, что так честнее.', en:'Drunkard Pete. Once someone important on this station — now the only thing that matters is the level in his glass. Claims it’s more honest that way.' },
   intern_beep: { ru:'Стажёр без имени в накладных — все зовут его Бип. Очень старается. Очень.', en:'An intern with no name on the invoices — everyone calls him Beep. He tries very hard. Very.' },
   trucker_chrome: { ru:'Дальнобойщик с тысячей парсеков за плечами. Дом для него — кабина, а вот кофе и смеси — только тут.', en:'A hauler with a thousand parsecs behind him. Home is the cab; coffee and mixtures are only here.' },
   fashionista: { ru:'Икона стиля с Кассиопеи. Меняет панцири по сезону и считает лавку своим тайным бутиком.', en:'A style icon from Cassiopeia. Changes shells with the season and considers the shop her secret boutique.' },
   collector_gz: { ru:'Коллекционер смесей с трёхсотлетним стажем. Никуда не торопится. Совсем.', en:'A mixture collector three hundred years into the hobby. In no hurry. At all.' },
   dj_pulsar: { ru:'Диджей, сводящий сеты из излучения настоящих пульсаров. Ищет вайб во всём, включая жидкости.', en:'A DJ who mixes sets from real pulsar emissions. Finds the vibe in everything, liquids included.' },
+  marketer: { ru:'Маркетолог рекламного спутника, с которого давно все улетели. Он продолжает вещать акции в пустоту — и, кажется, не заметил, что аудитории нет.', en:'A marketer of an ad satellite everyone left long ago. He keeps broadcasting deals into the void — and seems not to have noticed there’s no audience.' },
   perfumer: { ru:'Парфюмер Тысячи Лун. Утверждает, что запах — это память, разлитая по флаконам.', en:'The Perfumer of a Thousand Moons. Claims scent is memory decanted into vials.' },
   guild_inspector: { ru:'Инспектор Гильдии зельеваров. Живёт по регламенту и носит его с собой. Весь.', en:'An inspector of the Potioners’ Guild. Lives by the regulations and carries them along. All of them.' },
   apothecary_mo: { ru:'Аптекарь с окраины сектора. За каждым его заказом — чей-то пациент.', en:'An apothecary from the sector’s edge. Behind every order of his is someone’s patient.' },
+  engineer: { ru:'Инженер-юстировщик при флотском навигаторе. Живёт по приборам: если стрелка в зелёном — мир в порядке. Ни секунды лишней.', en:'An alignment engineer serving a fleet navigator. Lives by his instruments: if the needle’s in the green, the world is fine. Not a second to spare.' },
   swarm_navigator: { ru:'Голос Роя — коллективного разума из миллионов особей. Говорит «МЫ» и не преувеличивает.', en:'The voice of the Swarm — a hive mind of millions. Says "WE" and does not exaggerate.' },
   vex: { ru:'Хирург-механик. Оперирует корабли, как живых существ — потому что для него они живые.', en:'A surgeon-mechanic. Operates on ships like living beings — because to him they are.' },
   racer_kai: { ru:'Пилот плазменных гонок. Всё в её жизни делится на «до финиша» и «после».', en:'A plasma-racing pilot. Everything in her life divides into "before the finish" and "after".' },
+  catlady: { ru:'Бабушка Мурра, хозяйка девяти (а может, и девяноста) космических котов. Куда идёт она — туда и лапы. Спорить бесполезно.', en:'Grandma Murr, keeper of nine (or maybe ninety) cosmic cats. Where she goes, the paws go. Arguing is useless.' },
   archivist: { ru:'Хранитель Архива на краю вселенной. Записывает всё. Вообще всё.', en:'Keeper of the Archive at the edge of the universe. Records everything. Literally everything.' },
   supernova_child: { ru:'Существо, родившееся из вспышки сверхновой. Вчера. Учится всему сразу.', en:'A being born from a supernova flash. Yesterday. Learning everything at once.' },
   the_waiter: { ru:'Никто не знает, чего он ждёт. Известно только, что уже очень давно.', en:'No one knows what he is waiting for. Only that it has been a very long time.' }
@@ -2681,9 +2939,21 @@ const NPC_RELATIONS = [
   { a:'drone', b:'janitor', kind:'friend',
     lore:{ ru:'Дрон и уборщик пересекаются на каждой смене дольше, чем кто-либо ещё на станции — тихая дружба работяг.',
            en:'The drone and the janitor cross paths every shift longer than anyone else on the station — a quiet friendship between two workers.' } },
+  { a:'pete', b:'trucker_chrome', kind:'buddy',
+    lore:{ ru:'Дальнобойщик всегда угощает Пита перед долгим рейсом — «за того, кто уже никуда не едет». Пит не обижается: он и правда никуда не едет.',
+           en:'The trucker always buys Pete a round before a long haul — "to the one who’s going nowhere." Pete doesn’t mind: he really is going nowhere.' } },
+  { a:'pete', b:'janitor', kind:'dislike',
+    lore:{ ru:'Уборщик оттирает за Питом липкие круги от стаканов каждую смену — и каждую смену припоминает ему это заново.',
+           en:'The janitor scrubs Pete’s sticky glass-rings off the counter every shift — and reminds him of it every shift, anew.' } },
   { a:'last_of_ir', b:'archivist', kind:'friend',
     lore:{ ru:'Хранитель памяти своего народа и хранитель архива узнали друг в друге родственную миссию — оба берегут то, что иначе будет забыто.',
            en:'The keeper of his people’s memory and the keeper of the archive recognized a kindred mission in each other — both guard what would otherwise be forgotten.' } },
+  { a:'engineer', b:'swarm_navigator', kind:'friend',
+    lore:{ ru:'Инженер держит в зелёном приборы того самого навигатора — Роя. Один прокладывает курс, другой не даёт стрелке соврать. Без второго нет первого.',
+           en:'The engineer keeps the very navigator’s instruments in the green — the Swarm’s. One plots the course, the other keeps the needle honest. Neither works without the other.' } },
+  { a:'engineer', b:'racer_kai', kind:'dislike',
+    lore:{ ru:'Он ведёт корабль строго по приборам; она — по чутью и на грани. Каждый считает манеру другого способом однажды разбиться.',
+           en:'He flies strictly by the instruments; she flies by instinct, on the edge. Each considers the other’s style a way to crash eventually.' } },
   { a:'tentacloid', b:'fashionista', kind:'enemy',
     lore:{ ru:'Два самых взыскательных эстета лавки не могут договориться, чей вкус безупречен — конкуренция давно перешла в открытую войну мнений.',
            en:'The shop’s two most demanding aesthetes cannot agree whose taste is flawless — the rivalry has long since become open war.' } },
@@ -2711,9 +2981,21 @@ const NPC_RELATIONS = [
   { a:'apothecary_mo', b:'vex', kind:'buddy',
     lore:{ ru:'Один латает пациентов, другой — корабли; оба знают, каково это, когда пациент живой и хрупкий.',
            en:'One patches up patients, the other ships; both know what it’s like when the patient is alive and fragile.' } },
+  { a:'catlady', b:'apothecary_mo', kind:'buddy',
+    lore:{ ru:'Аптекарь лечит её котов бесплатно, а она приносит ему травы, каких нет ни в одном каталоге — оба выхаживают живое.',
+           en:'The apothecary treats her cats for free, and she brings him herbs no catalog lists — both nurse the living.' } },
+  { a:'catlady', b:'guild_inspector', kind:'dislike',
+    lore:{ ru:'Девять (или девяносто) котов на прилавке — это девять (или девяносто) нарушений санитарных норм. Инспектор ведёт счёт.',
+           en:'Nine (or ninety) cats on the counter are nine (or ninety) sanitation violations. The inspector keeps a tally.' } },
   { a:'intern_beep', b:'trucker_chrome', kind:'buddy',
     lore:{ ru:'Стажёр и дальнобойщик коротают смены одними и теми же историями — обоим всё равно, слышал ли другой их уже.',
            en:'The intern and the trucker pass their shifts on the same stories — neither minds that the other’s heard them before.' } },
+  { a:'marketer', b:'dj_pulsar', kind:'buddy',
+    lore:{ ru:'Оба вещают в пустоту и оба уверены, что их слушают. Диджей крутит сеты, маркетолог — акции; вместе им уютнее в этом самообмане.',
+           en:'Both broadcast into the void and both are sure someone’s listening. The DJ spins sets, the marketer spins deals; together the self-delusion is cozier.' } },
+  { a:'marketer', b:'fashionista', kind:'dislike',
+    lore:{ ru:'Икона стиля называет его крикливые «−50%» оскорблением вкуса; он в ответ уверяет, что её эксклюзив — просто плохо продаваемый масс-маркет.',
+           en:'The style icon calls his blaring "50% OFF" an insult to taste; he retorts that her exclusivity is just poorly marketed mass-market.' } },
   { a:'twofaced_priestess', b:'supernova_child', kind:'buddy',
     lore:{ ru:'Жрица двух богов и существо из вспышки нашли общий язык быстрее всех — обе говорят о свете как о родном.',
            en:'The priestess of two gods and the being from the flash found common ground faster than anyone — both speak of light like family.' } },
@@ -2931,6 +3213,16 @@ const NPC_LORE = {
     { ru:'Секрет фирменного рецепта: половина ингредиентов — отсюда. Вторая половина — тоже.', en:'The signature recipe’s secret: half the ingredients come from here. So does the other half.' },
     { ru:'Когда бар закроется навсегда, последний тост будет за лавку на краю вселенной.', en:'When the bar closes for good, the last toast will be to the shop at the edge of the universe.' }
   ],
+  pete: [
+    { ru:'Раньше я подписывал накладные на весь этот док. Теперь подписываю только счета в баре.', en:'I used to sign the manifests for this whole dock. Now I only sign bar tabs.' },
+    { ru:'Говорят, у меня дрожат руки. А по-моему, это станция качается.', en:'They say my hands shake. I say it’s the station swaying.' },
+    { ru:'Цвет я уже путаю, форму — тоже. А вот уровень в стакане чувствую спинным мозгом.', en:'I mix up colors now, shapes too. But the level in the glass I feel in my spine.' },
+    { ru:'Один умный доктор сказал: «Пит, ещё стакан — и всё». Это было двести стаканов назад.', en:'A clever doctor once said: "Pete, one more glass and that’s it." That was two hundred glasses ago.' },
+    { ru:'Чем крепче смесь, тем меньше я помню. Иногда это ровно то, что нужно.', en:'The stronger the mix, the less I remember. Sometimes that’s exactly the point.' },
+    { ru:'У меня была семья. Где-то на третьем кольце. Или на четвёртом. Налей — вспомню.', en:'I had a family. Somewhere on the third ring. Or the fourth. Pour me one — I’ll remember.' },
+    { ru:'Ты единственный, кто наливает мне ровно столько, сколько прошу. Не больше, не меньше. Это дороже золота.', en:'You’re the only one who pours me exactly what I ask. No more, no less. That’s worth more than gold.' },
+    { ru:'Когда меня не станет — налей один стакан и поставь на стойку. До нужного уровня. Я узнаю.', en:'When I’m gone, pour one glass and set it on the bar. To the right level. I’ll know.' }
+  ],
   janitor: [
     { ru:'Я мою Пятый Док тридцать лет. Станция за это время сменила четыре названия. Пятна — те же.', en:'I have scrubbed Dock Five for thirty years. The station changed its name four times. The stains stayed the same.' },
     { ru:'Начальство не заметит. Начальство никогда не замечает. В этом есть свобода.', en:'The bosses won’t notice. The bosses never notice. There is freedom in that.' },
@@ -2991,6 +3283,16 @@ const NPC_LORE = {
     { ru:'Мой псевдоним придумал сам пульсар. Я просто записал ритм и прочитал его вслух.', en:'The pulsar itself invented my stage name. I just recorded the rhythm and read it aloud.' },
     { ru:'Финальный трек последнего сета уже готов. Он звучит как твоя лавка в тихий день.', en:'The final track of my last set is ready. It sounds like your shop on a quiet day.' }
   ],
+  marketer: [
+    { ru:'Мой спутник вещал на весь сектор. Потом сектор опустел. Я всё ещё в эфире.', en:'My satellite broadcast to the whole sector. Then the sector emptied. I’m still on air.' },
+    { ru:'Половина ручек на моём пульте — муляжи. Так делали дешевле. Так вышло честнее, чем я думал.', en:'Half the knobs on my panel are dummies. It was cheaper that way. It turned out more honest than I expected.' },
+    { ru:'Я до сих пор верю в «уникальное предложение». Кто-то же должен.', en:'I still believe in the "unique offer". Somebody has to.' },
+    { ru:'Когда-то у меня была аудитория в миллиард. Теперь есть ты. Разница меньше, чем кажется.', en:'I once had a billion-strong audience. Now I have you. The difference is smaller than it seems.' },
+    { ru:'Реклама — это обещание. Я разучился давать другие обещания. Только акции.', en:'Advertising is a promise. I’ve forgotten how to make other kinds. Only deals.' },
+    { ru:'Газета за панелью — вчерашняя. И позавчерашняя. Даты я перестал печатать давно.', en:'The newspaper behind the panel is yesterday’s. And the day before’s. I stopped printing dates long ago.' },
+    { ru:'Ты единственный, кто нашёл рабочую ручку и не выругался. За это — скидка. Навсегда.', en:'You’re the only one who found the working knob and didn’t curse. For that — a discount. Forever.' },
+    { ru:'Когда спутник погаснет, последним отключится рекламный экран. Пусть светит кому-нибудь ещё.', en:'When the satellite goes dark, the ad screen will be the last to shut off. Let it shine for someone else.' }
+  ],
   perfumer: [
     { ru:'Тысяча лун — не преувеличение. Я считал. Дважды.', en:'A thousand moons is no exaggeration. I counted. Twice.' },
     { ru:'Запах — это память, разлитая по флаконам. Я — просто архивариус.', en:'Scent is memory decanted into vials. I am merely the archivist.' },
@@ -3021,6 +3323,16 @@ const NPC_LORE = {
     { ru:'Пациенты зовут мои микстуры «горькое чудо». Горечь — моя. Чудо, подозреваю, твоё.', en:'Patients call my mixtures "the bitter miracle". The bitterness is mine. The miracle, I suspect, is yours.' },
     { ru:'Когда-нибудь я возьму ученика. Первым уроком будет дорога до этой лавки.', en:'Someday I will take an apprentice. The first lesson will be the road to this shop.' }
   ],
+  engineer: [
+    { ru:'Навигатор ведёт корабль, но курс держат мои руки. Об этом в судовом журнале ни строчки.', en:'The navigator flies the ship, but my hands hold the course. Not a line about it in the log.' },
+    { ru:'Я не верю глазам — я верю стрелке в зелёном. Глаза врали дважды. Стрелка — ни разу.', en:'I don’t trust my eyes — I trust the needle in the green. Eyes lied twice. The needle, never.' },
+    { ru:'Однажды я нажал «стоп» на полсекунды позже. Мы вышли из прыжка у чужой звезды. Красивой, но чужой.', en:'Once I hit STOP half a second late. We dropped out of the jump by a stranger’s star. Beautiful, but a stranger’s.' },
+    { ru:'Меня учили: зелёное — жизнь, красное — конец. С тех пор я вижу мир в этих двух цветах.', en:'I was taught: green is life, red is the end. I’ve seen the world in those two colors ever since.' },
+    { ru:'Смесь для юстировки я беру только у тебя. У других стрелка «плавает». У тебя — стоит как вкопанная.', en:'I buy my alignment mixture only from you. With others the needle "floats". With you it stands rock-still.' },
+    { ru:'Навигатор ни разу не сказал мне «спасибо». Но перед каждым прыжком смотрит на мои шкалы. Это и есть «спасибо».', en:'The navigator has never once said "thank you". But before every jump he looks at my scales. That is the "thank you".' },
+    { ru:'В отпуске я не знаю, куда деть руки. Они всё тянутся к несуществующей кнопке «стоп».', en:'On leave I don’t know what to do with my hands. They keep reaching for a STOP button that isn’t there.' },
+    { ru:'Когда выйду в отставку — попрошу тебя сделать смесь ровно того зелёного. Хочу видеть его на полке. Всегда.', en:'When I retire, I’ll ask you to mix that exact green. I want it on my shelf. Always.' }
+  ],
   swarm_navigator: [
     { ru:'НАС — миллионы. Говорить одним голосом МЫ учились тысячу лет. Слушать — до сих пор учимся.', en:'WE number millions. WE spent a thousand years learning to speak with one voice. WE are still learning to listen.' },
     { ru:'Одиночество для Роя — теоретическое понятие. МЫ выучили его недавно. МЫ не рекомендуем.', en:'For the Swarm, loneliness is theoretical. WE learned the concept recently. WE do not recommend it.' },
@@ -3050,6 +3362,16 @@ const NPC_LORE = {
     { ru:'Второе место — это первое среди проигравших. Цитата моего первого тренера. И последняя его цитата.', en:'Second place is first among the losers. My first coach’s quote. Also his last.' },
     { ru:'После финала я всегда делаю круг почёта мимо твоей лавки. Ты просто не видишь — быстро.', en:'After a final I always take a victory lap past your shop. You just never see it — too fast.' },
     { ru:'Когда завершу карьеру — стану возить смеси. По самым коротким траекториям во вселенной.', en:'When I retire, I’ll haul mixtures. Along the shortest trajectories in the universe.' }
+  ],
+  catlady: [
+    { ru:'У меня было имя до котов. Теперь я и сама зову себя Муррой. Так короче и им понятнее.', en:'I had a name before the cats. Now even I call myself Murr. It’s shorter, and they understand it better.' },
+    { ru:'Девять их или девяносто — не считала. Считать котов дурная примета: один всегда прячется.', en:'Nine or ninety — I never counted. Counting cats is bad luck: one is always hiding.' },
+    { ru:'Лапы лезут на прилавок не из вредности. Им просто интересно, что ты там варишь. Мне тоже.', en:'The paws climb the counter not from spite. They’re just curious what you’re brewing. So am I.' },
+    { ru:'Мой самый старый кот помнит прежнего хозяина этой лавки. Иногда мяукает на пустой угол.', en:'My oldest cat remembers this shop’s previous owner. Sometimes he meows at an empty corner.' },
+    { ru:'Клубок ниток чинит всё: носок, нервы, смесь. Дам тебе один, если заслужишь.', en:'A ball of yarn mends everything: a sock, the nerves, a mixture. I’ll give you one if you earn it.' },
+    { ru:'Люди на станции меня сторонятся. А коты — нет. Коты знают, кому можно доверять.', en:'People on the station keep their distance. The cats don’t. Cats know who can be trusted.' },
+    { ru:'Не жалей, что лапы мешают. Однажды именно они не дадут тебе руке дрогнуть в нужный миг.', en:'Don’t resent the paws for getting in the way. One day they’ll be the very thing that steadies your hand.' },
+    { ru:'Когда меня не станет, коты придут к тебе. Всех прокорми. Они уже привыкли к твоему прилавку.', en:'When I’m gone, the cats will come to you. Feed them all. They’ve grown used to your counter.' }
   ],
   archivist: [
     { ru:'Я записываю всё. Эту фразу я тоже записал. И эту.', en:'I record everything. I recorded that sentence too. And this one.' },
@@ -3100,8 +3422,8 @@ const NPC_LORE = {
 //   Добавить новый тип эффекта — см. computePassiveFx() в game.js.
 const NPC_PASSIVES = {
   drone: [
-    { id:'p1', scope:'npc', icon:'📦', fx:{score:0.15},
-      name:{ ru:'Оптовый контракт', en:'Bulk contract' }, desc:{ ru:'+15% очков за задания дрона', en:'+15% score on the drone’s orders' } },
+    { id:'p1', scope:'npc', icon:'📦', fx:{progress:0.12},
+      name:{ ru:'Оптовый контракт', en:'Bulk contract' }, desc:{ ru:'+12% прогресса в заданиях дрона', en:'+12% progress on the drone’s orders' } },
     { id:'p2', scope:'global', icon:'🗺', fx:{memTime:0.06},
       name:{ ru:'Свежие карты доков', en:'Fresh dock charts' }, desc:{ ru:'+6% времени на запоминание во всех заданиях', en:'+6% memorize time on all orders' } },
     { id:'p3', scope:'npc', icon:'⏱', fx:{craftTime:0.15},
@@ -3124,8 +3446,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Восемь рук помощи', en:'Eight helping hands' }, desc:{ ru:'−12% времени, но +25% очков в его заданиях', en:'−12% time but +25% score on his orders' } }
   ],
   gourmet_vega: [
-    { id:'p1', scope:'npc', icon:'⭐', fx:{score:0.15},
-      name:{ ru:'Рекомендация гида', en:'A guidebook mention' }, desc:{ ru:'+15% очков за задания гурмана', en:'+15% score on the gourmet’s orders' } },
+    { id:'p1', scope:'global', icon:'⭐', fx:{tips:0.08},
+      name:{ ru:'Рекомендация гида', en:'A guidebook mention' }, desc:{ ru:'+8% чаевых в конце цикла', en:'+8% tips at the cycle’s end' } },
     { id:'p2', scope:'global', icon:'👅', fx:{memTime:0.06},
       name:{ ru:'Тренированный вкус', en:'A trained palate' }, desc:{ ru:'+6% времени на запоминание во всех заданиях', en:'+6% memorize time on all orders' } },
     { id:'p3', scope:'npc', icon:'🍷', fx:{craftTime:0.15},
@@ -3136,20 +3458,20 @@ const NPC_PASSIVES = {
       name:{ ru:'Ужин от шефа', en:'The chef’s table' }, desc:{ ru:'+20% очков и +15 п.п. к бонусу скорости в его заданиях', en:'+20% score and +15 pts to the speed bonus cap on his orders' } }
   ],
   logic9: [
-    { id:'p1', scope:'npc', icon:'🧮', fx:{score:0.15},
-      name:{ ru:'ПРЕМИЯ ЗА ТОЧНОСТЬ', en:'PRECISION BONUS' }, desc:{ ru:'+15% очков за задания Логика-9', en:'+15% score on Logic-9’s orders' } },
+    { id:'p1', scope:'global', icon:'🧮', fx:{speedCap:0.05},
+      name:{ ru:'ПРЕМИЯ ЗА ТОЧНОСТЬ', en:'PRECISION BONUS' }, desc:{ ru:'+5 п.п. к потолку бонуса скорости во всех заданиях', en:'+5 pts to the speed bonus cap on all orders' } },
     { id:'p2', scope:'global', icon:'⏲', fx:{craftTime:0.05},
       name:{ ru:'ОПТИМИЗАЦИЯ ТАКТА', en:'CLOCK OPTIMIZATION' }, desc:{ ru:'+5% времени на воссоздание во всех заданиях', en:'+5% craft time on all orders' } },
     { id:'p3', scope:'npc', icon:'📊', fx:{memTime:0.2},
       name:{ ru:'РАСШИРЕННЫЙ БУФЕР', en:'EXTENDED BUFFER' }, desc:{ ru:'+20% времени на запоминание в его заданиях', en:'+20% memorize time on his orders' } },
     { id:'p4', scope:'global', icon:'⚡', fx:{speedCap:0.05},
       name:{ ru:'ПАРАЛЛЕЛЬНЫЙ ПОТОК', en:'PARALLEL THREAD' }, desc:{ ru:'+5 п.п. к потолку бонуса скорости во всех заданиях', en:'+5 pts to the speed bonus cap on all orders' } },
-    { id:'p5', scope:'npc', icon:'🔋', fx:{score:0.25, craftTime:-0.12},
-      name:{ ru:'РАЗГОН ЯДРА', en:'CORE OVERCLOCK' }, desc:{ ru:'−12% времени, но +25% очков в его заданиях', en:'−12% time but +25% score on his orders' } }
+    { id:'p5', scope:'global', icon:'🔋', fx:{chargeAt2:true},
+      name:{ ru:'СЧЁТЧИК ИДЕАЛОВ: −1', en:'PERFECT COUNTER: −1' }, desc:{ ru:'УНИКАЛЬНО: доп. заряд умения за 2 идеала вместо 3 (во всех заданиях)', en:'UNIQUE: bonus skill charge every 2 perfects instead of 3 (all orders)' } }
   ],
   last_of_ir: [
-    { id:'p1', scope:'npc', icon:'🌅', fx:{score:0.15},
-      name:{ ru:'Дар угасающих', en:'Gift of the fading' }, desc:{ ru:'+15% очков за задания Последнего из Ир', en:'+15% score on the Last of the Ir’s orders' } },
+    { id:'p1', scope:'global', icon:'🌅', fx:{rep:0.08},
+      name:{ ru:'Дар угасающих', en:'Gift of the fading' }, desc:{ ru:'+8% к приросту репутации у всех', en:'+8% reputation gain with everyone' } },
     { id:'p2', scope:'global', icon:'🕯', fx:{progress:0.06},
       name:{ ru:'Память поколений', en:'Memory of generations' }, desc:{ ru:'+6% к весу прогресса во всех заданиях', en:'+6% progress weight on all orders' } },
     { id:'p3', scope:'npc', icon:'🌌', fx:{memTime:0.2},
@@ -3160,8 +3482,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Наследие Ир', en:'Legacy of the Ir' }, desc:{ ru:'+20% очков и +25% прогресса в его заданиях', en:'+20% score and +25% progress on his orders' } }
   ],
   nebula_chef: [
-    { id:'p1', scope:'npc', icon:'💰', fx:{score:0.15},
-      name:{ ru:'Процент с банкета', en:'A cut of the banquet' }, desc:{ ru:'+15% очков за задания шефа', en:'+15% score on the chef’s orders' } },
+    { id:'p1', scope:'npc', icon:'💰', fx:{craftTime:0.12},
+      name:{ ru:'Процент с банкета', en:'A cut of the banquet' }, desc:{ ru:'+12% времени на воссоздание в заданиях шефа', en:'+12% craft time on the chef’s orders' } },
     { id:'p2', scope:'global', icon:'📐', fx:{memTime:0.06},
       name:{ ru:'Глазомер кухни', en:'A kitchen eye' }, desc:{ ru:'+6% времени на запоминание во всех заданиях', en:'+6% memorize time on all orders' } },
     { id:'p3', scope:'npc', icon:'🍳', fx:{craftTime:0.15},
@@ -3172,8 +3494,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Час пик на кухне', en:'Kitchen rush hour' }, desc:{ ru:'−12% времени, но +25% очков в его заданиях', en:'−12% time but +25% score on his orders' } }
   ],
   twofaced_priestess: [
-    { id:'p1', scope:'npc', icon:'🙏', fx:{score:0.15},
-      name:{ ru:'Подношение храма', en:'The temple’s offering' }, desc:{ ru:'+15% очков за задания жрицы', en:'+15% score on the priestess’s orders' } },
+    { id:'p1', scope:'npc', icon:'🙏', fx:{memTime:0.15},
+      name:{ ru:'Подношение храма', en:'The temple’s offering' }, desc:{ ru:'+15% времени на запоминание в заданиях жрицы', en:'+15% memorize time on the priestess’s orders' } },
     { id:'p2', scope:'global', icon:'🌗', fx:{memTime:0.06},
       name:{ ru:'Взгляд двух богов', en:'The gaze of two gods' }, desc:{ ru:'+6% времени на запоминание во всех заданиях', en:'+6% memorize time on all orders' } },
     { id:'p3', scope:'npc', icon:'🕊', fx:{craftTime:0.15},
@@ -3184,8 +3506,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Милость близнецов', en:'The twins’ favor' }, desc:{ ru:'+20% очков и +30% репутации в её заданиях', en:'+20% score and +30% reputation on her orders' } }
   ],
   plasma_bartender: [
-    { id:'p1', scope:'npc', icon:'🍹', fx:{score:0.15},
-      name:{ ru:'За счёт заведения', en:'On the house' }, desc:{ ru:'+15% очков за задания бармена', en:'+15% score on the bartender’s orders' } },
+    { id:'p1', scope:'global', icon:'🍹', fx:{tips:0.08},
+      name:{ ru:'За счёт заведения', en:'On the house' }, desc:{ ru:'+8% чаевых в конце цикла', en:'+8% tips at the cycle’s end' } },
     { id:'p2', scope:'global', icon:'🎵', fx:{speedCap:0.05},
       name:{ ru:'Чувство ритма', en:'A sense of rhythm' }, desc:{ ru:'+5 п.п. к потолку бонуса скорости во всех заданиях', en:'+5 pts to the speed bonus cap on all orders' } },
     { id:'p3', scope:'npc', icon:'🕺', fx:{memTime:0.2},
@@ -3195,9 +3517,21 @@ const NPC_PASSIVES = {
     { id:'p5', scope:'npc', icon:'⚡', fx:{score:0.2, speedCap:0.15},
       name:{ ru:'Хэдлайнер вечера', en:'Headliner of the night' }, desc:{ ru:'+20% очков и +15 п.п. к бонусу скорости в его заданиях', en:'+20% score and +15 pts to the speed bonus cap on his orders' } }
   ],
+  pete: [
+    { id:'p1', scope:'npc', icon:'🍺', fx:{craftTime:0.12},
+      name:{ ru:'Постоянный клиент', en:'A loyal patron' }, desc:{ ru:'+12% времени на воссоздание в заданиях Пита', en:'+12% craft time on Pete’s orders' } },
+    { id:'p2', scope:'global', icon:'🍶', fx:{craftTime:0.05},
+      name:{ ru:'Твёрдая рука наливалы', en:'A steady pouring hand' }, desc:{ ru:'+5% времени на воссоздание во всех заданиях', en:'+5% craft time on all orders' } },
+    { id:'p3', scope:'npc', icon:'👁', fx:{memTime:0.2},
+      name:{ ru:'На глаз до капли', en:'Eyeballed to the drop' }, desc:{ ru:'+20% времени на запоминание в его заданиях', en:'+20% memorize time on his orders' } },
+    { id:'p4', scope:'global', icon:'🍻', fx:{rep:0.08},
+      name:{ ru:'Душа компании', en:'Life of the party' }, desc:{ ru:'+8% к приросту репутации у всех', en:'+8% reputation gain with everyone' } },
+    { id:'p5', scope:'npc', icon:'🥃', fx:{score:0.2, speedCap:0.15},
+      name:{ ru:'На посошок', en:'One for the road' }, desc:{ ru:'+20% очков и +15 п.п. к бонусу скорости в его заданиях', en:'+20% score and +15 pts to the speed bonus cap on his orders' } }
+  ],
   janitor: [
-    { id:'p1', scope:'npc', icon:'🪙', fx:{score:0.15},
-      name:{ ru:'Премия из тумбочки', en:'A bonus from the drawer' }, desc:{ ru:'+15% очков за задания уборщика', en:'+15% score on the janitor’s orders' } },
+    { id:'p1', scope:'npc', icon:'🪙', fx:{craftTime:0.12},
+      name:{ ru:'Премия из тумбочки', en:'A bonus from the drawer' }, desc:{ ru:'+12% времени на воссоздание в заданиях уборщика', en:'+12% craft time on the janitor’s orders' } },
     { id:'p2', scope:'global', icon:'🧽', fx:{craftTime:0.05},
       name:{ ru:'Прибранное рабочее место', en:'A tidy workbench' }, desc:{ ru:'+5% времени на воссоздание во всех заданиях', en:'+5% craft time on all orders' } },
     { id:'p3', scope:'npc', icon:'🗝', fx:{memTime:0.2},
@@ -3208,8 +3542,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Генеральная уборка', en:'The deep clean' }, desc:{ ru:'+20% очков и +20% прогресса в его заданиях', en:'+20% score and +20% progress on his orders' } }
   ],
   intern_beep: [
-    { id:'p1', scope:'npc', icon:'🍬', fx:{score:0.15},
-      name:{ ru:'Сэкономил на обеде', en:'Saved his lunch money' }, desc:{ ru:'+15% очков за задания стажёра', en:'+15% score on the intern’s orders' } },
+    { id:'p1', scope:'npc', icon:'🍬', fx:{memTime:0.15},
+      name:{ ru:'Сэкономил на обеде', en:'Saved his lunch money' }, desc:{ ru:'+15% времени на запоминание в заданиях стажёра', en:'+15% memorize time on the intern’s orders' } },
     { id:'p2', scope:'global', icon:'📝', fx:{memTime:0.06},
       name:{ ru:'Конспект под рукой', en:'Notes at hand' }, desc:{ ru:'+6% времени на запоминание во всех заданиях', en:'+6% memorize time on all orders' } },
     { id:'p3', scope:'npc', icon:'⏰', fx:{craftTime:0.15},
@@ -3220,8 +3554,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Первая похвала шефа', en:'The boss’s first praise' }, desc:{ ru:'+20% очков и +30% репутации в его заданиях', en:'+20% score and +30% reputation on his orders' } }
   ],
   trucker_chrome: [
-    { id:'p1', scope:'npc', icon:'💵', fx:{score:0.15},
-      name:{ ru:'Оплата наличными', en:'Cash payment' }, desc:{ ru:'+15% очков за задания дальнобойщика', en:'+15% score on the hauler’s orders' } },
+    { id:'p1', scope:'global', icon:'💵', fx:{speedCap:0.05},
+      name:{ ru:'Оплата наличными', en:'Cash payment' }, desc:{ ru:'+5 п.п. к потолку бонуса скорости во всех заданиях', en:'+5 pts to the speed bonus cap on all orders' } },
     { id:'p2', scope:'global', icon:'🛣', fx:{craftTime:0.05},
       name:{ ru:'Дорожная выдержка', en:'Road patience' }, desc:{ ru:'+5% времени на воссоздание во всех заданиях', en:'+5% craft time on all orders' } },
     { id:'p3', scope:'npc', icon:'📻', fx:{memTime:0.2},
@@ -3232,8 +3566,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Срочный груз', en:'A rush haul' }, desc:{ ru:'−12% времени, но +25% очков в его заданиях', en:'−12% time but +25% score on his orders' } }
   ],
   fashionista: [
-    { id:'p1', scope:'npc', icon:'💳', fx:{score:0.15},
-      name:{ ru:'Платит не глядя', en:'Pays without looking' }, desc:{ ru:'+15% очков за задания модницы', en:'+15% score on the fashionista’s orders' } },
+    { id:'p1', scope:'global', icon:'💳', fx:{rep:0.08},
+      name:{ ru:'Платит не глядя', en:'Pays without looking' }, desc:{ ru:'+8% к приросту репутации у всех', en:'+8% reputation gain with everyone' } },
     { id:'p2', scope:'global', icon:'👁', fx:{memTime:0.06},
       name:{ ru:'Намётанный глаз', en:'A practiced eye' }, desc:{ ru:'+6% времени на запоминание во всех заданиях', en:'+6% memorize time on all orders' } },
     { id:'p3', scope:'npc', icon:'💅', fx:{craftTime:0.15},
@@ -3244,8 +3578,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Икона сезона', en:'Icon of the season' }, desc:{ ru:'+20% очков и +30% репутации в её заданиях', en:'+20% score and +30% reputation on her orders' } }
   ],
   collector_gz: [
-    { id:'p1', scope:'npc', icon:'💰', fx:{score:0.15},
-      name:{ ru:'Цена коллекционера', en:'A collector’s price' }, desc:{ ru:'+15% очков за задания коллекционера', en:'+15% score on the collector’s orders' } },
+    { id:'p1', scope:'npc', icon:'💰', fx:{progress:0.12},
+      name:{ ru:'Цена коллекционера', en:'A collector’s price' }, desc:{ ru:'+12% прогресса в заданиях коллекционера', en:'+12% progress on the collector’s orders' } },
     { id:'p2', scope:'global', icon:'🐌', fx:{craftTime:0.05},
       name:{ ru:'Никакой спешки', en:'No hurry at all' }, desc:{ ru:'+5% времени на воссоздание во всех заданиях', en:'+5% craft time on all orders' } },
     { id:'p3', scope:'npc', icon:'🔍', fx:{memTime:0.2},
@@ -3256,8 +3590,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Место на полке 44', en:'A spot on shelf 44' }, desc:{ ru:'+20% очков и +25% прогресса в его заданиях', en:'+20% score and +25% progress on his orders' } }
   ],
   dj_pulsar: [
-    { id:'p1', scope:'npc', icon:'🎟', fx:{score:0.15},
-      name:{ ru:'Гонорар за сет', en:'Set fee' }, desc:{ ru:'+15% очков за задания диджея', en:'+15% score on the DJ’s orders' } },
+    { id:'p1', scope:'global', icon:'🎟', fx:{speedCap:0.05},
+      name:{ ru:'Гонорар за сет', en:'Set fee' }, desc:{ ru:'+5 п.п. к потолку бонуса скорости во всех заданиях', en:'+5 pts to the speed bonus cap on all orders' } },
     { id:'p2', scope:'global', icon:'🎚', fx:{speedCap:0.05},
       name:{ ru:'Держать темп', en:'Keep the tempo' }, desc:{ ru:'+5 п.п. к потолку бонуса скорости во всех заданиях', en:'+5 pts to the speed bonus cap on all orders' } },
     { id:'p3', scope:'npc', icon:'🎛', fx:{craftTime:0.15},
@@ -3267,9 +3601,21 @@ const NPC_PASSIVES = {
     { id:'p5', scope:'npc', icon:'💿', fx:{score:0.2, speedCap:0.15},
       name:{ ru:'Пиковый час', en:'Peak hour' }, desc:{ ru:'+20% очков и +15 п.п. к бонусу скорости в его заданиях', en:'+20% score and +15 pts to the speed bonus cap on his orders' } }
   ],
+  marketer: [
+    { id:'p1', scope:'global', icon:'📺', fx:{tips:0.08},
+      name:{ ru:'Рекламный бюджет', en:'The ad budget' }, desc:{ ru:'+8% чаевых в конце цикла', en:'+8% tips at the cycle’s end' } },
+    { id:'p2', scope:'global', icon:'🔎', fx:{craftTime:0.06},
+      name:{ ru:'Глаз на рабочие ручки', en:'An eye for working knobs' }, desc:{ ru:'+6% времени на воссоздание во всех заданиях', en:'+6% craft time on all orders' } },
+    { id:'p3', scope:'npc', icon:'🕰', fx:{craftTime:0.2},
+      name:{ ru:'Продлённый эфир', en:'Extended airtime' }, desc:{ ru:'+20% времени на воссоздание в его заданиях', en:'+20% craft time on his orders' } },
+    { id:'p4', scope:'global', icon:'📢', fx:{rep:0.08},
+      name:{ ru:'Вирусный охват', en:'Viral reach' }, desc:{ ru:'+8% к приросту репутации у всех', en:'+8% reputation gain with everyone' } },
+    { id:'p5', scope:'global', icon:'💵', fx:{tipsFlat:150},
+      name:{ ru:'Прямая рекламная выручка', en:'Direct ad revenue' }, desc:{ ru:'УНИКАЛЬНО: +150 чаевых в конце каждого цикла (сверх процента)', en:'UNIQUE: +150 tips at the end of every cycle (on top of the %)' } }
+  ],
   perfumer: [
-    { id:'p1', scope:'npc', icon:'💎', fx:{score:0.15},
-      name:{ ru:'Плата за нюанс', en:'The price of nuance' }, desc:{ ru:'+15% очков за задания парфюмера', en:'+15% score on the perfumer’s orders' } },
+    { id:'p1', scope:'npc', icon:'💎', fx:{memTime:0.15},
+      name:{ ru:'Плата за нюанс', en:'The price of nuance' }, desc:{ ru:'+15% времени на запоминание в заданиях парфюмера', en:'+15% memorize time on the perfumer’s orders' } },
     { id:'p2', scope:'global', icon:'👃', fx:{memTime:0.06},
       name:{ ru:'Память обоняния', en:'Olfactory memory' }, desc:{ ru:'+6% времени на запоминание во всех заданиях', en:'+6% memorize time on all orders' } },
     { id:'p3', scope:'npc', icon:'🫗', fx:{craftTime:0.15},
@@ -3280,8 +3626,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Формула века', en:'Formula of the century' }, desc:{ ru:'+20% очков и +25% прогресса в его заданиях', en:'+20% score and +25% progress on his orders' } }
   ],
   guild_inspector: [
-    { id:'p1', scope:'npc', icon:'🏛', fx:{score:0.15},
-      name:{ ru:'Гильдейская ставка', en:'The Guild rate' }, desc:{ ru:'+15% очков за задания инспектора', en:'+15% score on the inspector’s orders' } },
+    { id:'p1', scope:'global', icon:'🏛', fx:{rep:0.08},
+      name:{ ru:'Гильдейская ставка', en:'The Guild rate' }, desc:{ ru:'+8% к приросту репутации у всех', en:'+8% reputation gain with everyone' } },
     { id:'p2', scope:'global', icon:'📋', fx:{memTime:0.06},
       name:{ ru:'Работа по чек-листу', en:'Working the checklist' }, desc:{ ru:'+6% времени на запоминание во всех заданиях', en:'+6% memorize time on all orders' } },
     { id:'p3', scope:'npc', icon:'🖋', fx:{craftTime:0.15},
@@ -3292,8 +3638,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Знак качества', en:'The mark of quality' }, desc:{ ru:'+20% очков и +30% репутации в его заданиях', en:'+20% score and +30% reputation on his orders' } }
   ],
   apothecary_mo: [
-    { id:'p1', scope:'npc', icon:'💊', fx:{score:0.15},
-      name:{ ru:'Аптечная наценка', en:'The pharmacy markup' }, desc:{ ru:'+15% очков за задания аптекаря', en:'+15% score on the apothecary’s orders' } },
+    { id:'p1', scope:'npc', icon:'💊', fx:{craftTime:0.12},
+      name:{ ru:'Аптечная наценка', en:'The pharmacy markup' }, desc:{ ru:'+12% времени на воссоздание в заданиях аптекаря', en:'+12% craft time on the apothecary’s orders' } },
     { id:'p2', scope:'global', icon:'🧘', fx:{craftTime:0.05},
       name:{ ru:'Твёрдая рука', en:'A steady hand' }, desc:{ ru:'+5% времени на воссоздание во всех заданиях', en:'+5% craft time on all orders' } },
     { id:'p3', scope:'npc', icon:'📖', fx:{memTime:0.2},
@@ -3303,9 +3649,21 @@ const NPC_PASSIVES = {
     { id:'p5', scope:'npc', icon:'⚗️', fx:{score:0.2, progress:0.2},
       name:{ ru:'Горькое чудо', en:'The bitter miracle' }, desc:{ ru:'+20% очков и +20% прогресса в его заданиях', en:'+20% score and +20% progress on his orders' } }
   ],
+  engineer: [
+    { id:'p1', scope:'global', icon:'🛰️', fx:{speedCap:0.05},
+      name:{ ru:'Флотский подряд', en:'A fleet contract' }, desc:{ ru:'+5 п.п. к потолку бонуса скорости во всех заданиях', en:'+5 pts to the speed bonus cap on all orders' } },
+    { id:'p2', scope:'global', icon:'🎯', fx:{speedCap:0.06},
+      name:{ ru:'Намётанный глаз', en:'A trained eye' }, desc:{ ru:'+6 п.п. к потолку бонуса скорости во всех заданиях', en:'+6 pts to the speed bonus cap on all orders' } },
+    { id:'p3', scope:'npc', icon:'🕹', fx:{craftTime:0.18},
+      name:{ ru:'Медленный ход стрелки', en:'A slow needle sweep' }, desc:{ ru:'+18% времени на воссоздание в его заданиях', en:'+18% craft time on his orders' } },
+    { id:'p4', scope:'global', icon:'📡', fx:{rep:0.08},
+      name:{ ru:'Слово навигатора', en:'The navigator’s word' }, desc:{ ru:'+8% к приросту репутации у всех', en:'+8% reputation gain with everyone' } },
+    { id:'p5', scope:'npc', icon:'🟢', fx:{score:0.25, craftTime:0.1},
+      name:{ ru:'Стрелка сама в зелёном', en:'The needle finds the green' }, desc:{ ru:'+10% времени и +25% очков в его заданиях', en:'+10% time and +25% score on his orders' } }
+  ],
   swarm_navigator: [
-    { id:'p1', scope:'npc', icon:'🍯', fx:{score:0.15},
-      name:{ ru:'Доля улья', en:'The hive’s share' }, desc:{ ru:'+15% очков за задания Роя', en:'+15% score on the Swarm’s orders' } },
+    { id:'p1', scope:'npc', icon:'🍯', fx:{progress:0.12},
+      name:{ ru:'Доля улья', en:'The hive’s share' }, desc:{ ru:'+12% прогресса в заданиях Роя', en:'+12% progress on the Swarm’s orders' } },
     { id:'p2', scope:'global', icon:'👀', fx:{memTime:0.06},
       name:{ ru:'Тысяча глаз', en:'A thousand eyes' }, desc:{ ru:'+6% времени на запоминание во всех заданиях', en:'+6% memorize time on all orders' } },
     { id:'p3', scope:'npc', icon:'🕸', fx:{craftTime:0.15},
@@ -3316,8 +3674,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Признание Роя', en:'The Swarm’s recognition' }, desc:{ ru:'+20% очков и +20% прогресса в заданиях Роя', en:'+20% score and +20% progress on the Swarm’s orders' } }
   ],
   vex: [
-    { id:'p1', scope:'npc', icon:'🩺', fx:{score:0.15},
-      name:{ ru:'Хирургический тариф', en:'The surgical rate' }, desc:{ ru:'+15% очков за задания Векса', en:'+15% score on Vex’s orders' } },
+    { id:'p1', scope:'npc', icon:'🩺', fx:{craftTime:0.12},
+      name:{ ru:'Хирургический тариф', en:'The surgical rate' }, desc:{ ru:'+12% времени на воссоздание в заданиях Векса', en:'+12% craft time on Vex’s orders' } },
     { id:'p2', scope:'global', icon:'🔩', fx:{craftTime:0.05},
       name:{ ru:'Без люфтов', en:'No slack' }, desc:{ ru:'+5% времени на воссоздание во всех заданиях', en:'+5% craft time on all orders' } },
     { id:'p3', scope:'npc', icon:'💡', fx:{memTime:0.2},
@@ -3328,8 +3686,8 @@ const NPC_PASSIVES = {
       name:{ ru:'Экстренная операция', en:'Emergency surgery' }, desc:{ ru:'−12% времени, но +25% очков в его заданиях', en:'−12% time but +25% score on his orders' } }
   ],
   racer_kai: [
-    { id:'p1', scope:'npc', icon:'🏆', fx:{score:0.15},
-      name:{ ru:'Призовые за этап', en:'Stage prize money' }, desc:{ ru:'+15% очков за задания гонщицы', en:'+15% score on the racer’s orders' } },
+    { id:'p1', scope:'global', icon:'🏆', fx:{speedCap:0.05},
+      name:{ ru:'Призовые за этап', en:'Stage prize money' }, desc:{ ru:'+5 п.п. к потолку бонуса скорости во всех заданиях', en:'+5 pts to the speed bonus cap on all orders' } },
     { id:'p2', scope:'global', icon:'⚡', fx:{speedCap:0.05},
       name:{ ru:'Рефлексы пилота', en:'A pilot’s reflexes' }, desc:{ ru:'+5 п.п. к потолку бонуса скорости во всех заданиях', en:'+5 pts to the speed bonus cap on all orders' } },
     { id:'p3', scope:'npc', icon:'🔧', fx:{craftTime:0.15},
@@ -3339,9 +3697,21 @@ const NPC_PASSIVES = {
     { id:'p5', scope:'npc', icon:'🏁', fx:{score:0.25, craftTime:-0.12},
       name:{ ru:'Финальный круг', en:'The final lap' }, desc:{ ru:'−12% времени, но +25% очков в её заданиях', en:'−12% time but +25% score on her orders' } }
   ],
+  catlady: [
+    { id:'p1', scope:'npc', icon:'🐈', fx:{score:0.15},
+      name:{ ru:'Гостинец от бабушки', en:'A treat from granny' }, desc:{ ru:'+15% очков за задания Бабушки Мурры', en:'+15% score on Grandma Murr’s orders' } },
+    { id:'p2', scope:'global', icon:'🧶', fx:{craftTime:0.05},
+      name:{ ru:'Тёплые варежки', en:'Warm mittens' }, desc:{ ru:'+5% времени на воссоздание во всех заданиях', en:'+5% craft time on all orders' } },
+    { id:'p3', scope:'npc', icon:'🐾', fx:{craftTime:0.18},
+      name:{ ru:'Коты не торопятся', en:'Cats are never in a hurry' }, desc:{ ru:'+18% времени на воссоздание в её заданиях', en:'+18% craft time on her orders' } },
+    { id:'p4', scope:'global', icon:'😽', fx:{rep:0.08},
+      name:{ ru:'Знакома со всеми', en:'She knows everyone' }, desc:{ ru:'+8% к приросту репутации у всех', en:'+8% reputation gain with everyone' } },
+    { id:'p5', scope:'npc', icon:'😻', fx:{score:0.25, memTime:0.15},
+      name:{ ru:'Мурлыканье под руку', en:'A purr at your elbow' }, desc:{ ru:'+15% времени на запоминание и +25% очков в её заданиях', en:'+15% memorize time and +25% score on her orders' } }
+  ],
   archivist: [
-    { id:'p1', scope:'npc', icon:'🖋', fx:{score:0.15},
-      name:{ ru:'Гонорар летописца', en:'The chronicler’s fee' }, desc:{ ru:'+15% очков за задания Хранителя', en:'+15% score on the Keeper’s orders' } },
+    { id:'p1', scope:'npc', icon:'🖋', fx:{memTime:0.15},
+      name:{ ru:'Гонорар летописца', en:'The chronicler’s fee' }, desc:{ ru:'+15% времени на запоминание в заданиях Хранителя', en:'+15% memorize time on the Keeper’s orders' } },
     { id:'p2', scope:'global', icon:'📖', fx:{memTime:0.06},
       name:{ ru:'Архивная выучка', en:'Archival training' }, desc:{ ru:'+6% времени на запоминание во всех заданиях', en:'+6% memorize time on all orders' } },
     { id:'p3', scope:'npc', icon:'🕰', fx:{craftTime:0.15},
@@ -3364,8 +3734,8 @@ const NPC_PASSIVES = {
       name:{ ru:'как. мама', en:'like. mother' }, desc:{ ru:'+20% очков и +30% репутации в его заданиях', en:'+20% score and +30% reputation on its orders' } }
   ],
   the_waiter: [
-    { id:'p1', scope:'npc', icon:'🪙', fx:{score:0.15},
-      name:{ ru:'Монеты из ниоткуда', en:'Coins from nowhere' }, desc:{ ru:'+15% очков за задания Того-Кто-Ждёт', en:'+15% score on The One Who Waits’ orders' } },
+    { id:'p1', scope:'global', icon:'🪙', fx:{rep:0.08},
+      name:{ ru:'Монеты из ниоткуда', en:'Coins from nowhere' }, desc:{ ru:'+8% к приросту репутации у всех', en:'+8% reputation gain with everyone' } },
     { id:'p2', scope:'global', icon:'⏳', fx:{craftTime:0.05},
       name:{ ru:'Одолженное время', en:'Borrowed time' }, desc:{ ru:'+5% времени на воссоздание во всех заданиях', en:'+5% craft time on all orders' } },
     { id:'p3', scope:'npc', icon:'🌒', fx:{memTime:0.2},

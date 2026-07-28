@@ -89,7 +89,13 @@
     // Фаза E: "плохие" пузыри — badClear звучит, когда игрок успел убрать
     // пузырь кликом; badPop — когда пузырь лопнул сам и сбил регулятор
     badClear:  ()=>zzfx(.35,.05,700,.005,.03,.05,0,1.8,0,10,80,.03,0,0,0,0,0,.7,.01),
-    badPop:    ()=>zzfx(.5,.2,140,.01,.05,.12,2,1.8,0,-10,-200,.15,0,0,0,0,0,.7,.02)
+    badPop:    ()=>zzfx(.5,.2,140,.01,.05,.12,2,1.8,0,-10,-200,.15,0,0,0,0,0,.7,.02),
+    // Фаза 10 (Бабушка Мурра): мягкий «шлепок» лапы по клику + возмущённое «мяу»
+    // (2 варианта, выбирается случайно — восходящий тон с завалом вниз, как у кошки)
+    pawClick:  ()=>zzfx(.4,.05,300,.005,.03,.06,0,1.3,-3,0,0,0,0,.25,0,0,0,.6,.01),
+    meow:      ()=>{ const V=[[.55,.05,560,.03,.14,.18,0,1.1,9,-7,0,0,0,0,0,0,0,.55,.06],
+                              [.5,.05,690,.03,.12,.16,0,1.2,7,-9,0,0,0,0,0,0,0,.5,.05]];
+                     zzfx(...V[Math.floor(Math.random()*V.length)]); }
   };
   window.addEventListener('pointerdown', zzfxEnsureCtx, {once:true});
 
@@ -264,6 +270,9 @@
     S.speed = VSlider({ mount:$('mSpeed'), min:0,max:10,step:1,value:0, thickness:26, thumbSize:32, onChange:oc('speed') });
     // Патч (Сверхновая): второй ползунок габарита — высота
     S.size2 = VSlider({ mount:$('mSize2'), min:0,max:4,step:1,value:2, thickness:26, thumbSize:32, onChange:oc('size2') });
+    // Фаза 10 (Пьяница Пит): «уровень жидкости» (с УР.1) и «градус» (эксклюзив УР.4)
+    S.fill = VSlider({ mount:$('mFill'), min:0,max:4,step:1,value:2, thickness:26, thumbSize:32, onChange:oc('fill') });
+    S.degree = VSlider({ mount:$('mDegree'), min:0,max:10,step:1,value:0, thickness:26, thumbSize:32, onChange:oc('degree') });
   }
   // ---------- единая точка входа изменений игровых ползунков ----------
   // Патч "УР.4": сюда цепляются механики, которым нужно реагировать на
@@ -291,6 +300,9 @@
 
   let score = 0, streak = 0, orderNum = 0, dayNum = 1;
   let stage = 0, perfectStreakAtMax = 0, goodStreakAtMax = 0;
+  // Фаза 10 (Пьяница Пит): накопленный за цикл бонус к чаевым за «градус»
+  // (добавляется к 5%-чаевым в конце цикла, см. finalizeResult/showWeekOverlay)
+  let peteDegreeTipBonus = 0;
   let target = null;
   let rafId = null;
   let craftLocked = false;
@@ -554,8 +566,12 @@
     // Патч (кастомные бутыли): customBottle — рисованный сосуд вместо
     // процедурного контура (см. CUSTOM_BOTTLES в content.js); заменяет только
     // крышку/тело/донышко снаружи — clip-path/пузыри/жидкость внутри те же
+    // Фаза 10 (Пьяница Пит): fillPct — уровень жидкости в банке (0..100).
+    // null = банка полна до верха (обычное поведение всех остальных). Чем
+    // меньше — тем ниже поверхность жидкости; сгустки при этом пакуются только
+    // в оставшемся объёме (не висят в воздухе над жидкостью).
     const { hue, hue2=null, sat=70, sizePct, heightPct=null, bubbleCount, bubbleR, seed, shapeIdx=0,
-            overridePositions=null, badBubbles=[], rotationDeg=null,
+            overridePositions=null, badBubbles=[], rotationDeg=null, fillPct=null,
             splitHalves=false, bubbleCountB=0, showGrid=false, customBottle=null, capIdx=0, decor=null } = opts;
     // несколько банок на экране одновременно (сетка Коллекционера) не должны
     // делить между собой id defs/clipPath — иначе все клипались бы по контуру первой
@@ -565,6 +581,16 @@
     const w = 60 + (sizePct/100)*60;
     const h = 140 + ((heightPct ?? sizePct)/100)*70;
     const cx = 100, baseY = 240, topY = baseY - h;
+
+    // Фаза 10 (Пьяница Пит): поверхность жидкости. При полном объёме (fillPct
+    // null или 100) — на topY+40, как у всех. Ниже fillPct — ниже поверхность;
+    // на самом дне оставляем тонкий слой, чтобы цвет всё же читался.
+    const liqFullTopY = topY + 40;
+    const liqEmptyTopY = baseY - 14;
+    const liqTopY = (fillPct == null) ? liqFullTopY
+      : liqEmptyTopY + (liqFullTopY - liqEmptyTopY) * Math.max(0, Math.min(1, fillPct/100));
+    // сгустки пакуем только в оставшемся объёме жидкости (не над поверхностью)
+    const packTopY = (fillPct == null) ? topY : (liqTopY - 18);
 
     // Патч (кастомные бутыли): геометрия рисованного сосуда — общий хелпер
     // customBottleGeom() (см. рядом с computeJarGeom), им же пользуется
@@ -735,11 +761,11 @@
       // Патч (Двуликая жрица): "Сгустки Б" держат левую половину (как и
       // раньше), "Сгустки А" — только правую (раньше задевали обе)
       pts = [
-        ...packBubbles(bubbleCountB, bubbleR, w, topY, baseY, sp.points, seed+7331, 'left'),
-        ...packBubbles(bubbleCount, bubbleR, w, topY, baseY, sp.points, seed, 'right')
+        ...packBubbles(bubbleCountB, bubbleR, w, packTopY, baseY, sp.points, seed+7331, 'left'),
+        ...packBubbles(bubbleCount, bubbleR, w, packTopY, baseY, sp.points, seed, 'right')
       ];
     } else {
-      pts = packBubbles(bubbleCount, bubbleR, w, topY, baseY, sp.points, seed);
+      pts = packBubbles(bubbleCount, bubbleR, w, packTopY, baseY, sp.points, seed);
     }
     // перегородка посередине банки — видимая граница двух половин
     const splitDividerEl = splitHalves
@@ -840,15 +866,15 @@
       <path d="${outlinePath}" fill="rgba(53,224,255,.05)"/>
       `}
       <g clip-path="url(#${cJarClip})">
-        <rect x="${cx-w/2-6}" y="${topY+40}" width="${w+12}" height="${h}" fill="${fillRef}"/>
+        <rect x="${cx-w/2-6}" y="${liqTopY.toFixed(1)}" width="${w+12}" height="${(baseY+20-liqTopY).toFixed(1)}" fill="${fillRef}"/>
         <!-- liquid volume: dark side band + halftone shading on the right -->
-        <rect x="${(cx+w*0.18).toFixed(1)}" y="${topY+40}" width="${(w*0.4).toFixed(1)}" height="${h}" fill="rgba(0,0,0,.16)"/>
-        <rect x="${(cx+w*0.10).toFixed(1)}" y="${topY+40}" width="${(w*0.5).toFixed(1)}" height="${h}" fill="url(#${cInkDots})"/>
+        <rect x="${(cx+w*0.18).toFixed(1)}" y="${liqTopY.toFixed(1)}" width="${(w*0.4).toFixed(1)}" height="${(baseY+20-liqTopY).toFixed(1)}" fill="rgba(0,0,0,.16)"/>
+        <rect x="${(cx+w*0.10).toFixed(1)}" y="${liqTopY.toFixed(1)}" width="${(w*0.5).toFixed(1)}" height="${(baseY+20-liqTopY).toFixed(1)}" fill="url(#${cInkDots})"/>
         <!-- light side: halftone highlight strip -->
-        <rect x="${(cx-w/2).toFixed(1)}" y="${topY+40}" width="${(w*0.2).toFixed(1)}" height="${h}" fill="url(#${cInkDotsLight})"/>
+        <rect x="${(cx-w/2).toFixed(1)}" y="${liqTopY.toFixed(1)}" width="${(w*0.2).toFixed(1)}" height="${(baseY+20-liqTopY).toFixed(1)}" fill="url(#${cInkDotsLight})"/>
         <!-- liquid surface: bold ink line + bright edge -->
-        <rect x="${cx-w/2-6}" y="${topY+40}" width="${w+12}" height="3.2" fill="rgba(10,13,24,.85)"/>
-        <rect x="${cx-w/2-6}" y="${topY+43}" width="${w+12}" height="5" fill="rgba(255,255,255,.30)"/>
+        <rect x="${cx-w/2-6}" y="${liqTopY.toFixed(1)}" width="${w+12}" height="3.2" fill="rgba(10,13,24,.85)"/>
+        <rect x="${cx-w/2-6}" y="${(liqTopY+3).toFixed(1)}" width="${w+12}" height="5" fill="rgba(255,255,255,.30)"/>
         ${gridEls}
         ${blobShadows}
         ${bubbleEls}
@@ -1212,8 +1238,19 @@
     // Фаза 8 (2): perfumer (пэд цвет×накал с УР.1, кастомная раскладка ползунков) и
     // swarm_navigator (детали-перетаскивание с УР.1, кастомная раскладка) — см.
     // computeActiveKeys. isFlySwarm-рендер развязан через mechActive().
-    'perfumer', 'swarm_navigator'
+    'perfumer', 'swarm_navigator',
+    // Фаза 10: Бабушка Мурра — кошачьи лапы-помеха с УР.1 (см. LEVEL4_FX.catlady)
+    'catlady',
+    // Фаза 10: Инженер навигатора — бегающий указатель + зоны, без показа (см. LEVEL4_FX.engineer)
+    'engineer',
+    // Фаза 10: Маркетолог — хаос-панель случайных контролов с УР.1 (см. LEVEL4_FX.marketer)
+    'marketer'
   ]);
+
+  // Персонажи, которым НЕЛЬЗЯ вешать фокус-модификатор (кастомная раскладка
+  // ползунков — стат-фокус лёг бы на особый/неактивный регулятор и сломал набор).
+  // Используется и в buildOrderDescriptor, и в addRandomModifier (Жетон дебоша).
+  const MOD_FOCUS_EXCLUDE = new Set(['vex', 'perfumer', 'collector_gz']);
 
   // Фаза 8 (баланс таймеров, 2026-07-27): базовые тайминги были слишком длинными.
   // Глобально режем БАЗУ (cfg.memorizeMs/craftMs): показ −30%, игра −50%.
@@ -1401,40 +1438,68 @@
       _destroy(){ holder.remove(); if(realWrap) realWrap.style.display = ''; }
     };
   }
-  let l4TruckerReal = null, l4TruckerWidgets = null;
+  let l4TruckerReal = null, l4TruckerWidgets = null, l4TruckerKeys = [], l4TruckerCurIdx = 0;
   const TRUCKER_LEFT_KEYS = ['color','colorB','sat']; // эти обычно живут в leftCol
+  // показать ОДИН правый регулятор (по индексу), спрятать остальные
+  function l4TruckerUpdateVisible(){
+    l4TruckerKeys.forEach((k,i)=>{
+      const mount = $(L4_MOUNT_ID[k]);
+      const group = mount && mount.closest('.vslider-group');
+      if(group) group.classList.toggle('l4-trucker-off', i !== l4TruckerCurIdx);
+    });
+  }
   LEVEL4_FX.trucker_chrome = {
     memorizeStart(){
       $('windowFrame').classList.add('l4-shake');
     },
     craftStart(){
-      // Патч: цвет/накал (спектр) больше не трогаем вообще — остаются
-      // слева и выглядят как обычные ползунки. "Коробка передач" — только
-      // у новых правых регуляторов (размер/сгустки/разм. сгуст.)
+      // Правка (пользователь): «коробка передач» — ОДИН крупный правый регулятор
+      // (размер/сгустки/разм. сгуст.) за раз + стрелка-переключатель справа.
+      // Новые ползунки со сложностью не добавляются рядом — переключаются кнопкой.
+      // Цвет/накал остаются слева обычными ползунками.
       const rightCol = $('rightCol');
       if(rightCol) rightCol.classList.add('l4-trucker-col');
-      // Правка (пользователь): регуляторы «коробки передач» — в линию (ряд под
-      // банкой), а не в столбец. Раскладку задаёт класс на .control-row (CSS).
-      const crow = document.querySelector('.control-row');
-      if(crow) crow.classList.add('l4-trucker-layout');
       l4TruckerReal = {}; l4TruckerWidgets = {};
-      [...target.activeKeys].filter(k => S[k] && L4_MOUNT_ID[k] && !TRUCKER_LEFT_KEYS.includes(k)).forEach(k=>{
+      l4TruckerKeys = [...target.activeKeys].filter(k => S[k] && L4_MOUNT_ID[k] && !TRUCKER_LEFT_KEYS.includes(k));
+      l4TruckerKeys.forEach(k=>{
         const mount = $(L4_MOUNT_ID[k]);
         if(!mount) return;
         l4TruckerReal[k] = S[k];
         S[k] = makeGearPathWidget(S[k], mount, k);
         l4TruckerWidgets[k] = S[k];
+        const holder = mount.querySelector('.l4-gearpath-holder');
+        if(holder) holder.classList.add('l4-gearpath-big'); // крупный, ~длина левых слайдеров
       });
-      target.craftDuration += 6000;
-      target.craftBaseDuration += 6000;
+      l4TruckerCurIdx = 0;
+      l4TruckerUpdateVisible();
+      // стрелка-переключатель (только если правых регуляторов больше одного)
+      if(l4TruckerKeys.length > 1 && rightCol && !document.getElementById('l4TruckerNext')){
+        const btn = document.createElement('button');
+        btn.type = 'button'; btn.id = 'l4TruckerNext'; btn.className = 'l4-trucker-next';
+        btn.innerHTML = '▸'; btn.title = LT(UI_TEXT.TRUCKER_NEXT_TITLE);
+        btn.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          l4TruckerCurIdx = (l4TruckerCurIdx + 1) % l4TruckerKeys.length;
+          l4TruckerUpdateVisible();
+          SFX.uiClick();
+        });
+        rightCol.appendChild(btn);
+      }
+      target.craftDuration += 4000;
+      target.craftBaseDuration += 4000;
       updatePlayerJar();
     },
     stop(){
       $('windowFrame').classList.remove('l4-shake');
       const rightCol = $('rightCol');
       if(rightCol) rightCol.classList.remove('l4-trucker-col');
-      const crow = document.querySelector('.control-row');
-      if(crow) crow.classList.remove('l4-trucker-layout');
+      const nb = document.getElementById('l4TruckerNext'); if(nb) nb.remove();
+      l4TruckerKeys.forEach(k=>{
+        const mount = $(L4_MOUNT_ID[k]);
+        const group = mount && mount.closest('.vslider-group');
+        if(group) group.classList.remove('l4-trucker-off');
+      });
+      l4TruckerKeys = [];
       if(l4TruckerWidgets){
         Object.keys(l4TruckerWidgets).forEach(k=>{
           if(l4TruckerWidgets[k]._destroy) l4TruckerWidgets[k]._destroy();
@@ -1941,6 +2006,15 @@
     SFX.brew();
     finishCraft();
   }
+  // Фаза 6 (адаптация предметов): у Коллекционера ползунков нет — «подсказка»
+  // (звёздная карта / философский камень / клубок) подсвечивает верную баночку.
+  function l4CollectorHighlightCorrect(){
+    const grid = $('collectorGrid'); if(!grid || !target || !target.collectorJars) return false;
+    const idx = target.collectorJars.findIndex(j => j.correct);
+    const cells = grid.querySelectorAll('.collector-jar-cell');
+    if(idx >= 0 && cells[idx]){ cells[idx].classList.add('collector-hint'); return true; }
+    return false;
+  }
   LEVEL4_FX.collector_gz = {
     setup(){
       if(target.shapeIdx === undefined || target.shapeIdx === null){
@@ -2159,7 +2233,9 @@
         // Фаза 8 (УР.4): «физика падения» — в фазе варки ползунки подтекают вниз
         // в такт биту (гравитация), игрок держит их наверху, попадая в ритм.
         // Только УР.4 (база с УР.1 — просто пульс/бит без гравитации).
-        if(currentPhase === 'craft' && target && target.regLevel === 4){
+        // Правка (пользователь): падают в 2 раза реже (каждый 2-й бит), музыка/
+        // пульс остаются на 500 мс — раньше менялось слишком быстро.
+        if(currentPhase === 'craft' && target && target.regLevel === 4 && l4DjBeatCount % 2 === 0){
           (target.activeKeys || []).forEach(k=>{
             const s = S[k]; if(!s || s.value <= s.min) return;
             if(Math.random() < 0.45){
@@ -2248,13 +2324,16 @@
   // Доля сбитых → множитель рейтинга (+0..+50%). Всё DOM+rAF поверх windowFrame.
   let l4L9Layer = null, l4L9Blobs = [], l4L9Bullets = [], l4L9Raf = null,
       l4L9FireTimer = null, l4L9EndTimer = null, l4L9Move = null,
+      l4L9ReleaseTimer = null, l4L9IntroTimer = null,
       l4L9PlaneX = 50, l4L9Shot = 0, l4L9Total = 0;
   function l4Logic9Cleanup(){
     if(l4L9Raf){ cancelAnimationFrame(l4L9Raf); l4L9Raf = null; }
     if(l4L9FireTimer){ clearInterval(l4L9FireTimer); l4L9FireTimer = null; }
+    if(l4L9ReleaseTimer){ clearInterval(l4L9ReleaseTimer); l4L9ReleaseTimer = null; }
+    if(l4L9IntroTimer){ clearTimeout(l4L9IntroTimer); l4L9IntroTimer = null; }
     if(l4L9EndTimer){ clearTimeout(l4L9EndTimer); l4L9EndTimer = null; }
     const wf = $('windowFrame');
-    if(wf && l4L9Move) wf.removeEventListener('pointermove', l4L9Move);
+    if(wf){ if(l4L9Move) wf.removeEventListener('pointermove', l4L9Move); wf.classList.remove('l4-logic-dim'); }
     l4L9Move = null;
     if(l4L9Layer){ l4L9Layer.remove(); l4L9Layer = null; }
     l4L9Blobs = []; l4L9Bullets = [];
@@ -2262,27 +2341,27 @@
   function l4Logic9Fire(){
     if(!l4L9Layer) return;
     const el = document.createElement('div'); el.className = 'l4-logic-bullet';
+    el.style.left = l4L9PlaneX+'%'; el.style.top = '82%';
     l4L9Layer.appendChild(el);
-    l4L9Bullets.push({ x: l4L9PlaneX, y: 86, el });
+    l4L9Bullets.push({ x: l4L9PlaneX, y: 82, el });
     if(SFX.tick) SFX.tick();
   }
   function l4Logic9Frame(){
     // пули вверх
     l4L9Bullets = l4L9Bullets.filter(bl=>{
-      bl.y -= 2.4;
-      if(bl.y < -4){ bl.el.remove(); return false; }
+      bl.y -= 2.6;
+      if(bl.y < -4){ if(bl.el) bl.el.remove(); return false; }
       bl.el.style.left = bl.x+'%'; bl.el.style.top = bl.y+'%';
       return true;
     });
-    // сгустки вниз + столкновения/промахи
+    // сгустки падают ТОЛЬКО прямо вниз (без разлёта), и только «выпущенные» (по очереди)
     l4L9Blobs.forEach(b=>{
-      if(!b.alive) return;
-      b.x += b.vx; b.y += b.vy;
-      if(b.x < 8 || b.x > 92){ b.vx *= -1; b.x = Math.min(92, Math.max(8, b.x)); }
-      if(b.y >= 86){ b.alive = false; b.el.classList.add('miss'); setTimeout(()=>{ if(b.el) b.el.remove(); }, 220); return; }
+      if(!b.alive || !b.released) return;
+      b.y += b.vy;
+      if(b.y >= 84){ b.alive = false; b.el.classList.add('miss'); setTimeout(()=>{ if(b.el) b.el.remove(); }, 220); return; }
       b.el.style.left = b.x+'%'; b.el.style.top = b.y+'%';
       for(const bl of l4L9Bullets){
-        if(bl.y > -5 && Math.abs(bl.x-b.x) < 5.5 && Math.abs(bl.y-b.y) < 5.5){
+        if(bl.y > -5 && Math.abs(bl.x-b.x) < 6.5 && Math.abs(bl.y-b.y) < 6){
           b.alive = false; l4L9Shot++;
           b.el.classList.add('hit'); setTimeout(()=>{ if(b.el) b.el.remove(); }, 220);
           bl.y = -20; if(bl.el) bl.el.style.top = '-20%';
@@ -2293,7 +2372,8 @@
     });
     const plane = document.getElementById('l4LogicPlane');
     if(plane) plane.style.left = l4L9PlaneX+'%';
-    if(l4L9Blobs.every(b=>!b.alive)){ l4Logic9Finish(); return; }
+    // конец, когда ВСЕ выпущены и разрешены (сбиты/упали)
+    if(l4L9Blobs.every(b => !b.alive) && !l4L9ReleaseTimer){ l4Logic9Finish(); return; }
     l4L9Raf = requestAnimationFrame(l4Logic9Frame);
   }
   function l4Logic9Finish(){
@@ -2314,25 +2394,42 @@
     const layer = document.createElement('div');
     layer.className = 'l4-logic-layer'; layer.id = 'l4LogicLayer';
     wf.appendChild(layer); l4L9Layer = layer;
+    // фон (циферблат + зельё) за 2с интро размывается и сереет
+    wf.classList.add('l4-logic-dim');
     const hint = document.createElement('div'); hint.className = 'l4-logic-hint';
     hint.textContent = LT(UI_TEXT.LOGIC9_SHOOT_HINT); layer.appendChild(hint);
     const plane = document.createElement('div'); plane.className = 'l4-logic-plane'; plane.id = 'l4LogicPlane';
-    plane.textContent = '🛩️'; layer.appendChild(plane);
+    plane.textContent = '🛩️'; plane.style.left = '50%'; layer.appendChild(plane);
+    // сгустки собираются ВМЕСТЕ наверху (кучкой у центра), пока не «выпущены»
     for(let i=0;i<N;i++){
       const el = document.createElement('div'); el.className = 'l4-logic-blob'; el.textContent = '⚫';
       layer.appendChild(el);
-      l4L9Blobs.push({ x: 12+Math.random()*76, y: 4+Math.random()*14,
-                       vx: rand(-0.3,0.3), vy: 0.26+Math.random()*0.22, alive:true, el });
+      // раскладываем по горизонтали кучкой у центра (чтобы падали в разные X)
+      const x = 22 + (i + 0.5) * (56 / N);
+      const b = { x, y: 8, vy: 0.22 + Math.random()*0.05, alive:true, released:false, el };
+      el.style.left = x+'%'; el.style.top = '8%';
+      l4L9Blobs.push(b);
     }
     l4L9Move = (e)=>{
       const rect = wf.getBoundingClientRect(); if(!rect.width) return;
       l4L9PlaneX = Math.min(90, Math.max(10, (e.clientX-rect.left)/rect.width*100));
     };
     wf.addEventListener('pointermove', l4L9Move);
-    l4L9FireTimer = setInterval(l4Logic9Fire, 1000);
-    l4Logic9Fire(); // первый выстрел сразу
-    l4L9EndTimer = setTimeout(l4Logic9Finish, 15000); // страховка от зависших сгустков
-    l4L9Raf = requestAnimationFrame(l4Logic9Frame);
+    // 2 секунды «приготовься»: фон темнеет, сгустки ждут наверху, потом — по очереди вниз
+    l4L9IntroTimer = setTimeout(()=>{
+      l4L9IntroTimer = null;
+      if(!l4L9Layer) return;
+      l4L9FireTimer = setInterval(l4Logic9Fire, 700);
+      l4Logic9Fire();
+      // выпускаем сгустки ПО ОЧЕРЕДИ (первый сразу, дальше с паузой)
+      let ri = 0;
+      const releaseOne = ()=>{ if(l4L9Blobs[ri]) l4L9Blobs[ri].released = true; ri++;
+        if(ri >= l4L9Blobs.length){ clearInterval(l4L9ReleaseTimer); l4L9ReleaseTimer = null; } };
+      releaseOne();
+      l4L9ReleaseTimer = setInterval(releaseOne, 1500);
+      l4L9EndTimer = setTimeout(l4Logic9Finish, 30000); // страховка
+      l4L9Raf = requestAnimationFrame(l4Logic9Frame);
+    }, 2000);
   }
 
   // ---------- Парфюмер: цвет×накал одним 2D-пэдом вместо двух слайдеров ----------
@@ -3090,6 +3187,337 @@
     }
   };
 
+  // ---------- Фаза 10: Бабушка Мурра (кошачьи лапы) ----------
+  // Механика с УР.1: на фазе игры на ползунки и банку СРАЗУ вылезают огромные
+  // кошачьи лапы и НЕ уходят сами — их надо быстро кликнуть, чтобы убрать (с
+  // «мяу» и шлепком). Убранная лапа возвращается снова через паузу; чем выше
+  // уровень — тем короче пауза и тем больше лап одновременно. Скоринг не
+  // трогает — это чистая помеха (борьба за видимость под таймером).
+  // ART-SWAP: положить ~10 картинок кошачьих лап (PNG с прозрачностью) в
+  // assets/npc/paws/ и вписать сюда пути — тогда вместо эмодзи 🐾 будут они
+  // (случайная на каждую лапу). Напр.: ['assets/npc/paws/paw1.png', ...].
+  const CATLADY_PAW_IMG = [];
+  let l4PawTimer = null, l4PawHosts = [];
+  // сколько лап одновременно и как быстро возвращаются — по уровню сложности
+  function l4PawMaxCount(lvl){ return ({1:1, 2:2, 3:2, 4:3})[lvl] || 2; }
+  function l4PawReturnMs(lvl){ return ({1:3500, 2:2600, 3:2000, 4:1400})[lvl] || 2600; }
+  // цели, которые лапа может перекрыть: видимые ползунки + сама банка
+  function l4PawTargets(){
+    const out = [...document.querySelectorAll('.vslider-group')].filter(g => !g.classList.contains('hidden'));
+    const jar = document.querySelector('.window-wrap');
+    if(jar) out.push(jar);
+    return out;
+  }
+  function l4PawImg(){
+    // ART-SWAP: положить ~10 картинок лап в assets/npc/paws/ и вписать пути в
+    // CATLADY_PAW_IMG (content.js). Пока пусто → эмодзи-плейсхолдер 🐾.
+    const arr = (typeof CATLADY_PAW_IMG !== 'undefined' && CATLADY_PAW_IMG.length) ? CATLADY_PAW_IMG : null;
+    return arr ? pick(arr) : '🐾';
+  }
+  function l4PawSpawnOne(){
+    const covered = new Set(l4PawHosts);
+    const free = l4PawTargets().filter(t => !covered.has(t));
+    if(!free.length) return false;
+    const host = pick(free);
+    host.classList.add('l4-paw-host');
+    const paw = document.createElement('div');
+    paw.className = 'l4-paw';
+    // лёгкий случайный разворот/сдвиг — чтобы лапы не выглядели одинаково
+    const rot = randInt(-18, 18);
+    paw.style.setProperty('--paw-rot', rot + 'deg');
+    paw.innerHTML = visualHTML(l4PawImg(), 'l4-paw-img');
+    const remove = (e)=>{
+      if(e){ e.preventDefault(); e.stopPropagation(); }
+      SFX.pawClick(); SFX.meow();
+      paw.classList.add('l4-paw-off');
+      host.classList.remove('l4-paw-host');
+      l4PawHosts = l4PawHosts.filter(h => h !== host);
+      setTimeout(()=>paw.remove(), 180);
+    };
+    paw.addEventListener('pointerdown', remove);
+    host.appendChild(paw);
+    l4PawHosts.push(host);
+    return true;
+  }
+  function l4PawDetach(){
+    if(l4PawTimer){ clearInterval(l4PawTimer); l4PawTimer = null; }
+    document.querySelectorAll('.l4-paw').forEach(p => p.remove());
+    document.querySelectorAll('.l4-paw-host').forEach(h => h.classList.remove('l4-paw-host'));
+    l4PawHosts = [];
+  }
+  LEVEL4_FX.catlady = {
+    craftStart(){
+      l4PawDetach();
+      const lvl = target.regLevel;
+      const maxPaws = l4PawMaxCount(lvl);
+      // лапы стоят сразу с начала фазы игры
+      for(let i=0;i<maxPaws;i++) l4PawSpawnOne();
+      // и «докидываются» обратно, если игрок какие-то согнал (быстрее с уровнем)
+      l4PawTimer = setInterval(()=>{
+        if(l4PawHosts.length < maxPaws) l4PawSpawnOne();
+      }, l4PawReturnMs(lvl));
+    },
+    stop(){ l4PawDetach(); }
+  };
+
+  // ---------- Фаза 10: Инженер навигатора (бегающий указатель + зоны) ----------
+  // Механика с УР.1: фазы запоминания НЕТ (цель показана как зоны прямо на треке).
+  // Вместо перетаскивания — треугольный указатель бегает по шкале синусоидой
+  // (медленно у краёв, быстро в центре). Кнопка «стоп» под ползунком фиксирует
+  // значение = позиция указателя. Оценка по зоне попадания: тёмно-зелёная = 100%,
+  // зелёная = 75%, синяя (бычий глаз) = 100%, красная (УР.4) = 0% (ловушка),
+  // мимо всех зон = 0%. Зоны/пороги растут по уровню (труднее).
+  // half-widths — доли трека (0..1); score — доля попадания.
+  const ENG_ZONES = {
+    1: { green:{w:0.20, v:1.00} },
+    2: { green:{w:0.17, v:0.75}, dark:{w:0.07, v:1.00} },
+    3: { green:{w:0.15, v:0.70}, dark:{w:0.08, v:0.85}, blue:{w:0.035, v:1.00} },
+    4: { green:{w:0.14, v:0.70}, dark:{w:0.075, v:0.85}, blue:{w:0.03, v:1.00}, red:{w:0.24, v:0.00} }
+  };
+  const ENG_PERIOD_MS = { 1:1700, 2:1500, 3:1300, 4:1100 }; // период пробега указателя
+  const ENG_KEYS = ['color','size','count','bsize'];
+  let engState = null; // { pointers:{key:{el, frac, phase, trackH, wrap, stopped}}, rafId }
+  function engScorableKey(k){ return ENG_KEYS.includes(k); }
+  function engClamp01(v){ return Math.max(0, Math.min(1, v)); }
+  function engCenterFrac(key){
+    const cfg = target.cfg;
+    if(key === 'color') return engClamp01((target.hueIdx||0)/Math.max(1, cfg.colorSteps-1));
+    if(key === 'size')  return engClamp01((target.sizeIdx||0)/Math.max(1, cfg.sizeSteps-1));
+    if(key === 'bsize') return engClamp01((target.bsizeIdx||0)/Math.max(1, cfg.bsizeSteps-1));
+    if(key === 'count') return engClamp01(((target.count||1)-1)/Math.max(1, cfg.countMax-1));
+    return 0.5;
+  }
+  function engZoneScore(dist, lvl){
+    const z = ENG_ZONES[lvl] || ENG_ZONES[1];
+    if(z.blue && dist <= z.blue.w) return z.blue.v;
+    if(z.dark && dist <= z.dark.w) return z.dark.v;
+    if(dist <= z.green.w) return z.green.v;
+    if(z.red && dist <= z.red.w) return 0;                       // красная ловушка
+    // мимо всех зон — мягкий распад по близости (чтоб не был чистый ноль)
+    return Math.max(0, 0.35 * (1 - (dist - z.green.w) / 0.35));
+  }
+  // фон-градиент трека с концентрическими зонами вокруг центра c (0..1)
+  function engGradient(c, lvl){
+    const z = ENG_ZONES[lvl] || ENG_ZONES[1];
+    const base = '#1a2233';
+    const bands = []; // [halfWidth, color] от узкой к широкой (внутренняя — первой)
+    if(z.blue) bands.push([z.blue.w, '#35a0ff']);
+    if(z.dark) bands.push([z.dark.w, '#1f8f3d']);
+    bands.push([z.green.w, 'rgba(125,255,106,.92)']);
+    if(z.red) bands.push([z.red.w, 'rgba(255,93,106,.9)']);
+    const colorAt = (f)=>{ const d = Math.abs(f-c); for(const [w,col] of bands){ if(d<=w) return col; } return base; };
+    const edges = new Set([0,1]);
+    bands.forEach(([w])=>{ edges.add(engClamp01(c-w)); edges.add(engClamp01(c+w)); });
+    const sorted = [...edges].sort((a,b)=>a-b);
+    let g = 'linear-gradient(to top';
+    for(let i=0;i<sorted.length-1;i++){
+      const a = sorted[i], b = sorted[i+1];
+      const col = colorAt((a+b)/2);
+      g += `, ${col} ${(a*100).toFixed(1)}%, ${col} ${(b*100).toFixed(1)}%`;
+    }
+    return g + ')';
+  }
+  function engStopKey(key){
+    if(!engState) return;
+    const p = engState.pointers[key];
+    if(!p || p.stopped) return;
+    p.stopped = true;
+    // значение ползунка = позиция указателя
+    const s = S[key];
+    if(s){ const v = Math.round(s.min + p.frac*(s.max - s.min)); s.value = Math.min(s.max, Math.max(s.min, v)); }
+    if(!target.engStopped) target.engStopped = {};
+    target.engStopped[key] = p.frac;
+    p.el.classList.add('eng-pointer-stopped');
+    if(p.btn){ p.btn.disabled = true; p.btn.classList.add('eng-stopped'); }
+    SFX.uiClick();
+    updatePlayerJar();
+  }
+  function engBuildOne(key, lvl){
+    const mount = $('m' + key.charAt(0).toUpperCase() + key.slice(1));
+    if(!mount) return;
+    const wrap = mount.querySelector('.vslide-wrap');
+    const track = mount.querySelector('.vslide-track');
+    const group = mount.closest('.vslider-group');
+    if(!wrap || !track || !group) return;
+    const s = S[key];
+    if(s) s.setDisabled(true); // перетаскивать нельзя — только «стоп»
+    const c = engCenterFrac(key);
+    track.style.background = engGradient(c, lvl);
+    const trackH = track.getBoundingClientRect().height || parseFloat(track.style.height) || 260;
+    // треугольный указатель справа от трека
+    const el = document.createElement('div');
+    el.className = 'eng-pointer';
+    wrap.appendChild(el);
+    // кнопка «стоп» под ползунком
+    let btn = group.querySelector('.eng-stop-btn');
+    if(!btn){
+      btn = document.createElement('button');
+      btn.className = 'eng-stop-btn';
+      btn.textContent = LT((typeof UI_TEXT !== 'undefined' && UI_TEXT.ENG_STOP_BTN) || {ru:'СТОП',en:'STOP'});
+      group.appendChild(btn);
+    }
+    btn.disabled = false; btn.classList.remove('eng-stopped');
+    btn.onclick = (e)=>{ e.preventDefault(); engStopKey(key); };
+    engState.pointers[key] = { el, btn, frac:0.5, phase: Math.random()*Math.PI*2, trackH, stopped:false };
+  }
+  function engFrame(now){
+    if(!engState) return;
+    const lvl = target.regLevel;
+    const period = ENG_PERIOD_MS[lvl] || 1500;
+    const w = 2*Math.PI / period;
+    for(const key in engState.pointers){
+      const p = engState.pointers[key];
+      if(p.stopped) continue;
+      // синус: медленно у краёв, быстро в центре
+      p.frac = 0.5 + 0.5*Math.sin(p.phase + now*w);
+      p.el.style.bottom = (p.frac * p.trackH).toFixed(1) + 'px';
+    }
+    engState.rafId = requestAnimationFrame(engFrame);
+  }
+  function engStart(){
+    engStop();
+    engState = { pointers:{}, rafId:null };
+    target.engStopped = {};
+    const lvl = target.regLevel;
+    const keys = [...(target.activeKeys || [])].filter(engScorableKey);
+    keys.forEach(k => engBuildOne(k, lvl));
+    engState.rafId = requestAnimationFrame(engFrame);
+  }
+  function engStop(){
+    if(engState){
+      if(engState.rafId) cancelAnimationFrame(engState.rafId);
+      for(const key in engState.pointers){ const p = engState.pointers[key]; if(p.el) p.el.remove(); }
+      engState = null;
+    }
+    document.querySelectorAll('.eng-stop-btn').forEach(b => b.remove());
+  }
+  LEVEL4_FX.engineer = {
+    craftStart(){ engStart(); },
+    stop(){ engStop(); }
+  };
+
+  // ---------- Фаза 10: Маркетолог с безлюдного спутника (хаос-панель) ----------
+  // Механика с УР.1: в фазе игры обычные колонки ползунков прячутся, справа —
+  // панель из десятков случайно разбросанных контролов трёх типов (ползунок,
+  // крутилка, кнопки +/−) на фоне газеты (рекламные обрывки просвечивают). Для
+  // КАЖДОЙ активной характеристики реально работает ровно ОДИН случайный контрол
+  // (пишет в S[key] → банка/скоринг как обычно), остальные — обманки (крутятся,
+  // но ни на что не влияют). На УР.4 текст газеты постоянно меняется (хаос).
+  // Скоринг и фаза показа НЕ меняются — это чистая обфускация ввода.
+  // ART-SWAP: MARKETER_BG_IMG — картинка-газета вместо процедурных обрывков.
+  const MARKETER_BG_IMG = null;
+  let marketerState = null;
+  function mkRandType(){ return pick(['slider','dial','button']); }
+  function mkMakeControl(type){
+    const el = document.createElement('div');
+    el.className = 'mk-ctrl mk-' + type;
+    if(type === 'button'){
+      el.innerHTML = `<button class="mk-btn mk-up" type="button">▲</button><button class="mk-btn mk-dn" type="button">▼</button>`;
+    } else if(type === 'dial'){
+      el.innerHTML = `<div class="mk-knob"><span class="mk-knob-mark"></span></div>`;
+    } else {
+      el.innerHTML = `<div class="mk-strack"><div class="mk-sthumb"></div></div>`;
+    }
+    return el;
+  }
+  function mkFlash(el, ok){
+    el.classList.remove(ok ? 'mk-real-hit' : 'mk-wiggle');
+    void el.offsetWidth;
+    el.classList.add(ok ? 'mk-real-hit' : 'mk-wiggle');
+  }
+  function mkWire(el, type, key){
+    const real = !!key;
+    const s = real ? S[key] : null;
+    let norm = s ? (s.value - s.min)/((s.max - s.min) || 1) : 0.5;
+    const apply = ()=>{
+      norm = Math.max(0, Math.min(1, norm));
+      if(real && s){ s.value = Math.round(s.min + norm*(s.max - s.min)); updatePlayerJar(); }
+    };
+    const feedback = ()=>{ if(real){ SFX.tick(); } else { SFX.uiClick(); mkFlash(el, false); } };
+    if(type === 'button'){
+      const step = 1 / Math.max(1, s ? (s.max - s.min) : 6);
+      const up = el.querySelector('.mk-up'), dn = el.querySelector('.mk-dn');
+      up.onclick = e=>{ e.preventDefault(); norm += step; apply(); feedback(); };
+      dn.onclick = e=>{ e.preventDefault(); norm -= step; apply(); feedback(); };
+    } else if(type === 'dial'){
+      const knob = el.querySelector('.mk-knob'), mark = el.querySelector('.mk-knob-mark');
+      let dragging = false, lastY = 0;
+      const setRot = ()=>{ mark.style.transform = `rotate(${(norm*300 - 150).toFixed(0)}deg)`; };
+      knob.addEventListener('pointerdown', e=>{ dragging = true; lastY = e.clientY; try{ knob.setPointerCapture(e.pointerId); }catch(_){}; e.preventDefault(); });
+      knob.addEventListener('pointermove', e=>{ if(!dragging) return; const dy = lastY - e.clientY; lastY = e.clientY; norm += dy*0.012; apply(); setRot(); feedback(); });
+      knob.addEventListener('pointerup', ()=>{ dragging = false; });
+      knob.addEventListener('pointercancel', ()=>{ dragging = false; });
+      setRot();
+    } else {
+      const track = el.querySelector('.mk-strack'), thumb = el.querySelector('.mk-sthumb');
+      const setY = clientY=>{ const r = track.getBoundingClientRect(); norm = 1 - (clientY - r.top)/(r.height || 1); apply(); thumb.style.bottom = (Math.max(0,Math.min(1,norm))*100).toFixed(0) + '%'; feedback(); };
+      let dragging = false;
+      track.addEventListener('pointerdown', e=>{ dragging = true; try{ track.setPointerCapture(e.pointerId); }catch(_){}; setY(e.clientY); e.preventDefault(); });
+      track.addEventListener('pointermove', e=>{ if(dragging) setY(e.clientY); });
+      track.addEventListener('pointerup', ()=>{ dragging = false; });
+      track.addEventListener('pointercancel', ()=>{ dragging = false; });
+      thumb.style.bottom = (norm*100).toFixed(0) + '%';
+    }
+  }
+  function mkFillNews(bg){
+    if(MARKETER_BG_IMG){ bg.style.backgroundImage = `url(${MARKETER_BG_IMG})`; bg.innerHTML = ''; return; }
+    const ads = (typeof MARKETER_ADS !== 'undefined' && MARKETER_ADS.length) ? MARKETER_ADS : [{ru:'РАСПРОДАЖА',en:'SALE'}];
+    let html = '';
+    for(let i=0;i<11;i++){
+      const a = LT(pick(ads));
+      html += `<span class="mk-ad" style="left:${randInt(1,68)}%;top:${randInt(1,90)}%;font-size:${randInt(9,19)}px;transform:rotate(${randInt(-10,10)}deg)">${a}</span>`;
+    }
+    bg.innerHTML = html;
+  }
+  function marketerBuild(){
+    marketerStop();
+    const row = document.querySelector('.control-row');
+    if(!row) return;
+    const left = $('leftCol'), right = $('rightCol');
+    if(left) left.classList.add('mk-hidden');
+    if(right) right.classList.add('mk-hidden');
+    const panel = document.createElement('div');
+    panel.className = 'marketer-panel';
+    const bg = document.createElement('div');
+    bg.className = 'mk-news';
+    mkFillNews(bg);
+    panel.appendChild(bg);
+    row.appendChild(panel);
+    // по одному реальному контролу на каждый активный ключ + куча обманок
+    const activeKeys = [...(target.activeKeys || [])].filter(k => S[k] && ['color','size','count','bsize'].includes(k));
+    const specs = activeKeys.map(k => ({ real:true, key:k, type: mkRandType() }));
+    const decoyCount = 15;
+    for(let i=0;i<decoyCount;i++) specs.push({ real:false, type: mkRandType() });
+    shuffleArr(specs).forEach(spec=>{
+      const el = mkMakeControl(spec.type);
+      el.style.left = (5 + Math.random()*76).toFixed(1) + '%';
+      el.style.top  = (4 + Math.random()*82).toFixed(1) + '%';
+      el.style.setProperty('--mk-rot', randInt(-14,14) + 'deg');
+      panel.appendChild(el);
+      mkWire(el, spec.type, spec.real ? spec.key : null);
+    });
+    marketerState = { panel, bg, textTimer:null };
+    // УР.4: газета «плывёт» — обрывки текста меняются
+    if(target.regLevel === 4){
+      marketerState.textTimer = setInterval(()=>{ if(marketerState) mkFillNews(bg); }, 900);
+    }
+  }
+  function marketerStop(){
+    if(marketerState){
+      if(marketerState.textTimer) clearInterval(marketerState.textTimer);
+      if(marketerState.panel) marketerState.panel.remove();
+      marketerState = null;
+    }
+    document.querySelectorAll('.marketer-panel').forEach(p => p.remove());
+    const left = $('leftCol'), right = $('rightCol');
+    if(left) left.classList.remove('mk-hidden');
+    if(right) right.classList.remove('mk-hidden');
+  }
+  LEVEL4_FX.marketer = {
+    craftStart(){ marketerBuild(); },
+    stop(){ marketerStop(); }
+  };
+
   // ---------- сложность регуляторов (Фаза C) ----------
   // Возвращает Set ключей регуляторов, доступных игроку на данном уровне
   // сложности (1/2/3) для конкретного заказа (target уже собран в startOrder:
@@ -3156,6 +3584,17 @@
       if(level >= 2){ s.add('color'); s.add('size'); }
       if(level >= 3 && allSet.has('sat')) s.add('sat');
       return s;
+    }
+    // Фаза 10 (Пьяница Пит): его фишка — «уровень жидкости» (fill) — с УР.1.
+    // Раскладка: УР.1 размер+цвет+уровень; УР.2 +сгустки; УР.3 +размер сгустков;
+    // УР.4 +«градус» (degree) — эксклюзивный ползунок риск/награда (в скоринге
+    // не участвует, влияет на рейтинг/чаевые — см. finalizeResult).
+    if(cfg.id === 'pete'){
+      const p = new Set(['size', 'color', 'fill']);
+      if(level >= 2) p.add('count');
+      if(level >= 3) p.add('bsize');
+      if(level >= 4) p.add('degree');
+      return p;
     }
 
     // ---- Фаза 8 (8A): новый порядок раскрытия ползунков по уровням ----
@@ -3325,7 +3764,8 @@
   // зелёная зона осмысленна; джиггер — любой активный засчитываемый)
   function pickableKeysForItem(item){
     const keys = [...(target && target.activeKeys ? target.activeKeys : [])].filter(k => S[k]);
-    if(item.effect === 'paprika' || item.effect === 'mark') return keys.filter(k => ['color','size','bsize','count'].includes(k));
+    // джиггер отключает только «обычные» характеристики (не спец-компоненты вроде vexPosition)
+    if(item.effect === 'jigger') return keys.filter(k => ['color','size','bsize','count'].includes(k));
     return keys;
   }
 
@@ -3336,11 +3776,13 @@
     const g = grade || {};
     switch(item.effect){
       case 'time': case 'memtime': { const s = (g.bonusMs||0)/1000; return { ru:`Эффект: +${s} сек к таймеру.`, en:`Effect: +${s}s to the timer.` }; }
-      case 'jigger': return g.mode === 'random'
+      case 'jigger':
+        if(g.mode === 'random2') return { ru:'Эффект: отключает 2 случайных регулятора (не влияют на рейтинг).', en:'Effect: disables 2 random regulators (excluded from score).' };
+        return g.mode === 'random'
         ? { ru:'Эффект: отключает случайный регулятор (не влияет на рейтинг).', en:'Effect: disables a random regulator (excluded from score).' }
         : { ru:'Эффект: отключает выбранный тобой регулятор (не влияет на рейтинг).', en:'Effect: disables a regulator of your choice (excluded from score).' };
-      case 'paprika': { const p = Math.round((g.zone||0)*100); return { ru:`Эффект: зелёная зона верного значения, ширина ±${p}%.`, en:`Effect: green zone around the right value, ±${p}% wide.` }; }
-      case 'mark': return { ru:'Эффект: точная метка верного значения на выбранном регуляторе.', en:'Effect: an exact marker of the right value on a chosen regulator.' };
+      case 'repboost': { const r = g.rep||0; return { ru:`Эффект: за годноту+ репутация +${r}, за брак −${r} сверх обычного.`, en:`Effect: on a good+ result reputation +${r}, on a botch −${r} beyond the usual.` }; }
+      case 'nudge': { const n = g.count === 'all' ? {ru:'все ползунки',en:'all sliders'} : (g.count===2 ? {ru:'2 случайных ползунка',en:'2 random sliders'} : {ru:'1 случайный ползунок',en:'1 random slider'}); return { ru:`Эффект: в конце подвинет ${n.ru} на деление ближе к цели.`, en:`Effect: at the end nudges ${n.en} one notch toward the target.` }; }
       case 'chip': { const lo = Math.round((g.lo||0)*100), hi = Math.round((g.hi||0)*100); return { ru:`Эффект: итог заказа сдвигается на ${lo>=0?'+':''}${lo}%…+${hi}%.`, en:`Effect: shifts the order result by ${lo>=0?'+':''}${lo}%…+${hi}%.` }; }
       case 'flatbonus': return { ru:`Эффект: +${g.flat||0} рейтинга за годноту.`, en:`Effect: +${g.flat||0} rating on a good result.` };
       case 'rewardmult': { const p = Math.round((g.mult||0)*100); return { ru:`Эффект: +${p}% рейтинга за годноту/идеал.`, en:`Effect: +${p}% rating for a good/perfect.` }; }
@@ -3367,6 +3809,7 @@
     $('shopBalanceVal').textContent = PP ? PP.getTips() : 0;
     host.innerHTML = '';
     SHOP_ITEMS.forEach(item=>{
+      if(item.grantOnly) return; // Фаза 10: подарочные предметы (клубок) в магазине не продаются
       const isUnique = !!item.unique;
       let g;
       if(isUnique){ g = 0; }
@@ -3393,7 +3836,7 @@
       card.innerHTML = `
         <div class="item-icon">${itemIconFor(item, grade)}</div>
         <div class="item-body">
-          <div class="item-name">${LT(item.name)} ${nameSuffix}</div>
+          <div class="item-name">${LT((grade && grade.name) || item.name)} ${nameSuffix}</div>
           <div class="item-desc">${itemDescHTML(item, grade)}</div>
           <div class="item-action">
             <button class="item-buy-btn" ${buyable?'':'disabled'}>${LT(UI_TEXT.SHOP_BUY)}</button>
@@ -3446,7 +3889,7 @@
       card.innerHTML = `
         <div class="item-icon">${itemIconFor(item, grade)}</div>
         <div class="item-body">
-          <div class="item-name">${LT(item.name)} <span class="item-grade-note">· ${LT(UI_TEXT.ITEM_GRADE_LABEL)} ${entry.grade+1} (${LT(grade.label)})</span></div>
+          <div class="item-name">${LT((grade && grade.name) || item.name)} <span class="item-grade-note">· ${LT(UI_TEXT.ITEM_GRADE_LABEL)} ${entry.grade+1} (${LT(grade.label)})</span></div>
           <div class="item-desc">${itemDescHTML(item, grade)}</div>
           <div class="item-action">
             <button class="item-use-btn" ${usable?'':'disabled'}>${LT(UI_TEXT.INV_USE)}</button>
@@ -3463,8 +3906,13 @@
 
   function useItem(item, grade, card){
     if(!itemUsableNow(item)){ SFX.badPop(); return; }
-    const needsPick = (item.effect === 'paprika') || (item.effect === 'mark') ||
-                      (item.effect === 'jigger' && item.grades[grade].mode !== 'random');
+    // Фаза 6: у Коллекционера ползунков нет — джиггер/глаз без аналога отклоняем
+    // сразу (не показывая пикер регулятора). Остальное разрулит applyItemEffect.
+    if(target && target.cfg.id === 'collector_gz' && (item.effect === 'jigger' || item.effect === 'nudge')){
+      SFX.badPop(); showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_NO_TARGET, name:'' }); return;
+    }
+    // выбор регулятора нужен только джиггеру в режиме «на выбор» (choose*)
+    const needsPick = item.effect === 'jigger' && /^choose/.test(item.grades[grade].mode || '');
     if(needsPick){ showRegPicker(item, grade, card); return; }
     applyItemEffect(item, grade, null);
   }
@@ -3521,6 +3969,24 @@
     return true;
   }
 
+  // Фаза 6 (Барменский глаз): в конце игры двигает ползунки на 1 деление ближе к
+  // цели. count: 1 | 2 | 'all' — сколько случайных активных регуляторов подвинуть.
+  function applyEyeNudge(){
+    if(!target || !target.itemFx || target.itemFx.nudge == null) return;
+    const tgtIdx = { color:target.hueIdx, colorB:target.hue2Idx, size:target.sizeIdx,
+      size2:target.size2Idx, bsize:target.bsizeIdx, count:target.count,
+      fill:target.fillIdx, sat:target.satIdx };
+    let keys = [...(target.activeKeys || [])].filter(k => S[k] && tgtIdx[k] != null);
+    const n = target.itemFx.nudge;
+    if(n !== 'all') keys = shuffleArr(keys).slice(0, n);
+    keys.forEach(k=>{
+      const cur = S[k].value, t = tgtIdx[k];
+      if(cur < t) S[k].value = Math.min(t, cur + 1);
+      else if(cur > t) S[k].value = Math.max(t, cur - 1);
+    });
+    if(keys.length) updatePlayerJar();
+  }
+
   // Уникальный "Жетон дебоша": добавляет случайный модификатор случайному
   // подходящему гостю дня, соблюдая правила Фазы 3 (без дублей; несколько — только
   // красным+ и при Ур.7). Возвращает изменённый заказ или null (некому).
@@ -3534,7 +4000,10 @@
       if(modCount > 0 && !(multiOn && o.cfg.tier >= 4)) continue; // второй модификатор нельзя
       if(modCount >= 3) continue; // жёсткий лимит
       const kinds = [];
-      if(o.cfg.type === 'normal' && !o.focus) kinds.push('focus');
+      // Фаза 6 (аудит предметов): фокус нельзя вешать на персонажей с кастомной
+      // раскладкой ползунков — та же логика, что в buildOrderDescriptor
+      // (иначе Жетон дебоша мог дать фокус Вексу/Парфюмеру/Коллекционеру).
+      if(o.cfg.type === 'normal' && !o.focus && !MOD_FOCUS_EXCLUDE.has(o.cfg.id)) kinds.push('focus');
       if(new3On){
         if(o.cfg.special !== 'no_timer' && !(o.mods || []).includes('timer')) kinds.push('timer');
         if(!(o.mods || []).includes('duck')) kinds.push('duck');
@@ -3542,7 +4011,8 @@
       }
       if(!kinds.length) continue;
       const k = pick(kinds);
-      if(k === 'focus') o.focus = pick(['bubbles','color','size']);
+      // Навигатору Роя фокус только по спектру/габаритам (сгустков-слайдера нет)
+      if(k === 'focus') o.focus = pick(o.cfg.id === 'swarm_navigator' ? ['color','size'] : ['bubbles','color','size']);
       else { o.mods = o.mods || []; o.mods.push(k); }
       return o;
     }
@@ -3559,6 +4029,20 @@
       renderCustomerCards(currentOrders); // показать новую плашку
       showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
       SFX.cardPick(); closeInventory(); return;
+    }
+    // Фаза 6 (адаптация под Коллекционера): у него ползунков нет — сетка зелий.
+    //  • «подсказки» (revealall/truesolve) подсвечивают верную баночку;
+    //  • предметы-на-ползунок без аналога в сетке (jigger/nudge) — отказ без траты.
+    if(target && target.cfg.id === 'collector_gz'){
+      if(item.effect === 'jigger' || item.effect === 'nudge'){
+        SFX.badPop(); showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_NO_TARGET, name:'' }); return; // не тратим
+      }
+      if(item.effect === 'revealall' || item.effect === 'truesolve'){
+        if(!PP.consumeItem(item.id, grade)){ SFX.badPop(); return; }
+        l4CollectorHighlightCorrect();
+        showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
+        SFX.cardPick(); closeInventory(); return;
+      }
     }
     if(!PP.consumeItem(item.id, grade)){ SFX.badPop(); return; }
     const gr = item.grades[grade];
@@ -3584,20 +4068,28 @@
     } else if(item.effect === 'speedlock'){
       if(target) target.itemFx.speedLock = Math.max(target.itemFx.speedLock || 0, gr.lock || 0);
       showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
-    } else if(item.effect === 'mark'){
-      if(key) applyPaprikaZone(key, gr.zone, true); // true — тонкая яркая метка (не зелёная зона)
+    } else if(item.effect === 'nudge'){
+      // Фаза 6 (Барменский глаз, новый эффект): в конце игры подвинет ползунки
+      // на 1 деление к цели (1 / 2 / все — по грейду). Само движение — в finishCraft.
+      if(target) target.itemFx.nudge = gr.count; // 1 | 2 | 'all'
       showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
     } else if(item.effect === 'jigger'){
-      let k = key;
-      if(!k){ const keys = pickableKeysForItem(item); k = keys.length ? pick(keys) : null; }
-      if(k && target){
-        target.itemFx.jiggerKey = k;
-        if(S[k]){ S[k].setDisabled(true); S[k].setFlag('item-jigger', true); }
+      // Грейд 3 (random2) отключает 2 случайных регулятора, остальные — 1
+      const wantCount = gr.mode === 'random2' ? 2 : 1;
+      let chosen = [];
+      if(gr.mode === 'random' || gr.mode === 'random2'){
+        chosen = shuffleArr(pickableKeysForItem(item)).slice(0, wantCount);
+      } else if(key){ chosen = [key]; }
+      if(chosen.length && target){
+        target.itemFx.jiggerKey = chosen.length === 1 ? chosen[0] : chosen;
+        chosen.forEach(k=>{ if(S[k]){ S[k].setDisabled(true); S[k].setFlag('item-jigger', true); } });
         updatePlayerJar();
       }
       showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
-    } else if(item.effect === 'paprika'){
-      if(key) applyPaprikaZone(key, gr.zone);
+    } else if(item.effect === 'repboost'){
+      // Фаза 6 (Космическая паприка, новый эффект): усиливает репутационный итог —
+      // за годноту+ больше репутации, за брак больше отнимает (см. finalizeResult).
+      if(target) target.itemFx.repBoost = (target.itemFx.repBoost || 0) + (gr.rep || 0);
       showToast({ icon:item.icon, prefix:UI_TEXT.ITEM_USED_TOAST, name:item.name });
     } else if(item.effect === 'chip'){
       if(target) target.itemFx.chip = { lo:gr.lo, hi:gr.hi };
@@ -3985,7 +4477,7 @@
     ['collectionBtn','charactersBtn','passivesBtn'].forEach(id=>{
       const el = $(id); if(el) el.classList.add('hidden');
     });
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; peteDegreeTipBonus = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
     $('dayVal').textContent = dayNum;
@@ -4064,9 +4556,8 @@
     // (грид-выбор — стат-фокус ему не применим: ни сгустков, ни габаритов, ни
     // спектра в привычном смысле). Навигатор фокус ПОЛУЧАЕТ, но ограниченный —
     // только спектр/габариты (сгустков у него нет), см. focusTypesFor ниже.
-    const FOCUS_EXCLUDE = new Set(['vex', 'perfumer', 'collector_gz']);
     const focusTypesFor = id => id === 'swarm_navigator' ? ['color', 'size'] : ['bubbles', 'color', 'size'];
-    const focusEligible = modifiersOn && baseEligible && cfg.type === 'normal' && !FOCUS_EXCLUDE.has(cfg.id);
+    const focusEligible = modifiersOn && baseEligible && cfg.type === 'normal' && !MOD_FOCUS_EXCLUDE.has(cfg.id);
     if(modifiersOn && baseEligible && (forceFocus || Math.random() < 0.4)){
       // какие "виды" модификаторов доступны этому персонажу
       const kinds = [];
@@ -4370,6 +4861,7 @@
     $('roundScreen').classList.remove('show');
     $('selectScreen').classList.add('show');
     $('resultOverlay').classList.remove('show');
+    updateNickBadge(); // Фаза 4: ник внизу слева (только аркадный основной режим)
     updateProgressionGates(); // Фаза 3: актуализируем видимость кнопок/длину цикла
     $('dayVal').textContent = dayNum;
 
@@ -4561,6 +5053,14 @@
       target.size2 = idxToVal(size2Idx, cfg.sizeSteps, 100);
       target.size2Idx = size2Idx;
     }
+    // Фаза 10 (Пьяница Пит): «уровень жидкости» — цель заказа (учитывается в
+    // скоринге). Минимум ~1 деление, чтобы жидкости всегда было видно на глаз
+    // (совсем пустая банка бесцветна и нечитаема).
+    if(cfg.id === 'pete'){
+      const fillIdx = randInt(1, cfg.sizeSteps-1);
+      target.fillIdx = fillIdx;
+      target.fill = idxToVal(fillIdx, cfg.sizeSteps, 100);
+    }
     // Патч (Ир): ожидающий бафф/дебафф превращается в конкретный эффект
     // этого заказа — один из трёх соответствующего знака
     if(irPending && typeof IR_EFFECTS !== 'undefined'){
@@ -4682,6 +5182,8 @@
         bubbleR:targetR, seed:target.seed, shapeIdx: target.shapeIdx ?? 0,
         splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? (target.countB||0) : 0,
         showGrid: isVexDrag, customBottle: target.customBottle, capIdx: target.capIdx, decor: target.decor,
+        // Фаза 10 (Пит): показываем и уровень жидкости
+        fillPct: (cfg.id === 'pete') ? target.fill : null,
         // Патч "УР.4" (Сверхновая): банку на фазе показа тоже нужно повернуть —
         // раньше поворот применялся только к банке игрока на фазе игры
         rotationDeg: (cfg.id === 'supernova_child' && regLevel === 4) ? target.rotation : null });
@@ -4712,7 +5214,10 @@
     // Фаза 6, "Тоник ясности": отложенный бонус времени запоминания (применён в фазе выбора)
     let clarityBonus = 0;
     if(pendingItemFx.memBonusMs){ clarityBonus = pendingItemFx.memBonusMs; pendingItemFx.memBonusMs = 0; }
-    const memDuration = Math.round(cfg.memorizeMs * MEM_TIME_SCALE * (1 + (target.passiveFx.memTime || 0))) + janitorL4Bonus + fashionistaL4Bonus + clarityBonus;
+    // Правка (пользователь): фиолетовый грейд (тир 5, в т.ч. по грейд-вариативности)
+    // — на запоминание +30% времени.
+    const purpleMemMult = cfg.tier === 5 ? 1.3 : 1;
+    const memDuration = Math.round(cfg.memorizeMs * MEM_TIME_SCALE * purpleMemMult * (1 + (target.passiveFx.memTime || 0))) + janitorL4Bonus + fashionistaL4Bonus + clarityBonus;
     target.memDuration = memDuration; // Патч "УР.4": механики фазы показа читают отсюда
     // Тот-Кто-Ждёт: у него нет таймера ни на запоминание, ни на варку —
     // игрок сам решает, когда готов, кнопкой "Готово, воссоздаю"
@@ -4727,10 +5232,11 @@
       // Патч "УР.4": у Того-Кто-Ждёт своя механика запоминания (метроном+числа)
       // даже без обычного таймера — цепляем через тот же хук memorizeStart
       if(level4Active && level4Active.memorizeStart) level4Active.memorizeStart();
-    } else if(mechActive('guild_inspector') || (mechActive('gourmet_vega') && regLevel === 4)){
+    } else if(mechActive('guild_inspector') || (mechActive('gourmet_vega') && regLevel === 4) || mechActive('engineer')){
       // Инспектор Гильдии (с УР.1) — сразу лист "Допусков" без показа.
-      // Гурман на УР.4 (Ф8) — фазы показа тоже нет: цель ищется «дегустацией»
-      // (подсветка близости ползунков), а не запоминанием.
+      // Гурман на УР.4 (Ф8) — фазы показа тоже нет: цель ищется «дегустацией».
+      // Инженер навигатора (Фаза 10, с УР.1) — показа нет: цель показана зонами
+      // на треках, задача — вовремя остановить бегущий указатель.
       stopMovingAnim();
       startGuessPhase();
     } else {
@@ -4792,6 +5298,19 @@
       $('size2Group').classList.add('hidden');
     }
 
+    // ---------- Фаза 10 (Пьяница Пит): уровень жидкости + градус ----------
+    if(cfg.id === 'pete'){
+      $('fillGroup').classList.remove('hidden');
+      S.fill.configure({ min:0, max:cfg.sizeSteps-1, step:1, value:Math.floor((cfg.sizeSteps-1)/2) });
+      const l4 = target.regLevel === 4;
+      $('degreeGroup').classList.toggle('hidden', !l4);
+      // градус стартует с нуля: не хочешь риска — не трогаешь, рейтинг не страдает
+      if(l4) S.degree.configure({ min:0, max:10, step:1, value:0 });
+    } else {
+      $('fillGroup').classList.add('hidden');
+      $('degreeGroup').classList.add('hidden');
+    }
+
     // сброс визуальных флагов патча с прошлого раунда
     Object.values(S).forEach(s=>{ if(s.setFlag){ s.setFlag('ir-gift', false); } });
     S.color.setTrackBackground(RAINBOW_BG);
@@ -4848,7 +5367,9 @@
     // компенсация за то, что внимание постоянно отвлекается на "плохие" пузыри.
     // Фаза J: пассивка craftTime растягивает (или ужимает, если < 0) базу.
     const pfx = target.passiveFx || {};
-    let craftDuration = Math.round(cfg.craftMs * CRAFT_TIME_SCALE * (1 + (pfx.craftTime || 0)))
+    // Правка (пользователь): фиолетовый грейд (тир 5) — на игру +50% времени.
+    const purpleCraftMult = cfg.tier === 5 ? 1.5 : 1;
+    let craftDuration = Math.round(cfg.craftMs * CRAFT_TIME_SCALE * purpleCraftMult * (1 + (pfx.craftTime || 0)))
       + (target.regLevel === 4 ? (typeof LEVEL4_TIME_BONUS_MS !== 'undefined' ? LEVEL4_TIME_BONUS_MS : 0) : 0);
     // Патч (Ир): подаренные / украденные секунды
     // Патч (усилено): +4с / -2с вместо +2с / -1с
@@ -5005,6 +5526,15 @@
     if(isTwofacedSplit){
       const lblCB = $('lblCountB'); if(lblCB) lblCB.textContent = S.countB.value;
     }
+    // Фаза 10 (Пьяница Пит): «уровень жидкости» — свой ползунок; «градус» — УР.4
+    let fillPct = null;
+    if(cfg.id === 'pete'){
+      fillPct = idxToVal(S.fill.value, cfg.sizeSteps, 100);
+      const lblF = $('lblFill'); if(lblF) lblF.textContent = Math.round(fillPct) + '%';
+      if(target.regLevel === 4 && S.degree){
+        const lblD = $('lblDegree'); if(lblD) lblD.textContent = (S.degree.value*10) + '°';
+      }
+    }
     $('lblColor').textContent = Math.round(hue) + '°';
     $('lblSize').textContent = Math.round(size) + '%';
     $('lblCount').textContent = count;
@@ -5017,7 +5547,7 @@
     const isVexDrag = cfg.id === 'vex';
     const effCount = (noBubbles || isFlySwarm || isVexDrag) ? 0 : count;
     drawJar({ hue, hue2, sat, sizePct:size, heightPct, bubbleCount:effCount, bubbleR:r, shapeIdx,
-      rotationDeg,
+      rotationDeg, fillPct,
       splitHalves: isTwofacedSplit, bubbleCountB: isTwofacedSplit ? S.countB.value : 0,
       seed: target.seed + 5000 + count*7 + Math.round(r*13), badBubbles: currentBadBubbles,
       showGrid: isVexDrag, customBottle: target.customBottle, capIdx: target.capIdx, decor: target.decor });
@@ -5142,6 +5672,31 @@
       );
     }
 
+    // Фаза 10 (Пьяница Пит): «уровень жидкости» — полноценный оцениваемый
+    // параметр (наравне с цветом/объёмом). Вес нормализуется ниже вместе с
+    // остальными по activeKeys.
+    if(cfg.id === 'pete' && S.fill){
+      const guessFill = idxToVal(S.fill.value, cfg.sizeSteps, 100);
+      const fillScore = curveScore(1 - Math.abs(guessFill - (target.fill ?? 0))/100);
+      components.push({ key:'fill', label:UI_TEXT.LABEL_FILL, score:fillScore, weight:0.2 });
+    }
+
+    // Фаза 10 (Инженер навигатора): оценка не по «похожести», а по зоне, в
+    // которой игрок остановил бегущий указатель (тёмно-зелёная/синяя=100%,
+    // зелёная=75%, красная УР.4=0%, мимо=распад). Переопределяем score каждого
+    // основного компонента; веса/нормализация — общие ниже.
+    if(cfg.id === 'engineer'){
+      components.forEach(c=>{
+        if(!engScorableKey(c.key)) return;
+        const cf = engCenterFrac(c.key);
+        let sf;
+        if(target.engStopped && target.engStopped[c.key] != null) sf = target.engStopped[c.key];
+        else if(engState && engState.pointers[c.key]) sf = engState.pointers[c.key].frac; // не нажал «стоп» — где указатель сейчас
+        else { const s = S[c.key]; sf = s ? (s.value - s.min)/((s.max - s.min)||1) : 0.5; }
+        c.score = engZoneScore(Math.abs(sf - cf), target.regLevel);
+      });
+    }
+
     // сложность регуляторов (Фаза C): недоступные игроку регуляторы не
     // участвуют в подсчёте очков — веса оставшихся нормализуются к 1
     if(target.activeKeys){
@@ -5152,9 +5707,10 @@
     // Фаза 6, "Потрёпанный джиггер": отключённый регулятор не участвует в
     // подсчёте — веса оставшихся нормализуются заново
     if(target.itemFx && target.itemFx.jiggerKey){
-      const jk = target.itemFx.jiggerKey;
+      // грейд 3 отключает 2 регулятора — jiggerKey может быть массивом
+      const jkArr = Array.isArray(target.itemFx.jiggerKey) ? target.itemFx.jiggerKey : [target.itemFx.jiggerKey];
       const before = components.length;
-      components = components.filter(c => c.key !== jk && !(c.key === 'size2' && jk === 'size'));
+      components = components.filter(c => !jkArr.includes(c.key) && !(c.key === 'size2' && jkArr.includes('size')));
       if(components.length && components.length < before){
         const t = components.reduce((s,c)=>s+c.weight,0) || 1;
         components.forEach(c=>{ c.weight /= t; });
@@ -5241,6 +5797,8 @@
     $('panel').classList.add('locked');
     Object.values(S).forEach(s=>s.setDisabled(true));
     target.autoFinish = !!auto; // Патч (стикеры): таймер истёк сам
+
+    applyEyeNudge(); // Фаза 6 (Барменский глаз): подвинуть ползунки к цели ДО подсчёта
 
     const scoreData = computeScoreComponents();
     const elapsed = performance.now() - craftStartTime;
@@ -5429,6 +5987,17 @@
     // Логик-9 УР.4: бонус-раунд «сбей сгустки» — множитель к рейтингу за годноту
     // (доля сбитых × 50%: всё сбил +50%, половина +25%, всё мимо +0%)
     if(target.logic9RatingMult && good) delta = Math.round(delta * (1 + target.logic9RatingMult));
+    // Фаза 10 (Пьяница Пит, УР.4): «градус» — риск/награда. Чем выше градус,
+    // тем меньше рейтинга (даже за идеал), но тем больше чаевых в конце цикла:
+    // на максимальном градусе доля чаевых с этого зелья ×1.5 (peteDegreeTipBonus
+    // добавляется к 5%-чаевым в showWeekOverlay). Штраф — только с положительной
+    // дельты (брак градус не усугубляет).
+    if(cfg.id === 'pete' && target.regLevel === 4 && S.degree && S.degree.value > 0 && delta > 0){
+      const g = S.degree.value / S.degree.max; // 0..1
+      const rawPos = delta;
+      delta = Math.round(delta * (1 - 0.5*g)); // макс. градус — половина рейтинга
+      peteDegreeTipBonus += rawPos * 0.05 * g; // компенсация чаевыми (до +50% доли)
+    }
     score = Math.max(0, score + delta);
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
@@ -5440,12 +6009,19 @@
     //  • каждые 3 идеала за цикл → +1 заряд;
     //  • сразу: Тот-Кто-Ждёт при 99%+ и Последний из Ир при 95%+.
     if(!isDailyMode && window.PotionProfile){
-      if(perfect && window.PotionProfile.bumpPerfectCharge()){
+      // Фаза 11: пассивка-уникалка «chargeAt2» снижает порог с 3 идеалов до 2
+      if(perfect && window.PotionProfile.bumpPerfectCharge(passiveHasFlag('chargeAt2') ? 2 : 3)){
         showToast({ icon:'✨', prefix:UI_TEXT.SKILL_CHARGE_GAINED, name:'' });
       }
       if((cfg.id === 'the_waiter' && overall >= 0.99) || (cfg.id === 'last_of_ir' && overall >= 0.95)){
         window.PotionProfile.addCharge(1);
         showToast({ icon:'✨', prefix:UI_TEXT.SKILL_CHARGE_GAINED, name:'' });
+      }
+      // Фаза 10 (Бабушка Мурра, УР.4): за идеал дарит «клубок ниток» в инвентарь
+      // (предмет grantOnly — в магазине не купить; ставит один регулятор точно)
+      if(perfect && cfg.id === 'catlady' && target.regLevel === 4 && window.PotionProfile.addItem){
+        window.PotionProfile.addItem('yarn', 0, 1);
+        showToast({ icon:'🧶', prefix:UI_TEXT.CATLADY_YARN_TOAST, name:'' });
       }
     }
 
@@ -5542,6 +6118,19 @@
       // Патч "Взаимоотношения": обиженный НПС не ценит даже настоящий успех —
       // репутация всё равно немного проседает, поверх обычного расчёта выше
       if(forcedBad) window.PotionProfile.adjustReputation(cfg.id, -2);
+      // Фаза 6 (Космическая паприка / repboost): усиливает репутационный итог —
+      // за годноту+ добавляет репутацию, за брак — дополнительно отнимает
+      // (пойло нейтрально). Поверх обычного расчёта recordOrderResult.
+      if(target.itemFx && target.itemFx.repBoost){
+        const rb = target.itemFx.repBoost;
+        if(good){
+          const before = (window.PotionProfile.data.npcReputation[cfg.id] || {}).value || 0;
+          const r = window.PotionProfile.adjustReputation(cfg.id, rb);
+          maybeRepLevelUp(cfg.id, before, r ? r.value : before);
+        } else if(!swill){
+          window.PotionProfile.adjustReputation(cfg.id, -rb);
+        }
+      }
     }
     // Фаза J: с первого выполненного заказа состав пассивок заморожен до нового цикла
     cycleStarted = true;
@@ -6224,14 +6813,32 @@
   // суммарные эффекты активных пассивок для заказа конкретного НПС:
   // global-пассивки работают всегда, npc-пассивки — только "у своего" НПС
   function computePassiveFx(npcId){
-    const fx = { score:0, craftTime:0, memTime:0, speedCap:0, rep:0, progress:0 };
+    // Фаза 11: tips — множитель к чаевым цикла (global). Числовые ключи
+    // складываются; булевы «уникалки» (chargeAt2/tipsFlat…) — через passiveHasFlag.
+    const fx = { score:0, craftTime:0, memTime:0, speedCap:0, rep:0, progress:0, tips:0 };
     sanitizeActivePassives().forEach(a=>{
       const def = passiveDefs(a.npcId).find(pv=>pv.id===a.passiveId);
       if(!def) return;
       if(def.scope === 'npc' && a.npcId !== npcId) return;
-      Object.keys(def.fx||{}).forEach(k=>{ if(fx[k] !== undefined) fx[k] += def.fx[k]; });
+      Object.keys(def.fx||{}).forEach(k=>{ if(typeof fx[k] === 'number' && typeof def.fx[k] === 'number') fx[k] += def.fx[k]; });
     });
     return fx;
+  }
+  // Фаза 11: активна ли хоть одна пассивка с булевым флагом-«уникалкой»
+  // (chargeAt2, tipsFlat...). Для tipsFlat — суммирует числовое значение.
+  function passiveHasFlag(flag){
+    return sanitizeActivePassives().some(a=>{
+      const def = passiveDefs(a.npcId).find(pv=>pv.id===a.passiveId);
+      return def && def.fx && def.fx[flag];
+    });
+  }
+  function passiveFlatSum(flag){
+    let sum = 0;
+    sanitizeActivePassives().forEach(a=>{
+      const def = passiveDefs(a.npcId).find(pv=>pv.id===a.passiveId);
+      if(def && def.fx && typeof def.fx[flag] === 'number') sum += def.fx[flag];
+    });
+    return sum;
   }
   function togglePassive(npcId, passiveId){
     if(cycleStarted) return false;
@@ -6654,6 +7261,8 @@
     // и свой рейтинг вместо общего аркадного
     if(!isDailyMode){
       if(window.PotionProfile) window.PotionProfile.recordCycleEnd(score);
+      // Фаза 4: сохранить прогресс онлайн (кросс-девайс) — если игрок вошёл
+      if(window.PotionAuth && window.PotionAuth.isLoggedIn()) window.PotionAuth.syncUp();
       // Фаза 3: рейтинг цикла идёт в xp прогрессии; тостим новых персонажей и
       // новые уровни лавки (открытые механики применяются автоматически —
       // производны от уровня).
@@ -6666,8 +7275,11 @@
         showToast({ icon:'⭐', prefix: UI_TEXT.PROG_LEVEL_UP_TOAST, name: String(l) });
       });
       // Фаза 5: чаевые — 5% от рейтинга цикла (после открытия на Ур.4)
+      // Фаза 10 (Пьяница Пит): + накопленный за цикл бонус за «градус»
+      // Фаза 11: пассивки — множитель tips (×) + плоская добавка tipsFlat
       if(progMechUnlocked('tips') && window.PotionProfile){
-        const tip = Math.round(score * 0.05);
+        const tipsMult = 1 + (computePassiveFx('').tips || 0);
+        const tip = Math.round(score * 0.05 * tipsMult + peteDegreeTipBonus + passiveFlatSum('tipsFlat'));
         if(tip > 0){
           window.PotionProfile.addTips(tip);
           showToast({ icon:'🪙', prefix: UI_TEXT.TIPS_EARNED_TOAST, name: '+' + tip });
@@ -6677,14 +7289,25 @@
     }
     $('resultOverlay').classList.remove('show');
     $('finalScoreVal').textContent = score;
-    $('nameInput').value = '';
+    // Фаза 4: ник вписывается автоматически из профиля игрока
+    $('nameInput').value = authNick();
+    // Фаза 4: в лидерборд записываем только если результат ВЫШЕ личного рекорда
+    const boardId = isDailyMode ? currentDailyBoardKey().local : 'arcade';
+    const isRecord = !window.PotionAuth || score > window.PotionAuth.getBest(boardId);
+    const sbtn = $('saveScoreBtn');
+    if(sbtn){
+      sbtn.disabled = !isRecord || score <= 0;
+      sbtn.textContent = LT(isRecord ? UI_TEXT.SAVE_SCORE_BTN : UI_TEXT.SAVE_SCORE_NOT_RECORD);
+    }
     const list = await loadLeaderboard(isDailyMode ? currentDailyBoardKey() : undefined);
     renderLeaderboard(list, null, 'leaderboardList');
     $('weekOverlay').classList.add('show');
   }
   $('saveScoreBtn').addEventListener('click', async ()=>{
     SFX.uiClick();
-    const name = $('nameInput').value.trim().slice(0,20);
+    const name = ($('nameInput').value.trim() || authNick()).slice(0,20);
+    // фиксируем личный рекорд для будущего гейта
+    if(window.PotionAuth){ const bId = isDailyMode ? currentDailyBoardKey().local : 'arcade'; window.PotionAuth.setBestIfHigher(bId, score); }
     const list = await saveLeaderboardEntry(name, score, isDailyMode ? currentDailyBoardKey() : undefined);
     renderLeaderboard(list, score, 'leaderboardList');
     $('saveScoreBtn').disabled = true;
@@ -6701,7 +7324,7 @@
   });
   $('newWeekBtn').addEventListener('click', ()=>{
     SFX.uiClick();
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; peteDegreeTipBonus = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
     if(!isDailyMode){
       // Фаза J: новый цикл — состав пассивок снова можно менять,
       // счётчики "за цикл" (picksCycle) в профиле обнуляются
@@ -6880,7 +7503,7 @@
     stopMatrixRain();
     setDjAmbientDuck(false);
     isDailyMode = false;
-    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
+    dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; peteDegreeTipBonus = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
     cycleStarted = false;
     if(window.PotionProfile) window.PotionProfile.startCycle();
     $('scoreVal').textContent = score;
@@ -6892,6 +7515,7 @@
     showSelectScreen();
     const s = $('splashScreen');
     if(s){ s.style.display = ''; s.classList.remove('fade-out'); }
+    updateNickBadge(); // Фаза 4: вернулись на сплэш — прячем ник-бейдж
   }
   // ---------- стартовый экран: кнопка "Пришвартоваться" (обычная аркада) ----------
   const dockBtn = $('dockBtn');
@@ -6904,6 +7528,7 @@
       SFX.dock();
       ambientTryPlay();
       dismissSplash();
+      updateNickBadge(); // Фаза 4: показать ник внизу при входе в аркаду
     });
   }
 
@@ -6953,6 +7578,74 @@
     });
   }
 
+  // ---------- Фаза 4: авторизация (гостевой режим по умолчанию) ----------
+  function authNick(){ return (window.PotionAuth && window.PotionAuth.getNickname()) || LT(UI_TEXT.AUTH_GUEST_LABEL); }
+  function refreshAuthUI(){
+    const A = window.PotionAuth; if(!A) return;
+    const nick = A.getNickname(), loggedIn = A.isLoggedIn();
+    const sn = $('splashNick'); if(sn) sn.textContent = '👤 ' + nick;
+    const lg = $('loginBtn'), rg = $('registerBtn'), lo = $('logoutBtn');
+    if(lg) lg.classList.toggle('hidden', loggedIn);
+    if(rg) rg.classList.toggle('hidden', loggedIn);
+    if(lo) lo.classList.toggle('hidden', !loggedIn);
+  }
+  function updateNickBadge(){
+    const badge = $('playerNickBadge'); if(!badge) return;
+    const s = $('splashScreen');
+    const splashGone = s && (s.style.display === 'none' || s.classList.contains('fade-out'));
+    const show = !!splashGone && !isDailyMode;
+    badge.classList.toggle('hidden', !show);
+    if(show){ const t = $('playerNickText'); if(t) t.textContent = authNick(); }
+  }
+  let authMode = 'login';
+  function setAuthMode(mode){
+    authMode = mode;
+    const isReg = mode === 'register';
+    const tl = $('authTabLogin'), tr = $('authTabRegister');
+    if(tl) tl.classList.toggle('active', !isReg);
+    if(tr) tr.classList.toggle('active', isReg);
+    const nf = $('authNick'); if(nf) nf.classList.toggle('hidden', !isReg);
+    const sb = $('authSubmit'); if(sb) sb.textContent = LT(isReg ? UI_TEXT.AUTH_SUBMIT_REGISTER : UI_TEXT.AUTH_SUBMIT_LOGIN);
+  }
+  function openAuth(mode){
+    setAuthMode(mode || 'login');
+    const m = $('authMsg'); if(m){ m.textContent = ''; m.classList.remove('err'); }
+    $('authOverlay').classList.add('show');
+  }
+  async function submitAuth(){
+    const A = window.PotionAuth; if(!A) return;
+    const login = $('authLogin').value.trim(), pw = $('authPassword').value, nick = $('authNick').value.trim();
+    const msg = $('authMsg');
+    if(!login || !pw){ if(msg){ msg.classList.add('err'); msg.textContent = LT(UI_TEXT.AUTH_NEED_FIELDS); } return; }
+    A.setRememberDevice($('authRemember').checked);
+    const res = authMode === 'register' ? await A.register(login, pw, nick) : await A.login(login, pw);
+    if(res.ok){
+      $('authOverlay').classList.remove('show'); refreshAuthUI(); updateNickBadge();
+    } else if(res.reason === 'not_configured'){
+      // Supabase ещё не подключён — играем гостем; если вписал ник, применим его
+      if(authMode === 'register' && nick) A.setNickname(nick);
+      if(msg){ msg.classList.remove('err'); msg.textContent = LT(UI_TEXT.AUTH_SOON); }
+      refreshAuthUI(); updateNickBadge();
+    } else if(msg){ msg.classList.add('err'); msg.textContent = res.message || LT(UI_TEXT.AUTH_SOON); }
+  }
+  function changeNick(){
+    const A = window.PotionAuth; if(!A) return;
+    const name = prompt(LT(UI_TEXT.AUTH_NICK_PROMPT), A.getNickname());
+    if(name && A.setNickname(name)){ refreshAuthUI(); updateNickBadge(); }
+  }
+  (function wireAuth(){
+    const on = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
+    on('loginBtn', ()=>{ SFX.uiClick(); openAuth('login'); });
+    on('registerBtn', ()=>{ SFX.uiClick(); openAuth('register'); });
+    on('logoutBtn', ()=>{ SFX.uiClick(); window.PotionAuth.logout(); refreshAuthUI(); updateNickBadge(); });
+    on('authTabLogin', ()=>{ SFX.uiClick(); setAuthMode('login'); });
+    on('authTabRegister', ()=>{ SFX.uiClick(); setAuthMode('register'); });
+    on('authSubmit', ()=>{ SFX.uiClick(); submitAuth(); });
+    on('authCloseBtn', ()=>{ SFX.uiClick(); $('authOverlay').classList.remove('show'); });
+    on('splashNick', ()=>{ SFX.uiClick(); changeNick(); });
+    on('playerNickBadge', ()=>{ SFX.uiClick(); changeNick(); });
+  })();
+
   if(window.PotionProfile) window.PotionProfile.load();
   // Фаза J: загрузка страницы = свежий цикл — счётчики "за цикл"
   // обнуляются, состав пассивок можно менять до первого заказа;
@@ -6979,6 +7672,12 @@
     checkGeneralAchievements(true); // silent
   }
   applyI18n();
+  refreshAuthUI(); // Фаза 4: заполнить ник/кнопки авторизации на сплэше
+  // Фаза 4: восстановить онлайн-сессию (если «запомнить устройство») и подтянуть
+  // кросс-девайс профиль — асинхронно, потом обновить ник в UI
+  if(window.PotionAuth && window.PotionAuth.restore){
+    window.PotionAuth.restore().then(()=>{ refreshAuthUI(); updateNickBadge(); }).catch(()=>{});
+  }
   initSliders();
   updateStickerTally();
   showSelectScreen();

@@ -241,6 +241,15 @@
     get data(){ return load(); },
     load,
     save,
+    // Фаза 4: экспорт/импорт всего профиля для кросс-девайс синка через Supabase
+    exportData(){ return JSON.parse(JSON.stringify(load())); },
+    importData(obj){
+      if(!obj || typeof obj !== 'object') return false;
+      profile = deepMerge(emptyProfile(), obj);
+      profile.version = SCHEMA_VERSION;
+      try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); }catch(e){}
+      return true;
+    },
     ensureNpcStats,
 
     // вызывается из finalizeResult() в game.js после каждого заказа.
@@ -654,12 +663,14 @@
       if(s.charges <= 0) return false;
       s.charges--; save(); return true;
     },
-    // +1 к счётчику идеалов за цикл; на 3-м — выдаём заряд и обнуляем счётчик.
+    // +1 к счётчику идеалов за цикл; на N-м (по умолчанию 3, Фаза 11 — пассивка
+    // может снизить до 2) — выдаём заряд и обнуляем счётчик.
     // Возвращает true, если заряд был выдан.
-    bumpPerfectCharge(){
+    bumpPerfectCharge(threshold){
       load(); const s = this._ensureSkills();
+      const need = (threshold === 2) ? 2 : 3;
       s.perfectCounter = (s.perfectCounter || 0) + 1;
-      if(s.perfectCounter >= 3){
+      if(s.perfectCounter >= need){
         s.perfectCounter = 0;
         const before = s.charges;
         s.charges = Math.min(3, s.charges + 1);
@@ -697,4 +708,167 @@
   };
 
   window.PotionProfile = PP;
+})();
+
+// ============================================================
+// Фаза 4: PotionAuth — идентичность игрока. Гостевой режим ПО УМОЛЧАНИЮ:
+// играть можно сразу, без единого клика и без регистрации (прогресс хранится
+// локально на устройстве). Логин/Регистрация — опционально, для профиля между
+// устройствами. Онлайн-часть подключается через SUPABASE_CONFIG ниже: пока
+// ключи пусты — онлайн выключен, все играют гостями.
+// ============================================================
+(function(){
+  'use strict';
+  const AUTH_KEY = 'potionshop_auth_v1';
+
+  // === Supabase (Фаза 4) ===
+  // url/anonKey — Project URL + publishable/anon (PUBLIC) key. Публичные, их
+  // безопасно держать во фронтенде. service_role/secret сюда НИКОГДА не вставлять.
+  const SUPABASE_CONFIG = {
+    url: 'https://ilkimncsophobhzhqidj.supabase.co',
+    anonKey: 'sb_publishable_Rad7Vj456OlLkaxnNuIj0w_vlogSoOo'
+  };
+  // Игрок входит по «логину», а Supabase Auth работает по e-mail — поэтому логин
+  // детерминированно кодируется в псевдо-адрес (ASCII, без коллизий, поддержка
+  // кириллицы через побайтовое hex-кодирование).
+  const EMAIL_DOMAIN = '@potion.local';
+
+  function load(){ try{ return JSON.parse(localStorage.getItem(AUTH_KEY)) || {}; }catch(e){ return {}; } }
+  function save(a){ try{ localStorage.setItem(AUTH_KEY, JSON.stringify(a)); }catch(e){} }
+  function genGuestNick(){ return 'Гость-' + Math.floor(1000 + Math.random()*9000); }
+  function ensure(){
+    let a = load(), changed = false;
+    if(!a.nickname){ a.nickname = genGuestNick(); changed = true; }
+    if(!a.mode){ a.mode = 'guest'; changed = true; }
+    if(changed) save(a);
+    return a;
+  }
+  function configured(){ return !!(SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey); }
+  function loginToEmail(login){
+    const s = String(login || '').trim().toLowerCase();
+    let out = '';
+    for(const ch of s){
+      if(/[a-z0-9]/.test(ch)) out += ch;
+      else for(const b of new TextEncoder().encode(ch)) out += '-' + b.toString(16);
+    }
+    return 'u' + (out || 'user').slice(0, 60) + EMAIL_DOMAIN;
+  }
+  function headers(token){
+    return { 'apikey': SUPABASE_CONFIG.anonKey, 'Content-Type':'application/json',
+             'Authorization': 'Bearer ' + (token || SUPABASE_CONFIG.anonKey) };
+  }
+  function applySession(sess, nickname){
+    const a = ensure();
+    a.mode = 'user';
+    a.userId = (sess.user && sess.user.id) || a.userId || null;
+    a.token = sess.access_token || a.token;
+    a.refresh = sess.refresh_token || a.refresh;
+    a.expiresAt = sess.expires_at ? sess.expires_at * 1000 : (Date.now() + 3500 * 1000);
+    const metaNick = sess.user && sess.user.user_metadata && sess.user.user_metadata.nickname;
+    if(nickname) a.nickname = String(nickname).slice(0, 20);
+    else if(metaNick) a.nickname = String(metaNick).slice(0, 20);
+    save(a);
+  }
+  async function pullProfile(){
+    const a = load(); if(!a.userId || !a.token) return;
+    try{
+      const res = await fetch(SUPABASE_CONFIG.url + '/rest/v1/profiles?id=eq.' + a.userId + '&select=nickname,data',
+        { headers: headers(a.token) });
+      if(!res.ok) return;
+      const rows = await res.json();
+      if(rows && rows[0]){
+        if(rows[0].nickname){ a.nickname = String(rows[0].nickname).slice(0, 20); save(a); }
+        if(rows[0].data && window.PotionProfile && window.PotionProfile.importData) window.PotionProfile.importData(rows[0].data);
+      }
+    }catch(e){ /* офлайн — остаёмся на локальном профиле */ }
+  }
+  async function pushProfile(){
+    const a = load(); if(a.mode !== 'user' || !a.userId || !a.token) return false;
+    const body = { id: a.userId, nickname: a.nickname,
+      data: (window.PotionProfile && window.PotionProfile.exportData) ? window.PotionProfile.exportData() : {},
+      updated_at: new Date().toISOString() };
+    try{
+      const res = await fetch(SUPABASE_CONFIG.url + '/rest/v1/profiles',
+        { method:'POST', headers: Object.assign(headers(a.token), { 'Prefer':'resolution=merge-duplicates' }),
+          body: JSON.stringify(body) });
+      return res.ok;
+    }catch(e){ return false; }
+  }
+  async function refreshSession(){
+    const a = load(); if(!a.refresh || !configured()) return false;
+    try{
+      const res = await fetch(SUPABASE_CONFIG.url + '/auth/v1/token?grant_type=refresh_token',
+        { method:'POST', headers: headers(), body: JSON.stringify({ refresh_token: a.refresh }) });
+      const d = await res.json();
+      if(res.ok && d.access_token){ applySession(d); return true; }
+    }catch(e){}
+    return false;
+  }
+
+  const Auth = {
+    get data(){ return ensure(); },
+    isConfigured(){ return configured(); },
+    getMode(){ return ensure().mode; },            // 'guest' | 'user'
+    isLoggedIn(){ return ensure().mode === 'user'; },
+    getNickname(){ return ensure().nickname; },
+    setNickname(name){
+      name = String(name || '').trim().slice(0, 20);
+      if(!name) return false;
+      const a = ensure(); a.nickname = name; save(a);
+      if(a.mode === 'user') pushProfile(); // синхронизируем ник онлайн
+      return true;
+    },
+    async register(login, password, nickname){
+      if(!configured()) return { ok:false, reason:'not_configured' };
+      if(!login || !password) return { ok:false, reason:'error', message:'Впиши логин и пароль' };
+      const email = loginToEmail(login), nick = String(nickname || login).slice(0, 20);
+      try{
+        const res = await fetch(SUPABASE_CONFIG.url + '/auth/v1/signup',
+          { method:'POST', headers: headers(), body: JSON.stringify({ email, password, data:{ nickname: nick } }) });
+        const d = await res.json();
+        if(!res.ok || d.error || d.code || d.msg)
+          return { ok:false, reason:'error', message: d.msg || d.error_description || d.error || 'Ошибка регистрации' };
+        if(d.access_token){ applySession(d, nick); await pushProfile(); return { ok:true }; }
+        // сессии нет → в проекте включено подтверждение e-mail (для псевдо-почты его
+        // не подтвердить). Нужно выключить Confirm email в Supabase — пробуем войти.
+        return await this.login(login, password, nick);
+      }catch(e){ return { ok:false, reason:'error', message:'Сеть недоступна' }; }
+    },
+    async login(login, password, nickname){
+      if(!configured()) return { ok:false, reason:'not_configured' };
+      if(!login || !password) return { ok:false, reason:'error', message:'Впиши логин и пароль' };
+      const email = loginToEmail(login);
+      try{
+        const res = await fetch(SUPABASE_CONFIG.url + '/auth/v1/token?grant_type=password',
+          { method:'POST', headers: headers(), body: JSON.stringify({ email, password }) });
+        const d = await res.json();
+        if(!res.ok || !d.access_token)
+          return { ok:false, reason:'error', message: d.error_description || d.msg || d.error || 'Неверный логин или пароль' };
+        applySession(d, nickname);
+        await pullProfile();
+        return { ok:true };
+      }catch(e){ return { ok:false, reason:'error', message:'Сеть недоступна' }; }
+    },
+    logout(){
+      const a = ensure(); a.mode = 'guest'; a.userId = null; a.token = null; a.refresh = null; a.expiresAt = null; save(a);
+    },
+    syncUp(){ return pushProfile(); }, // вызывать в конце цикла — сохранить прогресс онлайн
+    async restore(){                    // восстановить сессию при загрузке страницы
+      const a = load();
+      if(a.mode === 'user' && a.remember !== false && configured() && a.refresh){
+        if(!a.expiresAt || a.expiresAt < Date.now() + 60000) await refreshSession();
+        await pullProfile();
+      }
+    },
+    getRememberDevice(){ return ensure().remember !== false; },
+    setRememberDevice(on){ const a = ensure(); a.remember = !!on; save(a); },
+    getBest(boardId){ const a = ensure(); return (a.best && a.best[boardId || 'arcade']) || 0; },
+    setBestIfHigher(boardId, score){
+      const a = ensure(); a.best = a.best || {}; const k = boardId || 'arcade';
+      if(score > (a.best[k] || 0)){ a.best[k] = score; save(a); return true; }
+      return false;
+    }
+  };
+
+  window.PotionAuth = Auth;
 })();

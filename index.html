@@ -52,7 +52,37 @@
     <button class="splash-lang-btn fs-btn" id="splashFsBtn" data-i18n-title="FS_BTN_TITLE" title="На весь экран" aria-label="Fullscreen"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button class="splash-lang-btn" id="splashLangBtn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
   </div>
+  <!-- Фаза 4: авторизация. Гость — по умолчанию (играть можно сразу, не тыкая
+       сюда). Кнопки Логин/Регистрация опциональны (профиль между устройствами). -->
+  <div class="splash-auth" id="splashAuth">
+    <button class="splash-nick" id="splashNick" title="" data-i18n-title="AUTH_CHANGE_NICK"></button>
+    <button class="splash-auth-btn" id="loginBtn" data-i18n="AUTH_LOGIN">Логин</button>
+    <button class="splash-auth-btn" id="registerBtn" data-i18n="AUTH_REGISTER">Регистрация</button>
+    <button class="splash-auth-btn splash-logout hidden" id="logoutBtn" data-i18n="AUTH_LOGOUT">Выйти</button>
+  </div>
 </div>
+
+<!-- Фаза 4: окно авторизации (вход / регистрация). Пароль вводит игрок сам. -->
+<div class="week-overlay auth-overlay" id="authOverlay">
+  <div class="week-card auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="authTabLogin" data-i18n="AUTH_TAB_LOGIN">Вход</button>
+      <button class="auth-tab" id="authTabRegister" data-i18n="AUTH_TAB_REGISTER">Регистрация</button>
+    </div>
+    <div class="auth-form">
+      <input type="text" id="authLogin" class="auth-input" autocomplete="username" data-i18n-placeholder="AUTH_LOGIN_PH" placeholder="Логин">
+      <input type="password" id="authPassword" class="auth-input" autocomplete="current-password" data-i18n-placeholder="AUTH_PW_PH" placeholder="Пароль">
+      <input type="text" id="authNick" class="auth-input auth-nick-field" maxlength="20" data-i18n-placeholder="AUTH_NICK_PH" placeholder="Ник (виден в лидерборде)">
+      <label class="auth-remember"><input type="checkbox" id="authRemember" checked> <span data-i18n="AUTH_REMEMBER">Запомнить это устройство</span></label>
+      <div class="auth-msg" id="authMsg"></div>
+      <button class="next-btn auth-submit" id="authSubmit" data-i18n="AUTH_SUBMIT_LOGIN">Войти</button>
+      <button class="next-btn auth-close" id="authCloseBtn" data-i18n="AUTH_PLAY_GUEST">Играть гостем</button>
+    </div>
+  </div>
+</div>
+
+<!-- Фаза 4: ник игрока внизу слева в основном (аркадном) режиме -->
+<button id="playerNickBadge" class="player-nick-badge hidden" data-i18n-title="AUTH_CHANGE_NICK" title=""><span class="pnb-icon">👤</span><span id="playerNickText"></span></button>
 
 <!-- Патч "Ежедневный заказ": выбор сложности дня (одинаковый набор персонажей у всех) -->
 <div class="week-overlay" id="dailyDifficultyOverlay">
@@ -262,6 +292,18 @@
           <div id="mSize2"></div>
           <div class="vslider-value" id="lblSize2"></div>
         </div>
+        <!-- Фаза 10 (Пьяница Пит): уровень жидкости в банке -->
+        <div class="vslider-group hidden" id="fillGroup">
+          <div class="vslider-label" data-i18n="LABEL_FILL">Уровень</div>
+          <div id="mFill"></div>
+          <div class="vslider-value" id="lblFill"></div>
+        </div>
+        <!-- Фаза 10 (Пьяница Пит, УР.4): крепость — риск/награда -->
+        <div class="vslider-group hidden" id="degreeGroup">
+          <div class="vslider-label" data-i18n="LABEL_DEGREE">Градус</div>
+          <div id="mDegree"></div>
+          <div class="vslider-value" id="lblDegree"></div>
+        </div>
         <!-- Патч "УР.4" (Сверхновая): эксклюзивный поворот банки -->
         <div class="vslider-group hidden" id="rotationGroup">
           <div class="vslider-label" data-i18n="LABEL_ROTATION">Поворот</div>
@@ -459,8 +501,8 @@
   </div>
 </div>
 <!-- порядок важен: сначала профиль (Фаза F), потом контент, потом логика -->
-<script src="profile.js"></script>
-<script src="content.js"></script>
-<script src="game.js"></script>
+<script src="profile.js?v=5"></script>
+<script src="content.js?v=5"></script>
+<script src="game.js?v=5"></script>
 </body>
 </html>
