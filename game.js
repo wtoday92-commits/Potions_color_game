@@ -3552,6 +3552,11 @@
       engState = null;
     }
     document.querySelectorAll('.eng-stop-btn').forEach(b => b.remove());
+    // ВАЖНО: снять «спрятанный бегунок» (eng-no-thumb) и орфанные указатели с
+    // ползунков — иначе следующий заказ (те же DOM-ползунки) приходит без
+    // видимых бегунков. См. .vslide-wrap.eng-no-thumb в style.css.
+    document.querySelectorAll('.vslide-wrap.eng-no-thumb').forEach(w => w.classList.remove('eng-no-thumb'));
+    document.querySelectorAll('.eng-pointer').forEach(el => el.remove());
   }
   LEVEL4_FX.engineer = {
     craftStart(){ engStart(); },
@@ -3703,7 +3708,13 @@
     if(right) right.classList.remove('mk-hidden');
   }
   LEVEL4_FX.marketer = {
-    craftStart(){ marketerBuild(); },
+    craftStart(){
+      // хаос-панель случайных контролов фиддлится дольше обычных ползунков —
+      // даём в 1.5 раза больше времени на воссоздание (как степпер Логики-9)
+      target.craftDuration = Math.round(target.craftDuration * 1.5);
+      target.craftBaseDuration = Math.round(target.craftBaseDuration * 1.5);
+      marketerBuild();
+    },
     stop(){ marketerStop(); }
   };
 
@@ -5582,6 +5593,9 @@
     });
 
     Object.values(S).forEach(s=>{ s.setDisabled(false); s.setDiffLocked(false); });
+    // страховка: снять возможный «спрятанный бегунок» от механики Инженера,
+    // если предыдущий заказ не успел прибраться (регресс «пропали ползунки»)
+    document.querySelectorAll('.vslide-wrap.eng-no-thumb').forEach(w => w.classList.remove('eng-no-thumb'));
     applyDifficultyGating();
 
     // ---------- Патч (Ир): эффекты фазы геймплея ----------
@@ -7907,6 +7921,122 @@
     const name = prompt(LT(UI_TEXT.AUTH_NICK_PROMPT), A.getNickname());
     if(name && A.setNickname(name)){ refreshAuthUI(); updateNickBadge(); }
   }
+  // ---------- Фаза 12: кооп — вход/лобби/отсчёт (Стадия 2) ----------
+  // Вся сеть спрятана за window.Coop (coop-net.js). Здесь только UI-поток:
+  // выбор → создать/присоединиться → лобби (presence второй стороны) →
+  // хост жмёт «Начать» (status=countdown) → у ОБОИХ бежит отсчёт → раунд.
+  let coopSubs = [];          // отписки Coop.on для текущей комнаты
+  let coopCountdownTimer = null;
+  function coopClearSubs(){ coopSubs.forEach(u=>{ try{ u(); }catch(_){}}); coopSubs = []; }
+  function coopHideOverlays(){
+    ['coopChoiceOverlay','coopJoinOverlay','coopLobbyOverlay','coopCountdownOverlay']
+      .forEach(id => { const el = $(id); if(el) el.classList.remove('show'); });
+  }
+  function coopToast(key, icon){ showToast({ icon: icon||'🤝', prefix: UI_TEXT[key], name:'' }); }
+  function coopOpenChoice(){
+    if(!window.Coop || !window.Coop.available){ coopToast('COOP_UNAVAILABLE','📡'); return; }
+    coopHideOverlays(); $('coopChoiceOverlay').classList.add('show');
+  }
+  async function coopCreate(){
+    try {
+      const code = await window.Coop.createRoom();
+      coopEnterLobby(code, true);
+    } catch(e){ coopToast('COOP_ERR_GENERIC','📡'); }
+  }
+  function coopOpenJoin(){
+    coopHideOverlays();
+    const inp = $('coopJoinInput'); if(inp) inp.value = '';
+    const msg = $('coopJoinMsg'); if(msg){ msg.textContent = ''; msg.classList.remove('err'); }
+    $('coopJoinOverlay').classList.add('show');
+    if(inp) setTimeout(()=>inp.focus(), 50);
+  }
+  const COOP_ERR_KEY = { ROOM_NOT_FOUND:'COOP_ERR_NOTFOUND', ROOM_BUSY:'COOP_ERR_BUSY',
+                         ROOM_FULL:'COOP_ERR_FULL', EMPTY_CODE:'COOP_ERR_EMPTY' };
+  async function coopJoin(){
+    const inp = $('coopJoinInput'), msg = $('coopJoinMsg');
+    const code = (inp && inp.value || '').trim().toUpperCase();
+    if(msg){ msg.classList.remove('err'); }
+    if(!code){ if(msg){ msg.classList.add('err'); msg.textContent = LT(UI_TEXT.COOP_ERR_EMPTY); } return; }
+    try {
+      await window.Coop.joinRoom(code);
+      coopEnterLobby(code, false);
+    } catch(e){
+      const key = COOP_ERR_KEY[e && e.message] || 'COOP_ERR_GENERIC';
+      if(msg){ msg.classList.add('err'); msg.textContent = LT(UI_TEXT[key]); }
+    }
+  }
+  function coopEnterLobby(code, isHost){
+    coopClearSubs(); coopHideOverlays();
+    const codeEl = $('coopLobbyCode'); if(codeEl) codeEl.textContent = code;
+    const startBtn = $('coopStartBtn'), statusEl = $('coopLobbyStatus');
+    if(startBtn) startBtn.classList.toggle('hidden', !isHost);
+    $('coopLobbyOverlay').classList.add('show');
+    if(isHost){
+      if(startBtn) startBtn.disabled = true;
+      if(statusEl) statusEl.textContent = LT(UI_TEXT.COOP_WAIT_GUEST);
+      coopSubs.push(window.Coop.onPeerPresence(present=>{
+        if(startBtn) startBtn.disabled = !present;
+        if(statusEl) statusEl.textContent = LT(present ? UI_TEXT.COOP_GUEST_JOINED : UI_TEXT.COOP_WAIT_GUEST);
+      }));
+    } else {
+      if(statusEl) statusEl.textContent = LT(UI_TEXT.COOP_WAIT_HOST);
+      coopSubs.push(window.Coop.onPeerPresence(present=>{
+        if(!present && statusEl) statusEl.textContent = LT(UI_TEXT.COOP_HOST_LEFT);
+      }));
+    }
+    // обе стороны слушают статус комнаты → отсчёт запускается синхронно
+    coopSubs.push(window.Coop.on('status', st=>{ if(st === 'countdown') coopStartCountdown(); }));
+  }
+  async function coopHostStart(){
+    try { await window.Coop.set('status', 'countdown'); } catch(e){ coopToast('COOP_ERR_GENERIC','📡'); }
+    // сам отсчёт запустит подписка на status (и у хоста, и у гостя)
+  }
+  function coopStartCountdown(){
+    if(coopCountdownTimer) return;              // уже идёт — не перезапускаем
+    coopHideOverlays();
+    const el = $('coopCountdownNum');
+    let n = 5;
+    const tick = ()=>{ if(el){ el.textContent = n; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; } SFX.uiClick(); };
+    $('coopCountdownOverlay').classList.add('show');
+    tick();
+    coopCountdownTimer = setInterval(()=>{
+      n--;
+      if(n <= 0){ clearInterval(coopCountdownTimer); coopCountdownTimer = null; coopBeginRound(); return; }
+      tick();
+    }, 1000);
+  }
+  function coopBeginRound(){
+    coopHideOverlays();
+    // TODO Стадия 3: здесь стартует урезанный кооп-раунд (фиолетовые НПС,
+    // общий сид, роли ведущий/ведомый). Пока — заглушка + чистый выход.
+    coopToast('COOP_ROUND_SOON');
+    coopLeave();
+  }
+  async function coopLeave(){
+    coopClearSubs();
+    if(coopCountdownTimer){ clearInterval(coopCountdownTimer); coopCountdownTimer = null; }
+    try { if(window.Coop) await window.Coop.leaveRoom(); } catch(_){}
+    coopHideOverlays();
+  }
+  (function wireCoop(){
+    const on = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
+    on('coopBtn',           ()=>{ SFX.uiClick(); coopOpenChoice(); });
+    on('coopCreateBtn',     ()=>{ SFX.uiClick(); coopCreate(); });
+    on('coopJoinChoiceBtn', ()=>{ SFX.uiClick(); coopOpenJoin(); });
+    on('coopChoiceCloseBtn',()=>{ SFX.uiClick(); coopHideOverlays(); });
+    on('coopJoinConfirmBtn',()=>{ SFX.uiClick(); coopJoin(); });
+    on('coopJoinBackBtn',   ()=>{ SFX.uiClick(); coopOpenChoice(); });
+    on('coopStartBtn',      ()=>{ SFX.uiClick(); coopHostStart(); });
+    on('coopLeaveBtn',      ()=>{ SFX.uiClick(); coopLeave(); });
+    on('coopLobbyCode',     ()=>{
+      const code = $('coopLobbyCode').textContent || '';
+      if(navigator.clipboard && code) navigator.clipboard.writeText(code).catch(()=>{});
+      coopToast('COOP_COPIED','📋');
+    });
+    const inp = $('coopJoinInput');
+    if(inp) inp.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); coopJoin(); } });
+  })();
+
   (function wireAuth(){
     const on = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
     on('loginBtn', ()=>{ SFX.uiClick(); openAuth('login'); });

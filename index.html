@@ -6,7 +6,7 @@
 <title>Зельеварня — лавка на краю вселенной</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Jura:wght@500;700&family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 
@@ -58,6 +58,8 @@
     <button class="splash-nick" id="splashNick" title="" data-i18n-title="AUTH_CHANGE_NICK"></button>
     <button class="splash-auth-btn" id="loginBtn" data-i18n="AUTH_LOGIN">Логин</button>
     <button class="splash-auth-btn" id="registerBtn" data-i18n="AUTH_REGISTER">Регистрация</button>
+    <!-- Фаза 12: вход в кооп прямо со сплэша, рядом с логином/регистрацией -->
+    <button class="splash-auth-btn splash-coop-btn" id="coopBtn" data-i18n="COOP_BTN">Кооп</button>
     <button class="splash-auth-btn splash-logout hidden" id="logoutBtn" data-i18n="AUTH_LOGOUT">Выйти</button>
   </div>
 </div>
@@ -500,9 +502,52 @@
     <button class="next-btn" id="passivesCloseBtn" data-i18n="LB_CLOSE_BTN">Закрыть</button>
   </div>
 </div>
+<!-- Фаза 12: кооп — экраны входа/лобби/отсчёта. Всплывают ПОВЕРХ сплэша
+     (z-index в style.css как у dailyDifficulty/auth). Логика — wireCoop в game.js. -->
+<div class="week-overlay coop-overlay" id="coopChoiceOverlay">
+  <div class="week-card coop-card">
+    <h3 data-i18n="COOP_TITLE">Кооператив</h3>
+    <p class="coop-sub" data-i18n="COOP_CHOICE_SUB">Играйте вдвоём в реальном времени.</p>
+    <button class="next-btn coop-big-btn" id="coopCreateBtn" data-i18n="COOP_CREATE">Создать комнату</button>
+    <button class="next-btn coop-big-btn" id="coopJoinChoiceBtn" data-i18n="COOP_JOIN">Присоединиться</button>
+    <button class="next-btn coop-cancel" id="coopChoiceCloseBtn" data-i18n="COOP_CLOSE">Назад</button>
+  </div>
+</div>
+
+<div class="week-overlay coop-overlay" id="coopJoinOverlay">
+  <div class="week-card coop-card">
+    <h3 data-i18n="COOP_JOIN_TITLE">Введите код комнаты</h3>
+    <input type="text" id="coopJoinInput" class="coop-code-input" maxlength="4" autocomplete="off" spellcheck="false" data-i18n-placeholder="COOP_CODE_PH" placeholder="КОД">
+    <div class="coop-msg" id="coopJoinMsg"></div>
+    <button class="next-btn coop-big-btn" id="coopJoinConfirmBtn" data-i18n="COOP_JOIN_CONFIRM">Войти</button>
+    <button class="next-btn coop-cancel" id="coopJoinBackBtn" data-i18n="COOP_BACK">Назад</button>
+  </div>
+</div>
+
+<div class="week-overlay coop-overlay" id="coopLobbyOverlay">
+  <div class="week-card coop-card">
+    <h3 data-i18n="COOP_LOBBY_TITLE">Комната</h3>
+    <p class="coop-sub" data-i18n="COOP_CODE_HINT">Код комнаты (нажми, чтобы скопировать):</p>
+    <button class="coop-room-code" id="coopLobbyCode" title="">----</button>
+    <div class="coop-msg" id="coopLobbyStatus"></div>
+    <button class="next-btn coop-big-btn hidden" id="coopStartBtn" data-i18n="COOP_START">Начать</button>
+    <button class="next-btn coop-cancel" id="coopLeaveBtn" data-i18n="COOP_LEAVE">Выйти</button>
+  </div>
+</div>
+
+<div class="week-overlay coop-overlay coop-countdown-overlay" id="coopCountdownOverlay">
+  <div class="coop-countdown-num" id="coopCountdownNum">5</div>
+</div>
+
 <!-- порядок важен: сначала профиль (Фаза F), потом контент, потом логика -->
-<script src="profile.js?v=11"></script>
-<script src="content.js?v=11"></script>
-<script src="game.js?v=11"></script>
+<script src="profile.js?v=12"></script>
+<script src="content.js?v=12"></script>
+<!-- Фаза 12: кооп — Firebase Realtime Database (CDN, compat) + сетевой модуль.
+     Грузятся ПЕРЕД game.js, чтобы window.Coop уже существовал. Если CDN не
+     доступен — coop-net.js выставит Coop.available=false, игра работает как есть. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="coop-net.js?v=12"></script>
+<script src="game.js?v=12"></script>
 </body>
 </html>
