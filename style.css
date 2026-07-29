@@ -68,6 +68,30 @@
     padding:24px 14px 60px;
     position:relative;
   }
+  /* ====== Кастомный курсор (ART-SWAP) ======
+     Два состояния: спокойный (--cursor-idle) и «нажат/зажат» (--cursor-press,
+     класс .cursor-press на body ставится на pointerdown в game.js).
+     Положи PNG ~32×32 в assets/ui/ (cursor.png / cursor_press.png). Пока файлов
+     нет — `url(...), auto` мягко падает в обычный курсор, ничего не ломая.
+     Числа после url() — «горячая точка» (пиксель-остриё), подстрой под арт.
+     ВАЖНО: механики дрона/уборщика прячут курсор через `cursor:none` на
+     `.window-frame` (специфичнее этих правил) — их НЕ трогаем; курсор Логика-9
+     (самолётик) — отдельный DOM-элемент, тоже не задет. */
+  :root{
+    --cursor-idle: url('assets/ui/cursor.png') 4 2, auto;
+    --cursor-press: url('assets/ui/cursor_press.png') 6 4, pointer;
+  }
+  body{ cursor: var(--cursor-idle); }
+  body.cursor-press{ cursor: var(--cursor-press); }
+  /* интерактивные контролы тоже носят тему (иначе на них остаётся системный
+     pointer и «нажатое» состояние на них не видно). .window-frame сюда НЕ
+     входит — механики-курсоры остаются как есть. */
+  button, .vslide-wrap, .customer-card, .coop-npc-card, .coop-level-btn,
+  .level-card, .prog-mark, [class*="-btn"]{ cursor: var(--cursor-idle); }
+  body.cursor-press button, body.cursor-press .vslide-wrap,
+  body.cursor-press .customer-card, body.cursor-press .coop-npc-card,
+  body.cursor-press .coop-level-btn, body.cursor-press .level-card,
+  body.cursor-press .prog-mark, body.cursor-press [class*="-btn"]{ cursor: var(--cursor-press); }
   /* starfield + туманность (итоговые правила — ранее были раскиданы по ПАТЧ-1/2/3 внизу файла) */
   body:before{
     content:"";display:block;position:fixed;inset:0;pointer-events:none;opacity:.5;z-index:0;
@@ -621,10 +645,12 @@
   .coop-level-btn.sel:disabled{ opacity:1; }
   /* Стадия 4: заглушка ведомого — большая аватарка персонажа вместо банки */
   .coop-cover{
-    position:absolute;inset:0;z-index:6;display:none;
+    position:absolute;inset:0;z-index:60;display:none;   /* выше сгустков Векса/деталей Навигатора (z до 9) */
     flex-direction:column;align-items:center;justify-content:center;gap:14px;
-    background:radial-gradient(circle at 50% 42%, rgba(13,20,48,.92), rgba(2,3,10,.97));
+    /* ПОЛНОСТЬЮ непрозрачная — ведомый не должен видеть зелье сквозь аватарку */
+    background:radial-gradient(circle at 50% 42%, #0d1430 0%, #05060f 100%), #05060f;
     border-radius:50%;text-align:center;padding:16px;
+    pointer-events:auto;touch-action:none;   /* глушим любое взаимодействие с зоной зелья */
   }
   .coop-cover.show{ display:flex; }
   .coop-cover-av{ font-size:96px;line-height:1;filter:drop-shadow(0 0 24px rgba(53,224,255,.5)); }
@@ -632,6 +658,10 @@
   .coop-cover-hint{ font-size:13px;color:var(--ink-dim);max-width:200px;line-height:1.4; }
   /* Стадия 4: ползунки, скрытые ролью (у ведущего) — перебиваем .show(visibility) */
   .coop-hidden{ display:none !important; }
+  /* Стадия 4 (фикс): у ведущего обе колонки ползунков display:none, и банка
+     в grid (216px auto 216px) уезжала в 1-ю колонку слева. В соло-режиме —
+     одна центрированная колонка. */
+  .control-row.coop-solo{ grid-template-columns:auto !important; justify-items:center; }
   /* Стадия 5: конец кооп-цикла — общий счёт + лидерборд */
   .coop-end-card{ width:min(94vw,380px); }
   .coop-end-score{ font-size:15px;margin:6px 0 2px; }

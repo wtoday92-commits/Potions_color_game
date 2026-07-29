@@ -5704,7 +5704,10 @@
     const pfx = target.passiveFx || {};
     // Правка (пользователь): фиолетовый грейд (тир 5) — на игру +50% времени.
     const purpleCraftMult = cfg.tier === 5 ? 1.5 : 1;
-    let craftDuration = Math.round(cfg.craftMs * CRAFT_TIME_SCALE * purpleCraftMult * coopTimeMult(target.regLevel) * (1 + (pfx.craftTime || 0)))
+    // Кооп: на ИГРУ времени ещё ×2 сверх общего кооп-множителя (по просьбе
+    // пользователя) — на запоминание доп.×2 НЕ распространяется.
+    const coopCraftExtra = isCoopMode ? 2 : 1;
+    let craftDuration = Math.round(cfg.craftMs * CRAFT_TIME_SCALE * purpleCraftMult * coopTimeMult(target.regLevel) * coopCraftExtra * (1 + (pfx.craftTime || 0)))
       + (target.regLevel === 4 ? (typeof LEVEL4_TIME_BONUS_MS !== 'undefined' ? LEVEL4_TIME_BONUS_MS : 0) : 0);
     // Патч (Ир): подаренные / украденные секунды
     // Патч (усилено): +4с / -2с вместо +2с / -1с
@@ -8166,6 +8169,13 @@
     score = 0; streak = 0; orderNum = 0;
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
+    // ВАЖНО: убрать сплэш — иначе #roundScreen висит ПОД ним (z-index сплэша 200)
+    // и раунд не виден, пока вручную не ткнуть «Пришвартоваться». Кооп-оверлеи
+    // (z-index 210) поверх сплэша показывались, а сама игра — нет. Гасим ЖЁСТКО
+    // (display:none), не полагаясь на opacity-transition dismissSplash (в фоновой
+    // вкладке она троттлится и не доигрывает → сплэш остаётся поверх раунда).
+    const _sp = $('splashScreen');
+    if(_sp){ _sp.classList.add('fade-out'); _sp.style.display = 'none'; }
     coopHideGameUI();
     coopShowSelect();
   }
@@ -8357,6 +8367,9 @@
         // с ползунками; ведущий слушает ползунки ведомого → банка перерисовывается
         $('leftCol').classList.toggle('coop-hidden', !isFollower);
         $('rightCol').classList.toggle('coop-hidden', !isFollower);
+        // у ведущего колонок нет → центрируем банку (иначе grid уводит её влево)
+        const crow = document.querySelector('.control-row');
+        if(crow) crow.classList.toggle('coop-solo', !isFollower);
         const brew = $('brewBtn'); if(brew) brew.style.display = isFollower ? 'none' : '';
         if(!isFollower && window.Coop){
           coopSubs.push(window.Coop.on('guess', obj=>{
@@ -8550,6 +8563,7 @@
   function coopResetRoleView(){
     const cover = document.getElementById('coopCover'); if(cover) cover.remove();
     ['leftCol','rightCol'].forEach(id=>{ const el = $(id); if(el) el.classList.remove('coop-hidden'); });
+    const crow = document.querySelector('.control-row'); if(crow) crow.classList.remove('coop-solo');
     const brew = $('brewBtn'); if(brew){ brew.style.display = ''; brew.textContent = LT(UI_TEXT.BREW_BTN); }
   }
   async function coopLeave(){
@@ -8584,6 +8598,19 @@
     });
     const inp = $('coopJoinInput');
     if(inp) inp.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); coopJoin(); } });
+  })();
+
+  // ---------- Кастомный курсор: «нажат/зажат» ----------
+  // Пока зажата любая кнопка мыши/палец — на body висит .cursor-press
+  // (см. style.css: переключает картинку курсора). Capture-фаза, чтобы срабатывало
+  // даже если обработчик ниже гасит всплытие; blur снимает залипание при уходе окна.
+  (function wireCursorPress(){
+    const press = ()=> document.body.classList.add('cursor-press');
+    const release = ()=> document.body.classList.remove('cursor-press');
+    document.addEventListener('pointerdown', press, true);
+    document.addEventListener('pointerup', release, true);
+    document.addEventListener('pointercancel', release, true);
+    window.addEventListener('blur', release);
   })();
 
   (function wireAuth(){
