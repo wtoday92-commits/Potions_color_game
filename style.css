@@ -584,6 +584,61 @@
     animation:coopTick 1s ease-out;
   }
   @keyframes coopTick{ 0%{transform:scale(1.5);opacity:0;} 30%{opacity:1;} 100%{transform:scale(1);opacity:.85;} }
+  /* Стадия 3: общий выбор — 4 фиолетовых НПС */
+  .coop-select-card{ width:min(92vw,360px); }
+  .coop-select-cards{
+    display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 4px;
+  }
+  .coop-npc-card{
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    padding:12px 8px;border-radius:12px;cursor:pointer;
+    background:rgba(255,255,255,.04);
+    border:1px solid var(--tier-color,rgba(53,224,255,.4));
+    color:var(--ink);transition:transform .08s ease, background .12s ease, box-shadow .12s ease;
+  }
+  .coop-npc-card:hover:not(:disabled){ background:rgba(255,255,255,.08);transform:translateY(-2px); }
+  .coop-npc-card:disabled{ cursor:default; }
+  .coop-npc-card.mine{ box-shadow:0 0 0 2px var(--tier-color) inset, 0 0 18px -4px var(--tier-color); }
+  .coop-npc-card.picked{
+    box-shadow:0 0 0 2px var(--tier-color) inset, 0 0 28px -2px var(--tier-color);
+    animation:coopPickPulse .5s ease-out;
+  }
+  @keyframes coopPickPulse{ 0%{transform:scale(1);} 45%{transform:scale(1.08);} 100%{transform:scale(1);} }
+  .coop-npc-img{ font-size:40px;line-height:1; }
+  .coop-npc-img .npc-img{ width:52px;height:52px;object-fit:contain; }
+  .coop-npc-name{ font-size:12.5px;text-align:center;line-height:1.2; }
+  .coop-level-row{ display:flex;gap:4px;margin-top:2px;flex-wrap:wrap;justify-content:center; }
+  .coop-level-btn{
+    flex:1 1 0;min-width:34px;padding:5px 2px;border-radius:7px;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.18);
+    color:var(--ink);transition:background .1s ease, box-shadow .1s ease;
+  }
+  .coop-level-btn:hover:not(:disabled){ background:rgba(255,255,255,.12); }
+  .coop-level-btn.level-4{ border-color:rgba(184,102,255,.55);color:#d9b6ff; }
+  .coop-level-btn.sel{ background:var(--tier-color);color:#0a0d20;font-weight:700;box-shadow:0 0 10px -2px var(--tier-color); }
+  .coop-level-btn:disabled{ cursor:default;opacity:.55; }
+  .coop-level-btn.sel:disabled{ opacity:1; }
+  /* Стадия 4: заглушка ведомого — большая аватарка персонажа вместо банки */
+  .coop-cover{
+    position:absolute;inset:0;z-index:6;display:none;
+    flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:radial-gradient(circle at 50% 42%, rgba(13,20,48,.92), rgba(2,3,10,.97));
+    border-radius:50%;text-align:center;padding:16px;
+  }
+  .coop-cover.show{ display:flex; }
+  .coop-cover-av{ font-size:96px;line-height:1;filter:drop-shadow(0 0 24px rgba(53,224,255,.5)); }
+  .coop-cover-av .npc-img{ width:132px;height:132px;object-fit:contain; }
+  .coop-cover-hint{ font-size:13px;color:var(--ink-dim);max-width:200px;line-height:1.4; }
+  /* Стадия 4: ползунки, скрытые ролью (у ведущего) — перебиваем .show(visibility) */
+  .coop-hidden{ display:none !important; }
+  /* Стадия 5: конец кооп-цикла — общий счёт + лидерборд */
+  .coop-end-card{ width:min(94vw,380px); }
+  .coop-end-score{ font-size:15px;margin:6px 0 2px; }
+  .coop-end-score b{ color:var(--neon-light);font-size:22px;font-family:'IBM Plex Mono',monospace; }
+  .coop-end-nick{ color:var(--ink-dim);font-size:13px;margin:2px 0 12px;word-break:break-word; }
+  .coop-end-lb-label{ font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:6px; }
+  .coop-end-list{ max-height:220px;overflow-y:auto;text-align:left;margin-bottom:14px; }
   .result-card{
     background:linear-gradient(180deg,#101530,#0a0d20);
     border:1px solid rgba(53,224,255,.45);border-radius:16px;

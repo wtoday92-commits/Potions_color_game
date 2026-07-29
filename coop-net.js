@@ -136,6 +136,27 @@
       return this.on('presence/' + other, v => cb(!!v));
     },
 
+    /* Общий кооп-лидерборд (глобальный путь /coop_scores, вне комнат).
+       Работает, только если правила БД разрешают запись сюда; иначе бросит —
+       вызывающий код падает в локальный лидерборд (см. coopCycleEnd). */
+    async submitCoopScore(name, score){
+      if(!available) throw new Error('FIREBASE_UNAVAILABLE');
+      await db.ref('coop_scores').push({
+        name: String(name || '').slice(0, 60),
+        score: score | 0,
+        at: firebase.database.ServerValue.TIMESTAMP
+      });
+      return true;
+    },
+    async loadCoopScores(limit){
+      if(!available) throw new Error('FIREBASE_UNAVAILABLE');
+      const snap = await db.ref('coop_scores').orderByChild('score').limitToLast(limit || 50).get();
+      const rows = [];
+      snap.forEach(ch => { const v = ch.val() || {}; rows.push({ name: v.name, score: v.score,
+        date: v.at ? new Date(v.at).toLocaleDateString() : '' }); });
+      return rows.sort((a, b) => b.score - a.score);
+    },
+
     /* Выход: снять presence, отписаться. Хост дополнительно сносит комнату. */
     async leaveRoom(){
       try {

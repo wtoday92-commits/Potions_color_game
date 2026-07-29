@@ -297,6 +297,11 @@
     if(key === 'degree') applyPeteDegreeFx();
     // Векс (правка пользователя): «Разм. сгуст.» вживую меняет размер сгустков-клякс
     if(key === 'bsize' && l4VexIsCraft) l4VexUpdateSize();
+    // Кооп (Стадия 4): игрок крутит ползунок → транслирует значение напарнику,
+    // у которого банка тут же меняется как надо (см. coopApplyRoleView). В
+    // стандартном режиме это ведомый; в поочерёдном — тот, чей сейчас ход, и
+    // только по своей половине ползунков (см. coopShouldSyncSlider).
+    if(coopShouldSyncSlider(key)) coopWriteGuess(key, v);
   }
 
   // ---------- Фаза 10 (Пьяница Пит): «градус» — риск/награда с живыми эффектами ----------
@@ -3924,16 +3929,16 @@
   // прогрессией. В дейлике прогрессия не действует — показываем как раньше.
   function updateProgressionGates(){
     const setVis = (id, on)=>{ const el = $(id); if(el) el.style.display = on ? '' : 'none'; };
-    setVis('collectionBtn', isDailyMode || progMechUnlocked('collection'));
-    setVis('charactersBtn', isDailyMode || progMechUnlocked('characters'));
+    setVis('collectionBtn', !isCoopMode && (isDailyMode || progMechUnlocked('collection')));
+    setVis('charactersBtn', !isCoopMode && (isDailyMode || progMechUnlocked('characters')));
     // Пассивки — часть системы персонажей: открываются вместе с вкладкой
     // персонажей (Ур.2). До этого кнопка ⚡ скрыта.
-    setVis('passivesBtn', isDailyMode || progMechUnlocked('characters'));
-    const cl = $('cycleLenVal'); if(cl) cl.textContent = isDailyMode ? 10 : progCycleDays();
+    setVis('passivesBtn', !isCoopMode && (isDailyMode || progMechUnlocked('characters')));
+    const cl = $('cycleLenVal'); if(cl) cl.textContent = isCoopMode ? 3 : (isDailyMode ? 10 : progCycleDays());
     // Фаза 5: счётчик чаевых виден после открытия (Ур.4), в дейлике — нет
     const tipsC = $('tipsCounter');
     if(tipsC){
-      const tipsOn = !isDailyMode && progMechUnlocked('tips');
+      const tipsOn = !isDailyMode && !isCoopMode && progMechUnlocked('tips');
       tipsC.style.display = tipsOn ? '' : 'none';
       if(tipsOn){ const tv = $('tipsVal'); if(tv && window.PotionProfile) tv.textContent = window.PotionProfile.getTips(); }
     }
@@ -3962,7 +3967,7 @@
   // до открытия по прогрессии (Ур.4)
   function refreshShopDockState(){
     const dock = $('shopDock');
-    const on = !isDailyMode && progMechUnlocked('shop');
+    const on = !isDailyMode && !isCoopMode && progMechUnlocked('shop');
     if(dock) dock.style.display = on ? '' : 'none';
     if(!on) return;
     const roundActive = $('roundScreen').classList.contains('show');
@@ -4408,7 +4413,7 @@
 
   function refreshSkillDock(){
     const dock = $('skillDock'); if(!dock) return;
-    const on = !isDailyMode && progMechUnlocked('skill_1');
+    const on = !isDailyMode && !isCoopMode && progMechUnlocked('skill_1');
     dock.style.display = on ? '' : 'none';
     if(!on) return;
     const onSelect = $('selectScreen').classList.contains('show');
@@ -4543,7 +4548,7 @@
   }
   function renderProgressionBar(){
     const wrap = $('progBar'); if(!wrap) return;
-    if(isDailyMode || !PROG){ wrap.style.display = 'none'; return; }
+    if(isDailyMode || isCoopMode || !PROG){ wrap.style.display = 'none'; return; }
     wrap.style.display = '';
     const xp = progXp(), level = progLevel();
     const track = $('progBarTrack'), fill = $('progBarFill');
@@ -4662,6 +4667,41 @@
   let isDailyMode = false;
   let dailyDifficulty = null; // 'easy' | 'mid' | 'hard'
   let dailySequence = null;   // 30 id (10 дней × 3), считается один раз на сегодня
+
+  // ---------- Фаза 12: кооп — режим раунда (Стадия 3) ----------
+  // Отдельный от аркады/дейлика режим: как и дейлик, гасит накопительный
+  // профиль (репутация/прогрессия/коллекция/чаевые/умения/связи) — проверяется
+  // через isCoopMode рядом с существующими isDailyMode-гейтами. Отличается тем,
+  // что состав/поток раунда синхронизируется по сети (window.Coop): общий сид
+  // от хоста, оба видят одинаковый список из 4 «фиолетовых» НПС, оба выбирают —
+  // игра берёт случайного из выбранных (детерминированно, по общему сиду).
+  let isCoopMode = false;
+  let coopRound = null; // { seed, day, score, pool:[cfg×4], mySel, chosenIdx, sel3Timer }
+  // Общая цель (Стадия 4): ведомый ставит сюда снапшот target от хоста ПЕРЕД
+  // вызовом startOrder — там он применяется вместо собственной генерации.
+  let coopTargetOverride = null;
+  // Фаза 12 (кооп): больше времени на согласование вдвоём — таймеры показа/игры
+  // ×2 на УР.4 и ×1.5 на остальных уровнях (вне коопа множитель = 1).
+  function coopTimeMult(regLevel){ return isCoopMode ? (regLevel >= 4 ? 2 : 1.5) : 1; }
+  // Сериализация цели для комнаты: выкидываем то, что у ведомого считается
+  // локально и детерминированно (cfg по id, флаги/активные ключи/пассивки/
+  // тайминги), остальное (все случайные числовые поля зелья) — в снапшот.
+  // JSON-прогон гарантирует firebase-безопасность (без undefined/функций).
+  function coopSerializeTarget(t){
+    const skip = new Set(['cfg','flags','activeKeys','passiveFx','memDuration',
+      'craftDuration','craftBaseDuration','itemFx']);
+    const o = {};
+    for(const k in t){ if(skip.has(k) || t[k] === undefined) continue; o[k] = t[k]; }
+    try { return JSON.parse(JSON.stringify(o)); } catch(_){ return o; }
+  }
+  // Применение снапшота цели у ведомого. vexPositions пропускаем: они связаны с
+  // внутренним состоянием дрэга Векса (l4VexItems строится в setup из СВОИХ
+  // позиций) — их синк вместе с ролями/механикой-в-банке в следующей части.
+  const COOP_TARGET_SKIP_APPLY = new Set(['vexPositions']);
+  function coopApplyTargetOverride(t, snap){
+    if(!snap) return;
+    for(const k in snap){ if(COOP_TARGET_SKIP_APPLY.has(k)) continue; t[k] = snap[k]; }
+  }
 
   // Патч: UTC, а не локальные getFullYear/getMonth/getDate — иначе "новый
   // день" наступал бы у каждого игрока в свою полночь по часовому поясу
@@ -5228,7 +5268,8 @@
     let regLevel = [1,2,3,4].includes(level) ? level : 3;
     // Патч "Ежедневный заказ": у "переодетых" cfg свой список уровней —
     // репутация тут не участвует вообще (см. cfg.dailyLevels в enterDailyMode)
-    const allowLevel4 = cfg.dailyLevels ? cfg.dailyLevels.includes(4) : level4Available(cfg);
+    // Фаза 12 (кооп): все НПС фиолетовые, УР.4 доступен всегда (репутации нет).
+    const allowLevel4 = isCoopMode ? true : (cfg.dailyLevels ? cfg.dailyLevels.includes(4) : level4Available(cfg));
     if(regLevel === 4 && !allowLevel4) regLevel = 3; // защита: 4 доступен только там, где разрешён
     currentOrd = ord;
     currentOrd.regLevel = regLevel;
@@ -5236,7 +5277,7 @@
     // Фаза 3: отмечаем первую встречу персонажа. markNpcMet вернёт true ровно
     // один раз — тогда вместо обычной фразы показываем приветствие с намёком
     // на механику (3C). В коллекции персонаж тоже появляется только после встречи.
-    const firstMeet = (!isDailyMode && window.PotionProfile) ? window.PotionProfile.markNpcMet(cfg.id) : false;
+    const firstMeet = (!isDailyMode && !isCoopMode && window.PotionProfile) ? window.PotionProfile.markNpcMet(cfg.id) : false;
     const greeting = (firstMeet && typeof NPC_GREETINGS !== 'undefined') ? NPC_GREETINGS[cfg.id] : null;
     // Патч (Диджей Пульсар): на время его заказа общий эмбиент приглушаем до
     // нуля (не мешать его собственному ритму) — на любом другом заказе звук
@@ -5332,7 +5373,7 @@
     }
     // Патч (Ир): ожидающий бафф/дебафф превращается в конкретный эффект
     // этого заказа — один из трёх соответствующего знака
-    if(irPending && typeof IR_EFFECTS !== 'undefined'){
+    if(irPending && !isCoopMode && typeof IR_EFFECTS !== 'undefined'){
       const def = pick(IR_EFFECTS[irPending.kind] || IR_EFFECTS.buff);
       target.irEffect = { kind: irPending.kind, id: def.id, def };
       irPending = null;
@@ -5346,7 +5387,7 @@
     }
     // Патч "УР.4" (Тот-Кто-Ждёт): дар за прошлые строгие 100% — этот заказ
     // (у любого НПС) идёт с таймером вдвое медленнее
-    if(waiterSlowPending){
+    if(waiterSlowPending && !isCoopMode){
       target.waiterSlowBuff = true;
       waiterSlowPending = false;
     }
@@ -5419,6 +5460,13 @@
     // на этой сложности всё равно не будет в задании
     target.activeKeys = computeActiveKeys(regLevel, target);
     level4SetupOrder(); // Патч "УР.4": рандомизация своих полей target для этого НПС
+    // Фаза 12 (кооп, общая цель): зельё генерит ТОЛЬКО хост и кладёт снапшот в
+    // комнату; ведомый применяет его как override — оба воссоздают ИДЕНТИЧНОЕ
+    // зельё (общая цель → общий счёт в следующей части Стадии 4).
+    if(isCoopMode && window.Coop){
+      if(window.Coop.isHost){ try { window.Coop.set('order', coopSerializeTarget(target)); } catch(_){} }
+      else if(coopTargetOverride){ coopApplyTargetOverride(target, coopTargetOverride); }
+    }
     // Правка (пользователь): у Парфюмера на УР.1 размер банки не участвует — банка
     // должна быть СТАНДАРТНОЙ (средний размер), а не случайно зафиксированной.
     if(cfg.id === 'perfumer' && !target.activeKeys.has('size')){
@@ -5472,6 +5520,7 @@
 
     initRing();
     setRingFraction(0);
+    coopApplyRoleView('scan'); // Кооп (Стадия 4): ведомому — аватарка вместо банки
     // Фаза J: эффекты активных пассивок фиксируются на весь заказ
     target.passiveFx = computePassiveFx(cfg.id);
     // Патч (Уборщик УР.4): +1с на запоминание — компенсация за то, что
@@ -5486,7 +5535,7 @@
     // Правка (пользователь): фиолетовый грейд (тир 5, в т.ч. по грейд-вариативности)
     // — на запоминание +30% времени.
     const purpleMemMult = cfg.tier === 5 ? 1.3 : 1;
-    const memDuration = Math.round(cfg.memorizeMs * MEM_TIME_SCALE * purpleMemMult * (1 + (target.passiveFx.memTime || 0))) + janitorL4Bonus + fashionistaL4Bonus + clarityBonus;
+    const memDuration = Math.round(cfg.memorizeMs * MEM_TIME_SCALE * purpleMemMult * coopTimeMult(regLevel) * (1 + (target.passiveFx.memTime || 0))) + janitorL4Bonus + fashionistaL4Bonus + clarityBonus;
     target.memDuration = memDuration; // Патч "УР.4": механики фазы показа читают отсюда
     // Тот-Кто-Ждёт: у него нет таймера ни на запоминание, ни на варку —
     // игрок сам решает, когда готов, кнопкой "Готово, воссоздаю"
@@ -5655,7 +5704,7 @@
     const pfx = target.passiveFx || {};
     // Правка (пользователь): фиолетовый грейд (тир 5) — на игру +50% времени.
     const purpleCraftMult = cfg.tier === 5 ? 1.5 : 1;
-    let craftDuration = Math.round(cfg.craftMs * CRAFT_TIME_SCALE * purpleCraftMult * (1 + (pfx.craftTime || 0)))
+    let craftDuration = Math.round(cfg.craftMs * CRAFT_TIME_SCALE * purpleCraftMult * coopTimeMult(target.regLevel) * (1 + (pfx.craftTime || 0)))
       + (target.regLevel === 4 ? (typeof LEVEL4_TIME_BONUS_MS !== 'undefined' ? LEVEL4_TIME_BONUS_MS : 0) : 0);
     // Патч (Ир): подаренные / украденные секунды
     // Патч (усилено): +4с / -2с вместо +2с / -1с
@@ -5704,6 +5753,9 @@
       badBubbleRafId = requestAnimationFrame(badBubbleFrame);
       if(target.regLevel === 4) startDroneCursor(); // Фаза 8: курсор-с-инерцией
     }
+    // Кооп (Стадия 4): роли/раздельные виды/поочерёдный режим. В самом КОНЦЕ —
+    // чтобы seq-режим перекрыл brewBtn.onclick (finishCraft), выставленный выше.
+    coopApplyRoleView('craft');
   }
 
   // регулятор, недоступный на текущей сложности, замирает РОВНО на том
@@ -6034,6 +6086,16 @@
   }
 
   function finishCraft(auto){
+    // Кооп (Стадия 4): результат считает ФИНИШЁР (стандартный режим — ведущий;
+    // поочерёдный — ведомый, он ходит вторым). НЕ-финишёр не финализирует:
+    // блокируется и ждёт готовый результат от финишёра.
+    if(isCoopMode && coopRound && coopRound.role !== coopRound.finisher){
+      craftLocked = true;
+      cancelAnimationFrame(rafId);
+      clearInterval(ingTimerHandle);
+      coopFollowerAwaitResult();
+      return;
+    }
     // Патч "УР.4" (Дегустатор): первая "какашка" не завершает раунд — можно
     // доделать зелье с того же места, тем же таймером (он просто продолжает
     // тикать). Раунд по-настоящему заканчивается только на 2-й сдаче,
@@ -6244,7 +6306,7 @@
     // сам Бип, возможно, выдаст новый бафф за СВОЙ заказ без истории
     // Патч "Ежедневный заказ": репутации тут нет вовсе — бонус к рейтингу
     // (ratingMultAdd/waiterThresholdOverride выше) остаётся, а repBonus молча игнорируется
-    if(!isDailyMode && l4Bonus.repBonus && good && window.PotionProfile) window.PotionProfile.adjustReputation(cfg.id, l4Bonus.repBonus);
+    if(!isDailyMode && !isCoopMode && l4Bonus.repBonus && good && window.PotionProfile) window.PotionProfile.adjustReputation(cfg.id, l4Bonus.repBonus);
     // Фаза 3, поведенческие модификаторы — итоговые множители рейтинга:
     //  • "Важная утка": усиливает и плюс (good/идеал), и минус (брак). Пойло — нейтрально.
     //  • "Погром": ×2 рейтинга (и, как следствие, чаевых — они 5% от рейтинга цикла).
@@ -6296,7 +6358,7 @@
     // Фаза 7: начисление зарядов умений (аркада; в дейлике умений нет).
     //  • каждые 3 идеала за цикл → +1 заряд;
     //  • сразу: Тот-Кто-Ждёт при 99%+ и Последний из Ир при 95%+.
-    if(!isDailyMode && window.PotionProfile){
+    if(!isDailyMode && !isCoopMode && window.PotionProfile){
       // Фаза 11: пассивка-уникалка «chargeAt2» снижает порог с 3 идеалов до 2
       if(perfect && window.PotionProfile.bumpPerfectCharge(passiveHasFlag('chargeAt2') ? 2 : 3)){
         showToast({ icon:'✨', prefix:UI_TEXT.SKILL_CHARGE_GAINED, name:'' });
@@ -6395,7 +6457,7 @@
     // Патч "Ежедневный заказ": весь этот блок — накопительный аркадный
     // профиль (репутация/стрики/статистика по НПС/ачивки) — в дневном
     // режиме ничего из этого не пишем и не проверяем вовсе.
-    if(!isDailyMode && window.PotionProfile){
+    if(!isDailyMode && !isCoopMode && window.PotionProfile){
       const repRes = window.PotionProfile.recordOrderResult({
         npcId: cfg.id, perfect, good, swill, delta, stickerCat, stickerIdx, progressWeight,
         regLevel: target.regLevel, focus: target.focus,
@@ -6423,7 +6485,7 @@
     // Фаза J: с первого выполненного заказа состав пассивок заморожен до нового цикла
     cycleStarted = true;
 
-    if(!isDailyMode){
+    if(!isDailyMode && !isCoopMode){
       // Фаза H: общие ачивки — автопроверка после каждого заказа + "ручная"
       // ачивка за молниеносный идеал на максимальной сложности регуляторов
       // тира 5 (первая треть таймера, timeFrac уже посчитан выше по стеку)
@@ -6448,7 +6510,7 @@
       if(perfect){
         irPending = { kind:'buff' };
         npcNoteText = LT(pickLocalized(IR_GRANT_PHRASES.buff));
-        if(!isDailyMode){
+        if(!isDailyMode && !isCoopMode){
           if(window.PotionProfile) window.PotionProfile.bumpNpcStat('last_of_ir', 'irBuffs', 1);
           checkNpcAchievements('last_of_ir');
         }
@@ -6464,7 +6526,7 @@
     // ---------- Ир: срабатывание эффекта на ЭТОМ заказе ----------
     const irFx = target.irEffect;
     if(irFx){
-      if(!isDailyMode && irFx.kind === 'debuff' && perfect && window.PotionProfile){
+      if(!isDailyMode && !isCoopMode && irFx.kind === 'debuff' && perfect && window.PotionProfile){
         // идеал под тенью Ир — отдельная ачивка
         window.PotionProfile.bumpNpcStat('last_of_ir', 'irDebuffPerfects', 1);
         checkNpcAchievements('last_of_ir');
@@ -6488,14 +6550,14 @@
     // (ирония/реплики — его личность, остаются; статистика — только аркада)
     if(cfg.special === 'no_timer'){
       if(overall >= 0.99){
-        if(!isDailyMode && window.PotionProfile) window.PotionProfile.bumpNpcStat('the_waiter', 'waiterRatedPerfects', 1);
+        if(!isDailyMode && !isCoopMode && window.PotionProfile) window.PotionProfile.bumpNpcStat('the_waiter', 'waiterRatedPerfects', 1);
       } else {
-        if(!isDailyMode && window.PotionProfile) window.PotionProfile.bumpNpcStat('the_waiter', 'waiterNearMisses', 1);
+        if(!isDailyMode && !isCoopMode && window.PotionProfile) window.PotionProfile.bumpNpcStat('the_waiter', 'waiterNearMisses', 1);
         npcNoteText = good
           ? LT(pickLocalized(WAITER_NOTE_CLOSE))
           : LT(pickLocalized(WAITER_NOTE_FAR));
       }
-      if(!isDailyMode) checkNpcAchievements('the_waiter');
+      if(!isDailyMode && !isCoopMode) checkNpcAchievements('the_waiter');
       // Патч "УР.4": строго 100% (не просто >99%) дарит бафф на СЛЕДУЮЩИЙ
       // заказ (у любого НПС) — таймер вдвое медленнее, см. WAITER_SLOW_BUFF
       if(target.regLevel === 4 && overall >= 0.999) waiterSlowPending = true;
@@ -6528,7 +6590,7 @@
     }
 
     // ---------- Сверхновая: точные габариты / странные пропорции (только аркада-статистика) ----------
-    if(!isDailyMode && cfg.special === 'dual_size' && window.PotionProfile){
+    if(!isDailyMode && !isCoopMode && cfg.special === 'dual_size' && window.PotionProfile){
       const dims = components.filter(c => c.key === 'size' || c.key === 'size2');
       if(dims.length === 2 && dims.every(c => c.score >= 0.999))
         window.PotionProfile.bumpNpcStat('supernova_child', 'novaExactDims', 1);
@@ -6616,6 +6678,7 @@
     else if(good){ SFX.good(); jar.classList.add('celebrate'); }
     else if(swill){ SFX.tick(); } // пойло — нейтральный отклик, без празднования и тряски
     else { SFX.bad(); jar.classList.add('shake'); }
+    coopBroadcastResult(); // Кооп (Стадия 4): ведущий шлёт готовый результат ведомому
     setTimeout(()=> $('resultOverlay').classList.add('show'), 450);
   }
 
@@ -6624,6 +6687,21 @@
     Object.values(S).forEach(s=>s.setDisabled(false));
     preResultSnapshot = null; // Патч: снимок больше не нужен
     irReplayActive = false; // Патч (Ир): принял результат — переигровки на этом заказе больше нет
+    // Фаза 12 (кооп, Стадия 3): аркадная прогрессия дня/цикла тут не действует.
+    // Роли/дни/конец цикла/лидерборд — Стадии 4-5; пока после результата просто
+    // возвращаемся к общему выбору для нового заказа (счёт коопа копится в score).
+    if(isCoopMode){
+      $('resultOverlay').classList.remove('show');
+      $('roundScreen').classList.remove('show');
+      if(coopRound){
+        coopRound.orderIndex = (coopRound.orderIndex || 0) + 1; // роли чередуются со следующего заказа
+        // 1 заказ = 1 день; после 3-го дня — конец цикла (кооп-лидерборд)
+        if(coopRound.orderIndex >= 3){ coopCycleEnd(); return; }
+        coopRound.day = coopRound.orderIndex + 1;
+      }
+      coopShowSelect();
+      return;
+    }
     // Фаза F: 1 день = 1 выполненный заказ, см. profile.js
     if(window.PotionProfile) window.PotionProfile.recordDayPlayed();
     // Фаза 3, модификатор "Погром": персонаж "дерётся" — по завершении его дня
@@ -7881,7 +7959,7 @@
     const badge = $('playerNickBadge'); if(!badge) return;
     const s = $('splashScreen');
     const splashGone = s && (s.style.display === 'none' || s.classList.contains('fade-out'));
-    const show = !!splashGone && !isDailyMode;
+    const show = !!splashGone && !isDailyMode && !isCoopMode;
     badge.classList.toggle('hidden', !show);
     if(show){ const t = $('playerNickText'); if(t) t.textContent = authNick(); }
   }
@@ -7927,12 +8005,45 @@
   // хост жмёт «Начать» (status=countdown) → у ОБОИХ бежит отсчёт → раунд.
   let coopSubs = [];          // отписки Coop.on для текущей комнаты
   let coopCountdownTimer = null;
+  let coopPeerWatchOff = null; // Стадия 6: постоянная слежка за напарником в раунде
+  let coopKickTimer = null;    // «10 сек на возвращение», иначе — на стартовый экран
   function coopClearSubs(){ coopSubs.forEach(u=>{ try{ u(); }catch(_){}}); coopSubs = []; }
   function coopHideOverlays(){
-    ['coopChoiceOverlay','coopJoinOverlay','coopLobbyOverlay','coopCountdownOverlay']
+    ['coopChoiceOverlay','coopJoinOverlay','coopLobbyOverlay','coopCountdownOverlay','coopSelectOverlay','coopEndOverlay']
       .forEach(id => { const el = $(id); if(el) el.classList.remove('show'); });
   }
   function coopToast(key, icon){ showToast({ icon: icon||'🤝', prefix: UI_TEXT[key], name:'' }); }
+  // ---------- Стадия 6: разрыв связи → на сплэш через 10с ----------
+  // Слежка держится ВСЮ кооп-сессию (отдельно от coopSubs — переживает смену
+  // заказов). Напарник пропал (onDisconnect снёс его presence) → 10с на
+  // возвращение; вернулся — отмена; не вернулся — на стартовый экран.
+  function coopStartPeerWatch(){
+    coopStopPeerWatch();
+    if(!window.Coop) return;
+    // Таймер-кик заводим ТОЛЬКО на переходе «присутствовал → пропал». Иначе
+    // стартовый/транзиентный false (presence напарника ещё не долетел в момент
+    // подписки) заводил бы кик зря — и хост вылетал раньше времени.
+    let peerSeen = false;
+    coopPeerWatchOff = window.Coop.onPeerPresence(present=>{
+      if(present){
+        peerSeen = true;
+        if(coopKickTimer){ clearTimeout(coopKickTimer); coopKickTimer = null; coopToast('COOP_PEER_BACK'); }
+      } else if(peerSeen && !coopKickTimer){
+        coopToast('COOP_PEER_LEFT','⚠️');
+        coopKickTimer = setTimeout(coopPeerLeftKick, 10000);
+      }
+    });
+  }
+  function coopStopPeerWatch(){
+    if(coopPeerWatchOff){ try{ coopPeerWatchOff(); }catch(_){} coopPeerWatchOff = null; }
+    if(coopKickTimer){ clearTimeout(coopKickTimer); coopKickTimer = null; }
+  }
+  function coopPeerLeftKick(){
+    coopKickTimer = null;
+    if(!isCoopMode) return;   // уже вышли — не дёргаем coopLeave повторно
+    coopToast('COOP_PEER_LEFT_KICK','👋');
+    coopLeave();   // → returnToSplash, сброс isCoopMode
+  }
   function coopOpenChoice(){
     if(!window.Coop || !window.Coop.available){ coopToast('COOP_UNAVAILABLE','📡'); return; }
     coopHideOverlays(); $('coopChoiceOverlay').classList.add('show');
@@ -7988,7 +8099,12 @@
     coopSubs.push(window.Coop.on('status', st=>{ if(st === 'countdown') coopStartCountdown(); }));
   }
   async function coopHostStart(){
-    try { await window.Coop.set('status', 'countdown'); } catch(e){ coopToast('COOP_ERR_GENERIC','📡'); }
+    // Стадия 3: хост генерит ОБЩИЙ сид и кладёт его в комнату вместе со статусом.
+    // По этому сиду оба клиента детерминированно строят одинаковый список НПС и
+    // одинаково разрешают выбор — сеть не нужна для «кто какого НПС получил».
+    const seed = (Math.floor(Math.random() * 0x7fffffff)) >>> 0;
+    try { await window.Coop.update({ status: 'countdown', seed }); }
+    catch(e){ coopToast('COOP_ERR_GENERIC','📡'); }
     // сам отсчёт запустит подписка на status (и у хоста, и у гостя)
   }
   function coopStartCountdown(){
@@ -8005,18 +8121,449 @@
       tick();
     }, 1000);
   }
-  function coopBeginRound(){
+  // ---------- Стадия 3: урезанный кооп-раунд ----------
+  // «Переодеваем» настоящего НПС в фиолетового (тир-5): личность/механика/
+  // тайминги-флейвор остаются, числовые характеристики регуляторов — тир-5.
+  function coopReskinCfg(realCfg){
+    const base = (typeof DIFFICULTIES !== 'undefined' && DIFFICULTIES[4]) || {};
+    const o = Object.assign({}, realCfg, { tier: 5, type: realCfg.type || 'normal' });
+    // все кооп-НПС — фиолетовые (тир-5): берём числовые характеристики тир-5.
+    // reward ВАЖЕН: у части НПС (Инспектор, Уборщик…) своего reward-поля нет
+    // (в аркаде он присваивается иначе), а в скоринге cfg.reward обязателен —
+    // иначе delta = NaN. Даём единый тир-5 reward всем.
+    ['colorSteps','sizeSteps','countMax','bsizeSteps','reward'].forEach(k=>{ if(base[k] != null) o[k] = base[k]; });
+    if(o.reward == null) o.reward = 200;
+    // тайминги показа/игры — если у НПС своих нет, подстрахуемся тир-5 базой
+    ['memorizeMs','craftMs'].forEach(k=>{ if(o[k] == null && base[k] != null) o[k] = base[k]; });
+    return o;
+  }
+  // Кооп: НПС, у которых вся механика — «в банке», а обычных ползунков нет
+  // (ведомому нечем управлять), исключаются из кооп-пула. Пока это только
+  // Коллекционер Гз (сетка зелий — выбор совпадающего, ни одного слайдера).
+  const COOP_EXCLUDE_IDS = new Set(['collector_gz']);
+  // 4 НПС на общий выбор: детерминированный тасовщик по общему сиду и номеру дня
+  // (у обоих клиентов один и тот же список в одном и том же порядке).
+  function coopBuildPool(seed, day){
+    const npcs = (typeof ALL_NPCS !== 'undefined' ? ALL_NPCS : []);
+    const ids = npcs.map(n=>n.id).filter(id => !COOP_EXCLUDE_IDS.has(id));
+    const rng = mulberry32((seed + day * 0x3C6EF35F) >>> 0);
+    return seededShuffle(ids, rng).slice(0, 4)
+      .map(id => coopReskinCfg(npcs.find(n=>n.id===id) || npcs[0]));
+  }
+  async function coopBeginRound(){
     coopHideOverlays();
-    // TODO Стадия 3: здесь стартует урезанный кооп-раунд (фиолетовые НПС,
-    // общий сид, роли ведущий/ведомый). Пока — заглушка + чистый выход.
-    coopToast('COOP_ROUND_SOON');
-    coopLeave();
+    if(coopCountdownTimer){ clearInterval(coopCountdownTimer); coopCountdownTimer = null; }
+    if(!window.Coop || !window.Coop.available){ coopLeave(); return; }
+    // общий сид пишет хост (см. coopHostStart); гость его дочитывает
+    let seed = null;
+    try { seed = await window.Coop.get('seed'); } catch(_){}
+    seed = (seed || 1) >>> 0;
+    isCoopMode = true;
+    coopRound = { seed, day: 1, score: 0, mySel: null, resolving: false, orderIndex: 0 };
+    // ник для общего лидерборда (строка «ник1 & ник2» в конце цикла)
+    try { window.Coop.set('nick/' + window.Coop.role, authNick()); } catch(_){}
+    coopStartPeerWatch(); // Стадия 6: следим за уходом напарника весь раунд
+    score = 0; streak = 0; orderNum = 0;
+    $('scoreVal').textContent = score;
+    $('streakVal').textContent = streak;
+    coopHideGameUI();
+    coopShowSelect();
+  }
+  // прячем весь накопительный UI аркады на время коопа (доки/шкала/чаевые/ник)
+  function coopHideGameUI(){
+    refreshShopDockState(); refreshSkillDock(); renderProgressionBar();
+    const t = $('tipsCounter'); if(t) t.style.display = 'none';
+    updateNickBadge();
+  }
+  // экран общего выбора: 4 фиолетовых НПС, оба видят одно и то же
+  function coopShowSelect(){
+    if(!coopRound) return;
+    coopClearSubs();
+    $('roundScreen').classList.remove('show');
+    $('resultOverlay').classList.remove('show');
+    $('selectScreen').classList.remove('show');
+    coopRound.pool = coopBuildPool(coopRound.seed, coopRound.day);
+    coopRound.mySel = null; coopRound.selHost = null; coopRound.selGuest = null;
+    coopRound.resolving = false;
+    // хост обнуляет прошлый выбор/снапшот цели/значения ползунков (новый заказ — с чистого листа)
+    if(window.Coop.isHost){ try { window.Coop.update({ sel: null, order: null, guess: null, result: null, turn: null }); } catch(_){} }
+    coopRenderSelect();
+    $('coopSelectOverlay').classList.add('show');
+    // оба слушают обе ячейки выбора; когда обе заполнены — детерминированный пик
+    coopSubs.push(window.Coop.on('sel/host',  v=>{ coopRound.selHost  = (v==null?null:v); coopMaybeResolve(); }));
+    coopSubs.push(window.Coop.on('sel/guest', v=>{ coopRound.selGuest = (v==null?null:v); coopMaybeResolve(); }));
+  }
+  // Уровни для кооп-карточки: у фиолетовых (тир-5) доступны все УР.1–4
+  // (репутация в коопе не участвует, так что 4-й открыт всегда).
+  const COOP_LEVELS = [1, 2, 3, 4];
+  // Пер-НПС ограничение: где на каком-то уровне ведомому нечем управлять (вся
+  // механика в банке — работа ведущего). Навигатор на УР.1 — только детали
+  // (перетаскивание), обычных ползунков нет → УР.1 у него в коопе недоступен.
+  const COOP_NPC_LEVELS = { swarm_navigator: [2, 3, 4] };
+  function coopLevelsFor(cfg){ return COOP_NPC_LEVELS[cfg.id] || COOP_LEVELS; }
+  function coopRenderSelect(){
+    const host = $('coopSelectCards'); if(!host) return;
+    const dayEl = $('coopSelectDay'); if(dayEl) dayEl.textContent = coopRound.day + ' / 3';
+    const st = $('coopSelectStatus'); if(st) st.textContent = LT(UI_TEXT.COOP_SELECT_PICK);
+    host.innerHTML = '';
+    coopRound.pool.forEach((cfg, i)=>{
+      const avatar = Array.isArray(cfg.img) ? cfg.img[0] : (cfg.img || cfg.emoji);
+      const card = document.createElement('div');
+      card.className = 'coop-npc-card';
+      card.style.setProperty('--tier-color', TIER_COLORS[5]);
+      const levelsHTML = coopLevelsFor(cfg).map(lvl =>
+        `<button type="button" class="coop-level-btn ${lvl===4?'level-4':''}" data-idx="${i}" data-level="${lvl}"
+           title="${LT(UI_TEXT['DIFF_BTN_TITLE_'+lvl]||'')}">${LT(UI_TEXT.DIFF_BTN_LABEL)}${lvl}${lvl===4?' ⚠':''}</button>`).join('');
+      card.innerHTML = `<div class="coop-npc-img">${visualHTML(avatar,'npc-img')}</div>
+        <div class="coop-npc-name">${LT(cfg.name)}</div>
+        <div class="coop-level-row">${levelsHTML}</div>`;
+      card.querySelectorAll('.coop-level-btn').forEach(btn=>{
+        btn.addEventListener('click', ()=> coopSelectNpc(i, parseInt(btn.dataset.level,10)));
+      });
+      host.appendChild(card);
+    });
+  }
+  function coopSelectNpc(idx, level){
+    if(!coopRound || coopRound.mySel != null || coopRound.resolving) return;
+    SFX.cardPick();
+    coopRound.mySel = { idx, level };
+    const host = $('coopSelectCards');
+    if(host) host.querySelectorAll('.coop-npc-card').forEach((c,i)=>{
+      c.classList.toggle('mine', i===idx);
+      c.querySelectorAll('.coop-level-btn').forEach(b=>{
+        b.classList.toggle('sel', i===idx && parseInt(b.dataset.level,10)===level);
+        b.disabled = true;
+      });
+    });
+    const st = $('coopSelectStatus'); if(st) st.textContent = LT(UI_TEXT.COOP_SELECT_WAIT);
+    try { window.Coop.set('sel/' + window.Coop.role, { idx, level }); } catch(_){}
+    coopMaybeResolve();
+  }
+  // когда оба выбрали — 3 сек, затем детерминированно берём случайный из двух
+  // выборов {idx,level} (оба клиента считают одинаково: один сид + один набор)
+  function coopMaybeResolve(){
+    if(!coopRound || coopRound.resolving) return;
+    const h = coopRound.selHost, g = coopRound.selGuest;
+    if(h == null || g == null) return;
+    coopRound.resolving = true;
+    // набор выборов: если оба выбрали ОДНО И ТО ЖЕ (тот же НПС и уровень) —
+    // это один вариант; иначе — два, берём случайный
+    const same = h.idx === g.idx && h.level === g.level;
+    const choices = same ? [h] : [h, g];
+    const rng = mulberry32((coopRound.seed + coopRound.day * 7 + 101) >>> 0);
+    const chosen = choices[Math.floor(rng() * choices.length)];
+    const host = $('coopSelectCards');
+    if(host) host.querySelectorAll('.coop-npc-card').forEach((c,i)=>{
+      c.classList.toggle('picked', i===chosen.idx);
+    });
+    const st = $('coopSelectStatus');
+    let n = 3;
+    if(st) st.textContent = LT(UI_TEXT.COOP_SELECT_START).replace('{n}', n);
+    if(coopRound.selTimer) clearInterval(coopRound.selTimer);
+    coopRound.selTimer = setInterval(()=>{
+      n--;
+      if(n <= 0){
+        clearInterval(coopRound.selTimer); coopRound.selTimer = null;
+        coopStartCoopOrder(chosen);
+        return;
+      }
+      if(st) st.textContent = LT(UI_TEXT.COOP_SELECT_START).replace('{n}', n);
+    }, 1000);
+  }
+  function coopMakeOrd(cfg){
+    const avatar = Array.isArray(cfg.img) ? cfg.img[0] : (cfg.img || cfg.emoji);
+    return { cfg, focus: null, mods: [], flavor: pickLocalized(cfg.flavors), avatar, isLore: false };
+  }
+  // Роли (Стадия 4): 1-й заказ — случайно (детерминированно по общему сиду),
+  // дальше чередуются. Оба клиента считают одинаково → одинаково знают, кто
+  // ведущий (видит банку + механику-в-банке), а кто ведомый (крутит ползунки).
+  function coopComputeRole(){
+    const firstLeaderHost = mulberry32((coopRound.seed + 777) >>> 0)() < 0.5;
+    const leaderIsHost = firstLeaderHost === (coopRound.orderIndex % 2 === 0);
+    coopRound.leaderIsHost = leaderIsHost;
+    coopRound.role = (leaderIsHost === window.Coop.isHost) ? 'leader' : 'follower';
+  }
+  // НПС без фазы запоминания на обычных ползунках → поочерёдный режим (Часть C):
+  // ведущий ставит свою половину → «Передать ход» → ведомый ставит вторую →
+  // «Готово». Спец-крафт (engineer — бегущий указатель, gourmet@УР.4 — дегустация)
+  // не на обычных ползунках, поэтому пока играется обычным сплитом.
+  function coopIsSequential(cfg, regLevel){
+    return !!cfg && (cfg.special === 'no_timer' || cfg.id === 'guild_inspector');
+  }
+  function coopStartCoopOrder(sel){
+    coopClearSubs();
+    coopHideOverlays();
+    const cfg = coopRound.pool[sel.idx];
+    const ord = coopMakeOrd(cfg);
+    coopComputeRole();
+    // поочерёдный режим и кто финиширует (в поочерёдном — ведомый, ходит вторым)
+    coopRound.seqMode = coopIsSequential(cfg, sel.level);
+    coopRound.finisher = coopRound.seqMode ? 'follower' : 'leader';
+    coopTargetOverride = null;
+    if(window.Coop.isHost){
+      // хост генерит зельё и пишет снапшот в комнату (внутри startOrder)
+      startOrder(ord, sel.level);
+    } else {
+      // ведомый ждёт снапшот цели от хоста, потом стартует с override —
+      // так оба воссоздают идентичное зельё (общая цель)
+      let started = false;
+      const off = window.Coop.on('order', snap=>{
+        if(started || !snap) return;
+        started = true; try { off(); } catch(_){}
+        coopTargetOverride = snap;
+        startOrder(ord, sel.level);
+        coopTargetOverride = null;
+      });
+      coopSubs.push(off);
+    }
+  }
+  // Ведомый транслирует значение ползунка в комнату (у ведущего банка меняется).
+  // Небольшая пер-ключевая склейка тиков, чтобы не спамить RTDB на каждый шаг.
+  let coopGuessPending = {}, coopGuessFlush = null;
+  function coopWriteGuess(key, v){
+    if(!window.Coop || !window.Coop.inRoom) return;
+    coopGuessPending[key] = v;
+    if(coopGuessFlush) return;
+    coopGuessFlush = setTimeout(()=>{
+      const batch = coopGuessPending; coopGuessPending = {}; coopGuessFlush = null;
+      const upd = {}; for(const k in batch) upd['guess/' + k] = batch[k];
+      try { window.Coop.update(upd); } catch(_){}
+    }, 60);
+  }
+  // Разметка ролей на раунд: ведомому — большая аватарка вместо банки (на показе
+  // и на игре); на игре у ведущего скрыты ползунки (он видит банку + делает
+  // механику-в-банке), а ведомый крутит ползунки, и ведущий подписан на них.
+  function coopApplyRoleView(phase){
+    if(!isCoopMode || !coopRound) return;
+    const seq = !!coopRound.seqMode;
+    const isFollower = coopRound.role === 'follower';
+    const frame = $('windowFrame');
+    let cover = document.getElementById('coopCover');
+    if(!cover && frame){ cover = document.createElement('div'); cover.id = 'coopCover'; cover.className = 'coop-cover'; frame.appendChild(cover); }
+    if(cover){
+      const av = currentOrd ? currentOrd.avatar : null;
+      const hintKey = phase === 'craft' ? 'COOP_FOLLOWER_CRAFT' : 'COOP_FOLLOWER_SCAN';
+      cover.innerHTML = `<div class="coop-cover-av">${visualHTML(av, 'npc-img')}</div>` +
+        `<div class="coop-cover-hint">${LT(UI_TEXT[hintKey])}</div>`;
+      // заглушка-аватарка только в СТАНДАРТНОМ режиме у ведомого; в поочерёдном
+      // оба видят банку (ходят по очереди половинами ползунков)
+      cover.classList.toggle('show', !seq && isFollower);
+    }
+    if(phase === 'craft'){
+      if(seq){
+        coopSetupSequentialCraft();
+      } else {
+        // стандартный режим: ведущий — без ползунков (банка+механика), ведомый —
+        // с ползунками; ведущий слушает ползунки ведомого → банка перерисовывается
+        $('leftCol').classList.toggle('coop-hidden', !isFollower);
+        $('rightCol').classList.toggle('coop-hidden', !isFollower);
+        const brew = $('brewBtn'); if(brew) brew.style.display = isFollower ? 'none' : '';
+        if(!isFollower && window.Coop){
+          coopSubs.push(window.Coop.on('guess', obj=>{
+            if(!obj || !target) return;
+            for(const k in obj){ if(S[k]) S[k].value = obj[k]; }
+            updatePlayerJar();
+          }));
+        }
+      }
+      // НЕ-финишёр слушает готовый результат от финишёра → показывает у себя
+      if(coopRound.role !== coopRound.finisher && window.Coop){
+        coopSubs.push(window.Coop.on('result', data=>{ if(data) coopShowRemoteResult(data); }));
+      }
+    }
+  }
+  // Часть C: поочерёдный крафт. Оба видят банку+ползунки, ходят по очереди
+  // половинами: ключи делятся на половину ведущего и половину ведомого. Активна
+  // только своя половина и только в свой ход. Ход синкается через RTDB `turn`,
+  // значения ползунков — через `guess` (оба пишут свою половину, оба слушают).
+  function coopSetupSequentialCraft(){
+    $('leftCol').classList.remove('coop-hidden');
+    $('rightCol').classList.remove('coop-hidden');
+    const keys = [...(target.activeKeys || [])].filter(k => S[k]).sort();
+    const half = Math.ceil(keys.length / 2);
+    coopRound.seqKeys = { leader: keys.slice(0, half), follower: keys.slice(half) };
+    coopRound.turn = 'leader'; // первым ходит ведущий
+    coopRound._seqLastTurn = null;
+    if(window.Coop){
+      coopSubs.push(window.Coop.on('guess', obj=>{
+        if(!obj || !target) return;
+        for(const k in obj){ if(S[k]) S[k].value = obj[k]; }
+        updatePlayerJar();
+      }));
+      coopSubs.push(window.Coop.on('turn', t=>{ if(t){ coopRound.turn = t; coopApplySeqTurn(); } }));
+    }
+    coopApplySeqTurn();
+  }
+  function coopApplySeqTurn(){
+    if(!coopRound || !coopRound.seqMode || !coopRound.seqKeys) return;
+    const turn = coopRound.turn;
+    const myKeys = coopRound.role === 'leader' ? coopRound.seqKeys.leader : coopRound.seqKeys.follower;
+    const isMyTurn = turn === coopRound.role;
+    [...(target.activeKeys || [])].forEach(k=>{ if(S[k]) S[k].setDisabled(!(isMyTurn && myKeys.indexOf(k) >= 0)); });
+    const brew = $('brewBtn');
+    if(brew){
+      if(isMyTurn){
+        brew.style.display = '';
+        if(coopRound.role === 'leader'){
+          brew.textContent = LT(UI_TEXT.COOP_PASS_TURN);
+          brew.onclick = ()=>{ SFX.uiClick(); coopPassTurn(); };
+        } else {
+          brew.textContent = LT(UI_TEXT.BREW_BTN);
+          brew.onclick = ()=>{ SFX.brew(); finishCraft(); };
+        }
+      } else {
+        brew.style.display = 'none';
+      }
+    }
+    // подсказка о ходе (разово при смене)
+    if(coopRound._seqLastTurn !== turn){
+      coopRound._seqLastTurn = turn;
+      coopToast(isMyTurn ? 'COOP_SEQ_YOUR_TURN' : 'COOP_SEQ_WAIT', isMyTurn ? '🎛️' : '⏳');
+    }
+  }
+  function coopPassTurn(){
+    if(!coopRound) return;
+    try { window.Coop.set('turn', 'follower'); } catch(_){}
+    coopRound.turn = 'follower'; coopApplySeqTurn(); // локально сразу, не ждём эхо
+  }
+  // писать ли в комнату движение этого ползунка: стандартный режим — только
+  // ведомый; поочерёдный — тот, чей ход, и только по своей половине.
+  function coopShouldSyncSlider(key){
+    if(!isCoopMode || !coopRound) return false;
+    if(coopRound.seqMode){
+      if(coopRound.turn !== coopRound.role || !coopRound.seqKeys) return false;
+      const myKeys = coopRound.role === 'leader' ? coopRound.seqKeys.leader : coopRound.seqKeys.follower;
+      return myKeys.indexOf(key) >= 0;
+    }
+    return coopRound.role === 'follower';
+  }
+  // Ведомый нажал/истёк таймер: результат считает ведущий — показываем ожидание.
+  function coopFollowerAwaitResult(){
+    $('leftCol').classList.remove('show');
+    $('rightCol').classList.remove('show');
+    const cover = document.getElementById('coopCover');
+    if(cover){
+      const hint = cover.querySelector('.coop-cover-hint');
+      if(hint) hint.textContent = LT(UI_TEXT.COOP_FOLLOWER_WAIT_RESULT);
+    }
+  }
+  // Ведущий: после того как его finalizeResult заполнил оверлей — шлём готовый
+  // результат ведомому (тот же DOM без пересчёта: стикер/заголовок/дельта/
+  // разбивка/реплика) + общий счёт/серию. Ведомый рисует это у себя.
+  function coopBroadcastResult(){
+    if(!isCoopMode || !coopRound || coopRound.role !== coopRound.finisher || !window.Coop) return;
+    const html = id => { const e = $(id); return e ? e.innerHTML : ''; };
+    const payload = {
+      sticker: html('stickerEmoji'),
+      title: html('resultTitle'), titleClass: $('resultTitle').className,
+      delta: html('deltaVal'), deltaClass: $('deltaVal').className,
+      speed: html('speedNote'),
+      overall: html('overallScore'),
+      breakdown: html('breakdown'),
+      npcNote: html('npcNote'), npcNoteShow: $('npcNote').style.display !== 'none',
+      score: score, streak: streak, ts: Date.now()
+    };
+    try { window.Coop.set('result', payload); } catch(_){}
+  }
+  // Ведомый: пришёл результат от ведущего — останавливаем крафт, принимаем
+  // общий счёт и рисуем тот же экран результата (кнопка «Далее» — общая, ведёт
+  // к следующему выбору; финиш синхронный: ведомый прекращает крутить здесь).
+  function coopShowRemoteResult(data){
+    if(!isCoopMode || !coopRound || coopRound.role === coopRound.finisher || !data) return;
+    if($('resultOverlay').classList.contains('show')) return;
+    craftLocked = true;
+    cancelAnimationFrame(rafId);
+    clearInterval(ingTimerHandle);
+    stopMovingAnim(); stopBadBubbles(); stopMatrixRain(); level4Stop();
+    coopResetRoleView();
+    $('leftCol').classList.remove('show');
+    $('rightCol').classList.remove('show');
+    $('panel').classList.add('locked');
+    if(typeof data.score === 'number'){ score = data.score; $('scoreVal').textContent = score; }
+    if(typeof data.streak === 'number'){ streak = data.streak; $('streakVal').textContent = streak; }
+    $('stickerEmoji').innerHTML = data.sticker || '';
+    $('resultTitle').innerHTML = data.title || ''; $('resultTitle').className = data.titleClass || 'result-title';
+    $('deltaVal').innerHTML = data.delta || ''; $('deltaVal').className = data.deltaClass || 'delta';
+    $('speedNote').innerHTML = data.speed || '';
+    $('overallScore').innerHTML = data.overall || '';
+    $('breakdown').innerHTML = data.breakdown || '';
+    const note = $('npcNote'); if(note){ note.innerHTML = data.npcNote || ''; note.style.display = data.npcNoteShow ? '' : 'none'; }
+    const rb = $('replayBtn'); if(rb) rb.style.display = 'none';
+    $('nextBtn').style.display = '';
+    $('resultOverlay').classList.add('show');
+  }
+  // ---------- Стадия 5: конец цикла (после 3-го дня) + кооп-лидерборд ----------
+  const COOP_LB_LOCAL_KEY = 'potionshop_coop_v1';
+  function coopSaveLocalScore(name, sc){
+    let list = [];
+    try { list = JSON.parse(localStorage.getItem(COOP_LB_LOCAL_KEY) || '[]'); } catch(_){}
+    list.push({ name, score: sc, date: new Date().toLocaleDateString() });
+    list.sort((a,b)=>b.score-a.score);
+    try { localStorage.setItem(COOP_LB_LOCAL_KEY, JSON.stringify(list.slice(0,50))); } catch(_){}
+  }
+  function coopLoadLocalScores(){
+    try { return JSON.parse(localStorage.getItem(COOP_LB_LOCAL_KEY) || '[]').sort((a,b)=>b.score-a.score); }
+    catch(_){ return []; }
+  }
+  function coopRenderEndLeaderboard(rows, myScore, myName){
+    const host = $('coopEndList'); if(!host) return;
+    rows = (rows || []).slice().sort((a,b)=>b.score-a.score).slice(0,50);
+    host.innerHTML = rows.map(e=>{
+      const me = e.score === myScore && e.name === myName;
+      return `<div class="lb-row ${me?'me':''}"><span>${escapeHtml(e.name)}</span><span>${e.score} · ${escapeHtml(e.date||'')}</span></div>`;
+    }).join('') || `<div style="color:var(--ink-dim);text-align:center;">${LT(UI_TEXT.LB_EMPTY)}</div>`;
+  }
+  async function coopCycleEnd(){
+    SFX.weekEnd();
+    coopClearSubs();
+    coopStopPeerWatch(); // цикл окончен — на экране лидерборда уход не кикаем
+    $('resultOverlay').classList.remove('show');
+    $('roundScreen').classList.remove('show');
+    coopResetRoleView();
+    const finalScore = score;
+    // ники обоих → строка «ник1 & ник2»
+    let nickH = 'Host', nickG = 'Guest';
+    try { nickH = (await window.Coop.get('nick/host')) || nickH; } catch(_){}
+    try { nickG = (await window.Coop.get('nick/guest')) || nickG; } catch(_){}
+    const combined = (nickH + ' & ' + nickG).slice(0, 60);
+    $('coopEndScore').textContent = finalScore;
+    $('coopEndNick').textContent = combined;
+    $('coopEndList').innerHTML = '';
+    $('coopEndOverlay').classList.add('show');
+    // общий лидерборд (Firebase); при запрете правил БД — локальный на устройстве
+    let rows = null, shared = false;
+    try {
+      if(window.Coop.isHost) await window.Coop.submitCoopScore(combined, finalScore);
+      rows = await window.Coop.loadCoopScores(50);
+      shared = true;
+    } catch(e){
+      coopSaveLocalScore(combined, finalScore);
+      rows = coopLoadLocalScores();
+    }
+    coopRenderEndLeaderboard(rows, finalScore, combined);
+    // гость мог прочитать доску ДО записи хоста — дочитываем чуть позже
+    if(shared && !window.Coop.isHost){
+      setTimeout(async ()=>{ try { coopRenderEndLeaderboard(await window.Coop.loadCoopScores(50), finalScore, combined); } catch(_){} }, 1300);
+    }
+  }
+  // снять разметку ролей (аватарка-заглушка, скрытые колонки, кнопка «Готово»)
+  function coopResetRoleView(){
+    const cover = document.getElementById('coopCover'); if(cover) cover.remove();
+    ['leftCol','rightCol'].forEach(id=>{ const el = $(id); if(el) el.classList.remove('coop-hidden'); });
+    const brew = $('brewBtn'); if(brew){ brew.style.display = ''; brew.textContent = LT(UI_TEXT.BREW_BTN); }
   }
   async function coopLeave(){
     coopClearSubs();
+    coopStopPeerWatch();
     if(coopCountdownTimer){ clearInterval(coopCountdownTimer); coopCountdownTimer = null; }
+    if(coopRound && coopRound.selTimer){ clearInterval(coopRound.selTimer); coopRound.selTimer = null; }
     try { if(window.Coop) await window.Coop.leaveRoom(); } catch(_){}
     coopHideOverlays();
+    coopResetRoleView();
+    const wasCoop = isCoopMode;
+    isCoopMode = false; coopRound = null;
+    // вышли из коопа посреди раунда → на стартовый экран (аркадный UI вернётся сам)
+    if(wasCoop) returnToSplash();
   }
   (function wireCoop(){
     const on = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
@@ -8028,6 +8575,8 @@
     on('coopJoinBackBtn',   ()=>{ SFX.uiClick(); coopOpenChoice(); });
     on('coopStartBtn',      ()=>{ SFX.uiClick(); coopHostStart(); });
     on('coopLeaveBtn',      ()=>{ SFX.uiClick(); coopLeave(); });
+    on('coopSelectLeaveBtn',()=>{ SFX.uiClick(); coopLeave(); });
+    on('coopEndHomeBtn',    ()=>{ SFX.uiClick(); coopLeave(); });
     on('coopLobbyCode',     ()=>{
       const code = $('coopLobbyCode').textContent || '';
       if(navigator.clipboard && code) navigator.clipboard.writeText(code).catch(()=>{});

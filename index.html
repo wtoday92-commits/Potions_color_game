@@ -6,7 +6,7 @@
 <title>Зельеварня — лавка на краю вселенной</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Jura:wght@500;700&family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=25">
 </head>
 <body>
 
@@ -539,15 +539,38 @@
   <div class="coop-countdown-num" id="coopCountdownNum">5</div>
 </div>
 
+<!-- Стадия 3: общий выбор — 4 фиолетовых НПС, оба видят одно и то же -->
+<div class="week-overlay coop-overlay" id="coopSelectOverlay">
+  <div class="week-card coop-card coop-select-card">
+    <h3 data-i18n="COOP_SELECT_TITLE">Общий заказ</h3>
+    <p class="coop-sub"><span data-i18n="COOP_DAY">День</span> <span id="coopSelectDay">1 / 3</span></p>
+    <div class="coop-select-cards" id="coopSelectCards"></div>
+    <div class="coop-msg" id="coopSelectStatus"></div>
+    <button class="next-btn coop-cancel" id="coopSelectLeaveBtn" data-i18n="COOP_LEAVE">Выйти</button>
+  </div>
+</div>
+
+<!-- Стадия 5: конец кооп-цикла (после 3-го дня) — общий счёт + лидерборд -->
+<div class="week-overlay coop-overlay" id="coopEndOverlay">
+  <div class="week-card coop-card coop-end-card">
+    <h3 data-i18n="COOP_END_TITLE">Смена окончена!</h3>
+    <div class="coop-end-score"><span data-i18n="COOP_END_SCORE">Общий счёт</span>: <b id="coopEndScore">0</b></div>
+    <div class="coop-end-nick" id="coopEndNick"></div>
+    <div class="coop-end-lb-label" data-i18n="COOP_END_LB">Кооп-рейтинг</div>
+    <div class="lb-list coop-end-list" id="coopEndList"></div>
+    <button class="next-btn coop-big-btn" id="coopEndHomeBtn" data-i18n="COOP_END_HOME">На стартовый экран</button>
+  </div>
+</div>
+
 <!-- порядок важен: сначала профиль (Фаза F), потом контент, потом логика -->
-<script src="profile.js?v=12"></script>
-<script src="content.js?v=12"></script>
+<script src="profile.js?v=25"></script>
+<script src="content.js?v=25"></script>
 <!-- Фаза 12: кооп — Firebase Realtime Database (CDN, compat) + сетевой модуль.
      Грузятся ПЕРЕД game.js, чтобы window.Coop уже существовал. Если CDN не
      доступен — coop-net.js выставит Coop.available=false, игра работает как есть. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-<script src="coop-net.js?v=12"></script>
-<script src="game.js?v=12"></script>
+<script src="coop-net.js?v=25"></script>
+<script src="game.js?v=25"></script>
 </body>
 </html>
