@@ -796,6 +796,34 @@
       }
     }catch(e){ /* офлайн — остаёмся на локальном профиле */ }
   }
+  // Правка пользователя (критично: прогрессия откатывалась). pullProfile слепо
+  // ПЕРЕТИРАЛ локальный профиль облачным, а облако пушится только в конце цикла →
+  // на перезагрузке весь набранный за цикл прогресс терялся. mergePull берёт
+  // облако ТОЛЬКО если оно реально впереди по xp (напр. играли на другом
+  // устройстве); иначе локальный главнее — не трогаем и пушим его наверх.
+  async function mergePull(){
+    const a = load(); if(!a.userId || !a.token) return;
+    try{
+      const res = await fetch(SUPABASE_CONFIG.url + '/rest/v1/profiles?id=eq.' + a.userId + '&select=nickname,data',
+        { headers: headers(a.token) });
+      if(!res.ok) return;
+      const rows = await res.json();
+      if(rows && rows[0]){
+        if(rows[0].nickname){ a.nickname = String(rows[0].nickname).slice(0, 20); save(a); }
+        const remote = rows[0].data;
+        const remoteXp = (remote && remote.progression && remote.progression.xp) || 0;
+        let localXp = 0;
+        try{ localXp = ((window.PotionProfile.exportData().progression) || {}).xp || 0; }catch(e){}
+        if(remote && remoteXp > localXp && window.PotionProfile && window.PotionProfile.importData){
+          window.PotionProfile.importData(remote);   // облако впереди → подтягиваем
+        } else {
+          pushProfile();                              // локальный впереди/равен → сохраняем наверх, не откатываем
+        }
+      } else {
+        pushProfile();                                // строки ещё нет — заводим
+      }
+    }catch(e){ /* офлайн — остаёмся на локальном */ }
+  }
   async function pushProfile(){
     const a = load(); if(a.mode !== 'user' || !a.userId || !a.token) return false;
     const body = { id: a.userId, nickname: a.nickname,
@@ -823,14 +851,17 @@
     get data(){ return ensure(); },
     isConfigured(){ return configured(); },
     getMode(){ return ensure().mode; },            // 'guest' | 'user'
-    isLoggedIn(){ return sessionAlive(ensure()); },
-    getNickname(){ const a = ensure(); return sessionAlive(a) ? a.nickname : a.guestNick; },
+    // Правка пользователя (критично): «вошёл» держится до РУЧНОГО выхода, а не до
+    // протухания access-токена (~1ч). Токен держим живым авто-рефрешем (см. ниже),
+    // а личность игрока считаем по mode — иначе игрока «слетало» в гостя прямо в игре.
+    isLoggedIn(){ return ensure().mode === 'user'; },
+    getNickname(){ const a = ensure(); return a.mode === 'user' ? a.nickname : a.guestNick; },
     setNickname(name){
       name = String(name || '').trim().slice(0, 20);
       if(!name) return false;
       const a = ensure();
-      if(sessionAlive(a)){ a.nickname = name; save(a); pushProfile(); } // ник аккаунта → онлайн
-      else { a.guestNick = name; save(a); }                             // гостевой ник — локально
+      if(a.mode === 'user'){ a.nickname = name; save(a); pushProfile(); } // ник аккаунта → онлайн
+      else { a.guestNick = name; save(a); }                              // гостевой ник — локально
       return true;
     },
     async register(login, password, nickname){
@@ -860,7 +891,7 @@
         if(!res.ok || !d.access_token)
           return { ok:false, reason:'error', message: d.error_description || d.msg || d.error || 'Неверный логин или пароль' };
         applySession(d, nickname);
-        await pullProfile();
+        await mergePull();   // подтянуть облако, но НЕ откатить локальный прогресс, если он впереди
         return { ok:true };
       }catch(e){ return { ok:false, reason:'error', message:'Сеть недоступна' }; }
     },
@@ -870,9 +901,11 @@
     syncUp(){ return pushProfile(); }, // вызывать в конце цикла — сохранить прогресс онлайн
     async restore(){                    // восстановить сессию при загрузке страницы
       const a = load();
-      if(a.mode === 'user' && a.remember !== false && configured() && a.refresh){
-        if(!a.expiresAt || a.expiresAt < Date.now() + 60000) await refreshSession();
-        await pullProfile();
+      if(a.mode === 'user' && configured()){
+        // держим токен живым; прогресс НЕ перетираем облаком (mergePull) —
+        // остаёмся вошедшими до ручного выхода, локальный прогресс не откатываем
+        if(a.refresh && (!a.expiresAt || a.expiresAt < Date.now() + 60000)) await refreshSession();
+        await mergePull();
       }
     },
     getRememberDevice(){ return ensure().remember !== false; },
@@ -898,14 +931,32 @@
     async leaderboardSave(board, name, score){
       const a = load();
       if(a.mode !== 'user' || !a.token || !a.userId || !configured()) return false;
+      const b = board || 'arcade';
       try{
+        // Правка пользователя: одна строка на игрока+доску, а не куча дублей.
+        // Сносим прошлые свои записи на этой доске и пишем текущую (высшую).
+        await fetch(SUPABASE_CONFIG.url + '/rest/v1/leaderboard?user_id=eq.' + encodeURIComponent(a.userId) + '&board=eq.' + encodeURIComponent(b),
+          { method:'DELETE', headers: headers(a.token) }).catch(()=>{});
         const res = await fetch(SUPABASE_CONFIG.url + '/rest/v1/leaderboard',
           { method:'POST', headers: Object.assign(headers(a.token), { 'Prefer':'return=minimal' }),
-            body: JSON.stringify({ board: board || 'arcade', name: String(name || '').slice(0,20), score: Math.round(score), user_id: a.userId }) });
+            body: JSON.stringify({ board: b, name: String(name || '').slice(0,20), score: Math.round(score), user_id: a.userId }) });
         return res.ok;
       }catch(e){ return false; }
     }
   };
+
+  // Правка пользователя (критично): пока вкладка открыта — держим сессию живой.
+  // Раньше access-токен протухал за ~1ч и игрок «слетал» в гостя прямо в игре.
+  // Каждые 4 мин: если скоро истекает — рефрешим; затем пушим локальный прогресс
+  // наверх, чтобы облако не отставало (иначе перезагрузка могла откатить прогресс).
+  if(configured()){
+    setInterval(()=>{
+      const a = load();
+      if(a.mode !== 'user' || !a.refresh) return;
+      const near = !a.expiresAt || a.expiresAt < Date.now() + 10 * 60000;
+      (near ? refreshSession() : Promise.resolve()).then(()=> pushProfile());
+    }, 4 * 60000);
+  }
 
   window.PotionAuth = Auth;
 })();

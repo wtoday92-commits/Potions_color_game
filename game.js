@@ -4680,9 +4680,15 @@
   // Общая цель (Стадия 4): ведомый ставит сюда снапшот target от хоста ПЕРЕД
   // вызовом startOrder — там он применяется вместо собственной генерации.
   let coopTargetOverride = null;
-  // Фаза 12 (кооп): больше времени на согласование вдвоём — таймеры показа/игры
-  // ×2 на УР.4 и ×1.5 на остальных уровнях (вне коопа множитель = 1).
-  function coopTimeMult(regLevel){ return isCoopMode ? (regLevel >= 4 ? 2 : 1.5) : 1; }
+  // Фаза 12 (кооп): больше времени на согласование вдвоём (правка пользователя).
+  // Запоминание — ×1.5 всем; игра — ×2 всем, а Инспектору на УР.4 — ×3.
+  // ТОЛЬКО в коопе (в аркаде/дейлике множитель = 1).
+  function coopMemMult(){ return isCoopMode ? 1.5 : 1; }
+  function coopCraftMult(cfg, regLevel){
+    if(!isCoopMode) return 1;
+    if(cfg && cfg.id === 'guild_inspector' && regLevel === 4) return 3;
+    return 2;
+  }
   // Сериализация цели для комнаты: выкидываем то, что у ведомого считается
   // локально и детерминированно (cfg по id, флаги/активные ключи/пассивки/
   // тайминги), остальное (все случайные числовые поля зелья) — в снапшот.
@@ -5263,6 +5269,23 @@
   let currentPhase = null; // 'scan' | 'craft' — so a language switch re-translates the phase label
   let lastResult = null; // last finalizeResult() output — so a language switch can re-translate the result overlay
 
+  // Подпись фазы (правки пользователя): показ — крупная заметная «ЗАПОМИНАЙ…»
+  // (класс .phase-scan); игра — прямая подсказка «что делать» под конкретного НПС
+  // (NPC_CRAFT_HINT, дефолт CRAFT_HINT_DEFAULT), действие выделено <b>. innerHTML,
+  // т.к. в подсказке есть <b>. Единая точка — чтобы и старт фаз, и смена языка совпадали.
+  function applyPhaseLabel(phase){
+    const el = $('phaseLabel'); if(!el) return;
+    if(phase === 'craft'){
+      el.classList.remove('phase-scan'); el.classList.add('phase-craft');
+      const cfg = target && target.cfg;
+      const hint = (cfg && typeof NPC_CRAFT_HINT !== 'undefined' && NPC_CRAFT_HINT[cfg.id]) || UI_TEXT.CRAFT_HINT_DEFAULT;
+      el.innerHTML = LT(hint);
+    } else {
+      el.classList.remove('phase-craft'); el.classList.add('phase-scan');
+      el.innerHTML = LT(UI_TEXT.PHASE_SCAN);
+    }
+  }
+
   function startOrder(ord, level){
     const { cfg, focus, flavor, avatar } = ord;
     let regLevel = [1,2,3,4].includes(level) ? level : 3;
@@ -5514,7 +5537,7 @@
     currentPhase = 'scan';
     refreshShopDockState(); // Фаза 6: в фазе запоминания инвентарь недоступен
     refreshSkillDock();     // Фаза 7: умения вне экрана выбора недоступны
-    $('phaseLabel').textContent = LT(UI_TEXT.PHASE_SCAN);
+    applyPhaseLabel('scan');
     $('brewBtn').disabled = false;
     craftLocked = false;
 
@@ -5535,7 +5558,7 @@
     // Правка (пользователь): фиолетовый грейд (тир 5, в т.ч. по грейд-вариативности)
     // — на запоминание +30% времени.
     const purpleMemMult = cfg.tier === 5 ? 1.3 : 1;
-    const memDuration = Math.round(cfg.memorizeMs * MEM_TIME_SCALE * purpleMemMult * coopTimeMult(regLevel) * (1 + (target.passiveFx.memTime || 0))) + janitorL4Bonus + fashionistaL4Bonus + clarityBonus;
+    const memDuration = Math.round(cfg.memorizeMs * MEM_TIME_SCALE * purpleMemMult * coopMemMult() * (1 + (target.passiveFx.memTime || 0))) + janitorL4Bonus + fashionistaL4Bonus + clarityBonus;
     target.memDuration = memDuration; // Патч "УР.4": механики фазы показа читают отсюда
     // Тот-Кто-Ждёт: у него нет таймера ни на запоминание, ни на варку —
     // игрок сам решает, когда готов, кнопкой "Готово, воссоздаю"
@@ -5571,7 +5594,7 @@
     resetPeteDegreeFx(); // сброс размытия/скорости таймера/глухоты музыки с прошлого заказа
     refreshShopDockState(); // Фаза 6: в фазе варки инвентарь снова доступен
     refreshSkillDock();     // Фаза 7: умения вне экрана выбора недоступны
-    $('phaseLabel').textContent = LT(UI_TEXT.PHASE_CRAFT);
+    applyPhaseLabel('craft');
 
     S.color.configure({ min:0, max:cfg.colorSteps-1, step:1, value:Math.floor((cfg.colorSteps-1)/2) });
     S.size.configure({ min:0, max:cfg.sizeSteps-1, step:1, value:Math.floor((cfg.sizeSteps-1)/2) });
@@ -5704,10 +5727,8 @@
     const pfx = target.passiveFx || {};
     // Правка (пользователь): фиолетовый грейд (тир 5) — на игру +50% времени.
     const purpleCraftMult = cfg.tier === 5 ? 1.5 : 1;
-    // Кооп: на ИГРУ времени ещё ×2 сверх общего кооп-множителя (по просьбе
-    // пользователя) — на запоминание доп.×2 НЕ распространяется.
-    const coopCraftExtra = isCoopMode ? 2 : 1;
-    let craftDuration = Math.round(cfg.craftMs * CRAFT_TIME_SCALE * purpleCraftMult * coopTimeMult(target.regLevel) * coopCraftExtra * (1 + (pfx.craftTime || 0)))
+    // Кооп (правка пользователя): игра ×2 всем, Инспектору на УР.4 — ×3.
+    let craftDuration = Math.round(cfg.craftMs * CRAFT_TIME_SCALE * purpleCraftMult * coopCraftMult(cfg, target.regLevel) * (1 + (pfx.craftTime || 0)))
       + (target.regLevel === 4 ? (typeof LEVEL4_TIME_BONUS_MS !== 'undefined' ? LEVEL4_TIME_BONUS_MS : 0) : 0);
     // Патч (Ир): подаренные / украденные секунды
     // Патч (усилено): +4с / -2с вместо +2с / -1с
@@ -6799,6 +6820,8 @@
     }
     let list = [];
     try{ list = JSON.parse(localStorage.getItem(localKey) || '[]'); }catch(e){}
+    // Правка пользователя: одна строка на ник — не плодим дубли, храним ВЫСШИЙ.
+    list = list.filter(e => e && e.name !== entry.name);
     list.push(entry);
     list.sort((a,b)=>b.score-a.score);
     localStorage.setItem(localKey, JSON.stringify(list.slice(0,50)));
@@ -7655,15 +7678,16 @@
     $('finalScoreVal').textContent = score;
     // Фаза 4: ник вписывается автоматически из профиля игрока
     $('nameInput').value = authNick();
-    // Правка пользователя: «рекорд» считаем по ВИДИМОЙ таблице рекордов, а не по
-    // скрытому локальному best. Раньше сравнивали со скрытым best, который мог
-    // остаться высоким от прошлых прогонов — экран писал «рекорд не побит» даже
-    // когда таблица рекордов пуста. Теперь: пустая таблица или результат выше
-    // текущего лидера = рекорд (можно сохранить), иначе — «не побит».
+    // Правка пользователя: «рекорд» — по СВОЕМУ прошлому результату, а не по
+    // топу всей доски. Иначе, если кто-то другой выше, игра писала «рекорд не
+    // побит» и не давала сохранить свой лучший. Побил свой личный максимум →
+    // можно сохранить, и запись ПЕРЕЗАПИШЕТСЯ (одна строка на игрока), а не
+    // добавится дублем (см. leaderboardSave / saveLeaderboardEntry).
     const boardKey = isDailyMode ? currentDailyBoardKey() : undefined;
     const list = await loadLeaderboard(boardKey);
-    const boardTop = (list || []).reduce((m,e)=> Math.max(m, (e && e.score) || 0), 0);
-    const isRecord = score > 0 && score > boardTop;
+    const bId = isDailyMode ? currentDailyBoardKey().local : 'arcade';
+    const myBest = (window.PotionAuth && window.PotionAuth.getBest) ? window.PotionAuth.getBest(bId) : 0;
+    const isRecord = score > 0 && score > myBest;
     const sbtn = $('saveScoreBtn');
     if(sbtn){
       sbtn.disabled = !isRecord;
@@ -7783,7 +7807,7 @@
       $('orderFocusTag').innerHTML = modChipsHTML(currentOrd.focus, currentOrd.mods, true);
       const levelTag = $('orderLevelTag');
       if(levelTag && currentOrd.regLevel) levelTag.textContent = LT(UI_TEXT.DIFF_BTN_LABEL) + currentOrd.regLevel;
-      $('phaseLabel').textContent = currentPhase === 'craft' ? LT(UI_TEXT.PHASE_CRAFT) : LT(UI_TEXT.PHASE_SCAN);
+      if(currentPhase) applyPhaseLabel(currentPhase);
       $('colorLabelA').textContent = LT(target.flags.hasGradient ? UI_TEXT.LABEL_SPECTRUM_A : UI_TEXT.LABEL_SPECTRUM);
       if(target.flags.hasShape) $('lblShape').textContent = LT(SHAPE_NAMES[S.shape.value]);
     }
@@ -8246,15 +8270,21 @@
       });
     });
     const st = $('coopSelectStatus'); if(st) st.textContent = LT(UI_TEXT.COOP_SELECT_WAIT);
-    try { window.Coop.set('sel/' + window.Coop.role, { idx, level }); } catch(_){}
+    // Правка пользователя (критично): помечаем выбор номером заказа (oi). Иначе
+    // «залежавшийся» sel прошлого раунда (или гонка с очисткой) удовлетворял
+    // условию «оба выбрали» → игра стартовала, когда второй ещё не выбрал, и его
+    // оставляло на пустом столе. Теперь резолв только когда ОБА выбрали В ЭТОМ раунде.
+    try { window.Coop.set('sel/' + window.Coop.role, { idx, level, oi: coopRound.orderIndex }); } catch(_){}
     coopMaybeResolve();
   }
   // когда оба выбрали — 3 сек, затем детерминированно берём случайный из двух
   // выборов {idx,level} (оба клиента считают одинаково: один сид + один набор)
   function coopMaybeResolve(){
     if(!coopRound || coopRound.resolving) return;
-    const h = coopRound.selHost, g = coopRound.selGuest;
-    if(h == null || g == null) return;
+    const h = coopRound.selHost, g = coopRound.selGuest, oi = coopRound.orderIndex;
+    // резолвим ТОЛЬКО когда оба выбрали именно в ЭТОМ раунде (см. oi-метку выше) —
+    // иначе один выбравший игрок улетал в игру, а второй оставался на пустом столе
+    if(!h || !g || h.oi !== oi || g.oi !== oi) return;
     coopRound.resolving = true;
     // набор выборов: если оба выбрали ОДНО И ТО ЖЕ (тот же НПС и уровень) —
     // это один вариант; иначе — два, берём случайный

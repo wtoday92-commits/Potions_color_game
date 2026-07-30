@@ -55,8 +55,11 @@ const UI_TEXT = {
   FOCUS_PREFIX:      { ru:'фокус:', en:'focus:' },
   NO_FOCUS_LABEL:    { ru:'без модификатора', en:'no modifier' },
   MOD_RAMPAGE_TOAST: { ru:'устроил погром и ушёл', en:'went on a rampage and left' },
-  PHASE_SCAN:        { ru:'сканируй образец...', en:'scan the sample...' },
+  PHASE_SCAN:        { ru:'ЗАПОМИНАЙ, что хочет посетитель', en:'MEMORISE what the visitor wants' },
   PHASE_CRAFT:       { ru:'воссоздай смесь по памяти!', en:'recreate the mixture from memory!' },
+  // Фаза игры: прямая подсказка «что делать», с выделенным действием (<b>).
+  // Дефолт — для персонажей на обычных ползунках; особые механики — в NPC_CRAFT_HINT.
+  CRAFT_HINT_DEFAULT: { ru:'<b>ВОССОЗДАЙ</b> зельё ползунками по памяти', en:'<b>RECREATE</b> the potion with the sliders' },
   BREW_BTN:          { ru:'Готово!', en:'Done!' },
   LABEL_SPECTRUM:    { ru:'Спектр', en:'Spectrum' },
   LABEL_SPECTRUM_A:  { ru:'Спектр А', en:'Spectrum A' },
@@ -1558,6 +1561,27 @@ const NPC_STAT_EXPLAIN = {
     { ru:'АКЦИЯ', en:'OFFER' }, { ru:'ПОСЛЕДНИЙ ШАНС', en:'LAST CHANCE' }
   ];
 
+  // Подсказки на фазе игры (что делать), с выделенным действием (<b>) — крупнее
+  // и цветом (см. .phase-action в style.css). Кто не указан — берёт CRAFT_HINT_DEFAULT
+  // (обычные ползунки). Ключ — id НПС (как в ALL_NPCS).
+  const NPC_CRAFT_HINT = {
+    vex:               { ru:'<b>ПЕРЕТАСКИВАЙ</b> сгустки на их места в сетке', en:'<b>DRAG</b> the blobs onto their grid nodes' },
+    swarm_navigator:   { ru:'<b>ВЕРНИ</b> детали обратно в банку', en:'<b>RETURN</b> the parts back into the jar' },
+    janitor:           { ru:'<b>ОТТИРАЙ</b> грязь со стекла и воссоздавай зельё', en:'<b>WIPE</b> the grime off the glass, then recreate' },
+    collector_gz:      { ru:'<b>НАЙДИ</b> в сетке зельё, совпадающее по всем признакам', en:'<b>FIND</b> the matching potion in the grid' },
+    perfumer:          { ru:'<b>ВЕДИ</b> точку по полю «цвет × накал»', en:'<b>DRAG</b> the dot across the colour × intensity pad' },
+    trucker_chrome:    { ru:'<b>ПРОВЕДИ</b> регуляторы по «коробке передач»', en:'<b>STEER</b> the sliders through the gearbox path' },
+    fashionista:       { ru:'<b>НАСТРОЙ</b> регулятор и жми «Дальше» — по одному', en:'<b>SET</b> one slider, then hit “Next” — one at a time' },
+    gourmet_vega:      { ru:'<b>ДЕГУСТИРУЙ</b> и подгоняй, пока не совпадёт', en:'<b>TASTE</b> and adjust until it matches' },
+    guild_inspector:   { ru:'<b>ВЫСТАВЬ</b> значения по числам из «Допусков»', en:'<b>SET</b> the values from the tolerance figures' },
+    logic9:            { ru:'<b>ВЫСТАВЬ</b> значения степпером (+/−)', en:'<b>SET</b> the values with the +/− stepper' },
+    twofaced_priestess:{ ru:'<b>СВЕДИ</b> обе половины зелья как было', en:'<b>MATCH</b> both halves of the potion' },
+    plasma_bartender:  { ru:'<b>ПОДГОНИ</b> сгустки и скорость их полёта', en:'<b>MATCH</b> the blobs and their flight speed' },
+    supernova_child:   { ru:'<b>ЗАДАЙ</b> ширину, высоту и наклон банки', en:'<b>SET</b> the width, height and tilt of the jar' },
+    pete:              { ru:'<b>НАЛЕЙ</b> до нужного уровня и подгони зельё', en:'<b>FILL</b> to the right level, then match the potion' },
+    the_waiter:        { ru:'<b>ВОССОЗДАЙ</b> зельё — часы тебя не торопят', en:'<b>RECREATE</b> the potion — the clock won’t rush you' },
+    nebula_chef:       { ru:'<b>УГАДАЙ</b> форму сосуда и воссоздай зельё', en:'<b>GUESS</b> the vessel shape, then recreate' }
+  };
   const NPC_GREETINGS = {
     drone:            { ru:'Служебный протокол: приветствую. Внимание — в смеси всплывают бракованные пузыри. Лопай их, пока не рванули.', en:'Service protocol: greetings. Note — defective bubbles surface in the mix. Pop them before they burst.' },
     janitor:          { ru:'О, покупатель! Извини за грязь на стекле — придётся протирать прямо на ходу.', en:'Oh, a customer! Sorry about the grime on the glass — you’ll be wiping as you work.' },
