@@ -8219,8 +8219,11 @@
     coopRound.pool = coopBuildPool(coopRound.seed, coopRound.day);
     coopRound.mySel = null; coopRound.selHost = null; coopRound.selGuest = null;
     coopRound.resolving = false;
-    // хост обнуляет прошлый выбор/снапшот цели/значения ползунков (новый заказ — с чистого листа)
-    if(window.Coop.isHost){ try { window.Coop.update({ sel: null, order: null, guess: null, result: null, turn: null }); } catch(_){} }
+    // хост обнуляет снапшот цели/ползунки/результат/ход (новый заказ — с чистого листа).
+    // `sel` НЕ чистим: очистка гонялась с пиками (если пик прилетал до того, как
+    // null долетел, выбор затирался → «оба выбрали, а игра ждёт»). Разделение
+    // раундов теперь по метке oi в самом выборе (см. coopSelectNpc/coopMaybeResolve).
+    if(window.Coop.isHost){ try { window.Coop.update({ order: null, guess: null, result: null, turn: null }); } catch(_){} }
     coopRenderSelect();
     $('coopSelectOverlay').classList.add('show');
     // оба слушают обе ячейки выбора; когда обе заполнены — детерминированный пик
@@ -8404,8 +8407,12 @@
         if(!isFollower && window.Coop){
           coopSubs.push(window.Coop.on('guess', obj=>{
             if(!obj || !target) return;
-            for(const k in obj){ if(S[k]) S[k].value = obj[k]; }
-            updatePlayerJar();
+            // прогоняем через onSliderInput (а не просто value=), чтобы отработали
+            // реактивные побочки: размер сгустков Векса (l4VexUpdateSize), пэд
+            // Парфюмера, связка спектров Двуликой и т.п. Guard по разнице значений
+            // — иначе эхо собственной записи зациклило бы. coopWriteGuess у ведущего
+            // не сработает (coopShouldSyncSlider=false), так что обратной записи нет.
+            for(const k in obj){ if(S[k] && S[k].value !== obj[k]){ const old = S[k].value; S[k].value = obj[k]; onSliderInput(k, obj[k], old); } }
           }));
         }
       }
@@ -8430,8 +8437,9 @@
     if(window.Coop){
       coopSubs.push(window.Coop.on('guess', obj=>{
         if(!obj || !target) return;
-        for(const k in obj){ if(S[k]) S[k].value = obj[k]; }
-        updatePlayerJar();
+        // см. коммент в стандартном режиме: через onSliderInput ради реактивных
+        // побочек (Векс/Парфюмер/…), guard по разнице значений от эха.
+        for(const k in obj){ if(S[k] && S[k].value !== obj[k]){ const old = S[k].value; S[k].value = obj[k]; onSliderInput(k, obj[k], old); } }
       }));
       coopSubs.push(window.Coop.on('turn', t=>{ if(t){ coopRound.turn = t; coopApplySeqTurn(); } }));
     }
