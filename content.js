@@ -232,8 +232,47 @@ const UI_TEXT = {
     shop_grade_2:  { ru:'Предметы (2-й грейд)', en:'Items (grade 2)' },
     shop_grade_3:  { ru:'Предметы (3-й грейд)', en:'Items (grade 3)' },
     unique_items:  { ru:'Уникальные предметы', en:'Unique items' },
-    relations:     { ru:'Взаимоотношения НПС', en:'NPC relations' }
+    relations:     { ru:'Взаимоотношения НПС', en:'NPC relations' },
+    quests:        { ru:'Задания на цикл', en:'Cycle quests' },
+    quests_pin:    { ru:'Закрепление 3 заданий', en:'Pin up to 3 quests' }
   },
+
+  // ---------- Задания на цикл (выдаются перед каждым новым циклом с ур.2) ----------
+  // ART-SWAP: положить свою картинку в assets/ui/quest.png (иначе — эмодзи-заглушка).
+  QUEST_DOCK_BTN:      { ru:'📜 Задание', en:'📜 Quest' },
+  QUEST_OVERLAY_TITLE: { ru:'Заказ-наряд от Гильдии', en:'A Guild work-order' },
+  QUEST_FLAVOR:        { ru:'Перед новым циклом почтовый дрон приносит запечатанный наряд. Выбери, за что взяться — печать действует до конца цикла.', en:'Before the new cycle a courier drone brings a sealed work-order. Pick what to take on — the seal holds until the cycle ends.' },
+  QUEST_PICK_HINT:     { ru:'Выбери одно задание на этот цикл:', en:'Choose one quest for this cycle:' },
+  QUEST_PICK_HINT_PIN: { ru:'Можешь закрепить до 3 заданий (выполняются параллельно):', en:'You may pin up to 3 quests (done in parallel):' },
+  QUEST_TAKE_BTN:      { ru:'Взяться', en:'Take it' },
+  QUEST_PIN_BTN:       { ru:'Закрепить', en:'Pin it' },
+  QUEST_SKIP_ALL_BTN:  { ru:'Отказаться от всех', en:'Decline all' },
+  QUEST_START_BTN:     { ru:'Начать цикл', en:'Start the cycle' },
+  QUEST_CURRENT_TITLE: { ru:'Твоё задание', en:'Your quest' },
+  QUEST_NONE_ACTIVE:   { ru:'На этот цикл задание не взято.', en:'No quest taken this cycle.' },
+  QUEST_REWARD_LABEL:  { ru:'Награда:', en:'Reward:' },
+  QUEST_PROGRESS_LABEL:{ ru:'Прогресс:', en:'Progress:' },
+  QUEST_STATUS_DONE:   { ru:'✅ Выполнено', en:'✅ Done' },
+  QUEST_STATUS_FAILED: { ru:'✖ Провалено (до нового цикла)', en:'✖ Failed (until next cycle)' },
+  QUEST_STATUS_ACTIVE: { ru:'В работе', en:'In progress' },
+  QUEST_DONE_TOAST:    { ru:'Задание выполнено!', en:'Quest complete!' },
+  QUEST_FAILED_TOAST:  { ru:'Задание провалено', en:'Quest failed' },
+  QUEST_CLOSE_BTN:     { ru:'Закрыть', en:'Close' },
+  // награды (по одной на задание)
+  QUEST_RW_TIPS:       { ru:'+{n} чаевых', en:'+{n} tips' },
+  QUEST_RW_XP:         { ru:'+{n} к прогрессии лавки', en:'+{n} shop progression' },
+  QUEST_RW_REP:        { ru:'+{n} репутации задействованным персонажам', en:'+{n} reputation to the involved characters' },
+  // тексты типов заданий ({n} — цель, {names} — список персонажей)
+  QUEST_T_PLAY_NAME:   { ru:'Обслужить постоянных', en:'Serve the regulars' },
+  QUEST_T_PLAY_DESC:   { ru:'За этот цикл прими и вывари (не на брак) заказы: {names}. Они точно заглянут — в разные дни.', en:'This cycle, take and brew (no reject) the orders of: {names}. They will surely drop by — on different days.' },
+  QUEST_T_SKIP_NAME:   { ru:'Нежеланные гости', en:'Unwanted guests' },
+  QUEST_T_SKIP_DESC:   { ru:'За этот цикл НИ РАЗУ не бери заказы у: {names}. Они будут заходить в разные дни — обслужи в эти дни кого-то другого.', en:'This cycle, do NOT take orders from: {names}. They will visit on different days — serve someone else those days.' },
+  QUEST_T_PERFECT_NAME:{ ru:'Рука мастера', en:'A master’s hand' },
+  QUEST_T_PERFECT_DESC:{ ru:'Свари {n} идеальных зелий за цикл.', en:'Brew {n} perfect potions this cycle.' },
+  QUEST_T_RATING_NAME: { ru:'Хорошая выручка', en:'A good haul' },
+  QUEST_T_RATING_DESC: { ru:'Набери суммарный рейтинг {n} за цикл.', en:'Reach a total rating of {n} this cycle.' },
+  QUEST_T_NOBAD_NAME:  { ru:'Ни единого брака', en:'Not a single reject' },
+  QUEST_T_NOBAD_DESC:  { ru:'Пройди весь цикл, не запоров ни одного заказа в брак.', en:'Get through the whole cycle without botching a single order into a reject.' },
 
   // ---------- Фаза G: коллекция (статистика/альбом/лента/репутация) ----------
   COLLECTION_BTN_TITLE:   { ru:'Коллекция', en:'Collection' },
@@ -1518,30 +1557,32 @@ const NPC_STAT_EXPLAIN = {
     startNpcs: ['drone', 'janitor', 'intern_beep', 'trucker_chrome', 'pete', 'collector_gz', 'guild_inspector'],
     levels: [
       // Ур.1 — шкала 1: жёлтые (Коллекционер уже открыт со старта)
-      { xp: 600,  cycleDays: 6, mechanics: ['collection'],
+      // Правка пользователя: пороги удвоены — прогрессия замедлена в 2× (контент
+      // открывался слишком быстро). npcMarks — доли от l.xp, масштабируются сами.
+      { xp: 1200,  cycleDays: 6, mechanics: ['collection'],
         npcMarks: [ {at:0.25, id:'tentacloid'}, {at:0.5, id:'marketer'}, {at:0.72, id:'fashionista'}, {at:0.9, id:'dj_pulsar'} ] },
       // Ур.2 — шкала 2: 1-я половина оранжевых (Инспектор уже открыт со старта)
-      { xp: 1200, mechanics: ['characters'],
+      { xp: 2400, mechanics: ['characters', 'quests'],
         npcMarks: [ {at:0.4, id:'gourmet_vega'}, {at:0.85, id:'perfumer'} ] },
       // Ур.3 — шкала 3: 2-я половина оранжевых
-      { xp: 2000, cycleDays: 7, mechanics: ['skill_1', 'modifiers'],
+      { xp: 4000, cycleDays: 7, mechanics: ['skill_1', 'modifiers'],
         npcMarks: [ {at:0.3, id:'engineer'}, {at:0.6, id:'apothecary_mo'} ] },
       // Ур.4 — шкала 4: 1-я половина красных
-      { xp: 3200, mechanics: ['tips', 'shop', 'shop_grade_1', 'skill_2', 'modifiers_new3'],
+      { xp: 6400, mechanics: ['tips', 'shop', 'shop_grade_1', 'skill_2', 'modifiers_new3'],
         npcMarks: [ {at:0.4, id:'logic9'}, {at:0.85, id:'swarm_navigator'} ] },
       // Ур.5 — шкала 5: 2-я половина красных
-      { xp: 4800, cycleDays: 8, poolSize: 3, mechanics: ['shop_grade_2'],
+      { xp: 9600, cycleDays: 8, poolSize: 3, mechanics: ['shop_grade_2'],
         npcMarks: [ {at:0.4, id:'vex'}, {at:0.62, id:'catlady'}, {at:0.85, id:'racer_kai'} ] },
       // Ур.6 — шкала 6: 1-я половина фиолетовых
-      { xp: 7000, mechanics: ['skill_3', 'relations'],
+      { xp: 14000, mechanics: ['skill_3', 'relations'],
         npcMarks: [ {at:0.25, id:'last_of_ir'}, {at:0.5, id:'archivist'}, {at:0.72, id:'supernova_child'}, {at:0.92, id:'the_waiter'} ] },
       // Ур.7 — шкала 7: 2-я половина фиолетовых
-      { xp: 9500, cycleDays: 10, mechanics: ['modifiers_multi'],
+      { xp: 19000, cycleDays: 10, mechanics: ['modifiers_multi'],
         npcMarks: [ {at:0.35, id:'nebula_chef'}, {at:0.65, id:'twofaced_priestess'}, {at:0.9, id:'plasma_bartender'} ] },
       // Ур.8 — персонажи больше не открываются
-      { xp: 13000, mechanics: ['skill_4', 'shop_grade_3', 'unique_items'], npcMarks: [] },
-      // Ур.9 — пул дорастает до 4
-      { xp: 17000, poolSize: 4, mechanics: [], npcMarks: [] }
+      { xp: 26000, mechanics: ['skill_4', 'shop_grade_3', 'unique_items'], npcMarks: [] },
+      // Ур.9 — пул дорастает до 4; открывает закрепление до 3 заданий
+      { xp: 34000, poolSize: 4, mechanics: ['quests_pin'], npcMarks: [] }
     ]
   };
 

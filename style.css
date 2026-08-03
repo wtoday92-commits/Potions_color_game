@@ -2445,19 +2445,61 @@ body::after{
 
 /* Правка пользователя: доки в одном ряду с шапкой — умения слева, магазин справа,
    высотой от верха заголовка до низа стикеров (align-items:stretch), крупнее. */
+/* Правка пользователя: сетка 1fr auto 1fr вместо flex+margin-auto — шапка всегда
+   в центральной колонке, боковые доки в своих. Раньше при скрытом магазине
+   (умения уже есть) левый margin-right:auto толкал шапку вправо. */
 .header-row{
-  display:flex; align-items:stretch; justify-content:center;
+  display:grid; grid-template-columns:1fr auto 1fr; align-items:stretch;
   width:100%; max-width:min(98vw, 780px); margin:6px auto 4px;
   box-sizing:border-box; padding:0 4px; gap:8px;
 }
-.header-row .game-header{ min-width:0; flex-shrink:1; }
-.header-row .skill-dock{ margin-right:auto; justify-content:center; flex-shrink:0; }
-.header-row .shop-dock{ margin-left:auto; align-items:center; flex-shrink:0; }
+.header-row .game-header{ min-width:0; grid-column:2; }
+.header-row .skill-dock{ grid-column:1; justify-self:start; justify-content:center; }
+/* правый док-стек: магазин/инвентарь сверху, кнопка заданий снизу (длиннее) */
+.header-row .right-dock{ grid-column:3; justify-self:end; display:flex; flex-direction:column; gap:8px; align-items:stretch; }
+.header-row .shop-dock{ align-items:center; justify-content:flex-end; gap:12px; }
 .header-row .skill-grid{ grid-template-columns:repeat(2, 48px); grid-auto-rows:48px; gap:7px; }
 .header-row .skill-btn{ width:48px; height:48px; font-size:23px; }
-.header-row .shop-dock{ gap:12px; }
 .header-row .shop-dock-btn{ width:56px; height:56px; font-size:28px; }
 .header-row .shop-dock-btn img{ width:34px; height:34px; }
+
+/* ---- Задания на цикл: кнопка-док (длиннее кнопок магазина) ---- */
+.quest-dock-btn{
+  width:100%; box-sizing:border-box; min-height:38px; padding:8px 12px;
+  border-radius:12px; cursor:pointer; white-space:nowrap;
+  background:rgba(255,196,84,.12); border:1.5px solid rgba(255,196,84,.42);
+  color:#ffe6b0; font-size:15px; font-weight:700; line-height:1;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  transition:transform .12s ease, background .18s ease, border-color .18s ease, opacity .18s ease;
+}
+.quest-dock-btn:hover{ background:rgba(255,196,84,.22); transform:translateY(-1px); }
+.quest-dock-btn.has-active{ border-color:rgba(255,196,84,.85); box-shadow:0 0 12px rgba(255,196,84,.3); }
+.quest-dock-btn.all-done{ border-color:var(--good); color:var(--good); background:rgba(120,255,150,.12); }
+
+/* ---- Задания: окно выбора/просмотра ---- */
+.quest-card{ max-width:520px; width:calc(100vw - 36px); }
+.quest-art{ display:block; width:120px; height:120px; object-fit:contain; margin:0 auto 6px; }
+.quest-flavor{ color:var(--ink-dim); font-size:13px; font-style:italic; margin:0 0 10px; text-align:center; }
+.quest-hint{ font-size:13px; color:var(--ink-dim); margin-bottom:8px; text-align:center; }
+.quest-list{ display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
+.quest-item{
+  border:1.5px solid rgba(255,196,84,.35); border-radius:12px; padding:10px 12px;
+  background:rgba(255,255,255,.03); text-align:left;
+}
+.quest-item.selectable{ cursor:pointer; transition:border-color .15s ease, background .15s ease; }
+.quest-item.selectable:hover{ border-color:rgba(255,196,84,.7); background:rgba(255,196,84,.07); }
+.quest-item.chosen{ border-color:var(--good); background:rgba(120,255,150,.08); }
+.quest-item.done{ border-color:var(--good); }
+.quest-item.failed{ opacity:.45; filter:grayscale(.7); border-color:rgba(255,255,255,.15); }
+.quest-item-name{ font-weight:700; font-size:15px; margin-bottom:3px; }
+.quest-item-desc{ font-size:13px; color:var(--ink-dim); margin-bottom:6px; }
+.quest-item-reward{ font-size:12px; color:#ffe6b0; }
+.quest-item-status{ font-size:12px; margin-top:5px; font-weight:700; }
+.quest-item-status.st-done{ color:var(--good); }
+.quest-item-status.st-failed{ color:var(--bad, #ff6a6a); }
+.quest-item-status.st-active{ color:var(--ink-dim); }
+.quest-item-progress{ font-size:12px; color:var(--ink); margin-top:4px; }
+
 /* ---- Фаза 7: панель умений ---- */
 .skill-dock{ display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
 .skill-grid{ display:grid; grid-template-columns:repeat(2, 40px); grid-auto-rows:40px; gap:6px; }

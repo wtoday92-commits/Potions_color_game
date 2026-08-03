@@ -1628,14 +1628,24 @@
       default: return 0;
     }
   }
+  // Правка пользователя: «Допуски» теперь описывают цель в НОМЕРАХ ДЕЛЕНИЙ
+  // ползунка (то, что игрок реально может выставить), а не в градусах/процентах —
+  // раньше число из бумаги (напр. «135°») попадало МЕЖДУ делениями шкалы, и
+  // игрок физически не мог его выставить. Допуск ({TOL}) тоже в делениях —
+  // теперь единицы бумаги, допуска и подписей ползунка совпадают (см.
+  // inspectorSliderLabel в updatePlayerJar).
+  function inspectorNotch(idx, steps){
+    return LANG==='ru' ? `№${idx+1} из ${steps}` : `#${idx+1} of ${steps}`;
+  }
   function inspectorFormatValue(key, idx){
     const cfg = target.cfg;
     switch(key){
-      case 'color': case 'colorB': return Math.round(idxToVal(idx, cfg.colorSteps, 360)) + '°';
-      case 'size': case 'size2':   return Math.round(idxToVal(idx, cfg.sizeSteps, 100)) + '%';
-      case 'bsize':                return Math.round(idxToVal(idx, cfg.bsizeSteps, 100)) + '%';
-      case 'sat':                  return Math.round(satFromIdx(idx)) + '%';
-      default: return String(idx);
+      case 'color': case 'colorB': return inspectorNotch(idx, cfg.colorSteps);
+      case 'size': case 'size2':   return inspectorNotch(idx, cfg.sizeSteps);
+      case 'bsize':                return inspectorNotch(idx, cfg.bsizeSteps);
+      case 'sat':                  return inspectorNotch(idx, 10);
+      case 'shape':                return LT(SHAPE_NAMES[idx]); // форма — по названию, как на ползунке
+      default: return String(idx); // count — прямое число, совпадает со счётчиком
     }
   }
   // Патч: числа теперь вшиты прямо в предложение о каждом показателе (не
@@ -1650,7 +1660,7 @@
     bsize:  v => LANG==='ru' ? `калибр каждого сгустка выставлен на отметке ${v}` : `each blob's caliber is set at the ${v} mark`,
     count:  v => LANG==='ru' ? `внутри обязано плавать ровно ${v} сгустков по счёту` : `there must be exactly ${v} blobs floating inside, by count`,
     sat:    v => LANG==='ru' ? `накал цвета выставляется на отметке ${v}` : `the color's intensity is set at the ${v} mark`,
-    shape:  v => LANG==='ru' ? `форма сосуда должна соответствовать образцу №${v}` : `the vessel's shape must match reference #${v}`
+    shape:  v => LANG==='ru' ? `форма сосуда должна быть «${v}»` : `the vessel's shape must be “${v}”`
   };
   function inspectorActiveKeys(){
     return [...(target.activeKeys||[])].filter(k => S[k] && target.inspectorTarget && target.inspectorTarget[k] !== undefined);
@@ -1798,9 +1808,12 @@
     craftStart(){
       l4InspectorShowTolBtn();
       // Патч: фазы показа больше нет — таймер на воссоздание удваиваем,
-      // чтобы хватило времени спокойно прочитать сплошной текст "Допусков"
-      target.craftDuration *= 2;
-      target.craftBaseDuration *= 2;
+      // чтобы хватило времени спокойно прочитать сплошной текст "Допусков".
+      // Правка пользователя: на УР.3/УР.4 текста больше и он сложнее (допрос) —
+      // даём ещё ×1.5 сверху (итого ×3), чтобы успевать прочитать.
+      const mult = (target.regLevel >= 3) ? 3 : 2;
+      target.craftDuration *= mult;
+      target.craftBaseDuration *= mult;
     },
     stop(){
       l4InspectorHideTolBtn();
@@ -2069,6 +2082,16 @@
     while(v === val && guard-- > 0) v = randInt(min, max);
     return v;
   }
+  // Правка пользователя: близкое, но ИНОЕ значение — в пределах ±maxDelta от val
+  // (кламп к [min,max]). Нужно для «трудных» декоев Коллекционера: счётчик на ±1,
+  // оттенок на ±2 деления. Если сдвинуться некуда (край диапазона) — вернёт val.
+  function l4CollectorNearInt(val, min, max, maxDelta){
+    const lo = Math.max(min, val - maxDelta), hi = Math.min(max, val + maxDelta);
+    if(hi <= lo) return val;
+    let v = val, guard = 20;
+    while(v === val && guard-- > 0) v = randInt(lo, hi);
+    return v;
+  }
   // Фаза 8 (8C): размер сетки растёт по уровню сложности — 2×2 / 3×3 / 4×4 / 5×5.
   function collectorGridN(){
     const L = (target && target.regLevel) || 1;
@@ -2079,23 +2102,24 @@
     const N = collectorGridN();
     const jars = new Array(N);
     const correctIdx = randInt(0, N-1);
-    let decoyI = 0;
     for(let i=0;i<N;i++){
       if(i === correctIdx){
         jars[i] = { hue: target.hue, count: target.count, shapeIdx: target.shapeIdx, seed: randInt(1,99999), correct:true };
         continue;
       }
-      const cat = ['color','count','shape'][decoyI % 3]; decoyI++;
-      let hueIdx = target.hueIdx, count = target.count, shapeIdx = target.shapeIdx;
-      if(cat === 'color'){
-        count = l4CollectorDifferentInt(count, 1, cfg.countMax);
-        shapeIdx = l4CollectorDifferentInt(shapeIdx, 0, SHAPE_PROFILES.length-1);
-      } else if(cat === 'count'){
-        hueIdx = l4CollectorDifferentInt(hueIdx, 0, cfg.colorSteps-1);
-        shapeIdx = l4CollectorDifferentInt(shapeIdx, 0, SHAPE_PROFILES.length-1);
-      } else {
-        hueIdx = l4CollectorDifferentInt(hueIdx, 0, cfg.colorSteps-1);
-        count = l4CollectorDifferentInt(count, 1, cfg.countMax);
+      // Правка пользователя: декои теперь near-miss, а не «отличается по 2 признакам
+      // из 3». Форма — ТА ЖЕ, что у эталона (сравнивать приходится по мелочам);
+      // счётчик сдвинут на ±1, оттенок — на ±2 деления. Меняем счётчик и/или
+      // оттенок, но не оба сразу нулём (иначе получился бы второй «верный»).
+      const shapeIdx = target.shapeIdx;
+      let count = target.count, hueIdx = target.hueIdx;
+      const mode = pick(['count', 'hue', 'both']);
+      if(mode !== 'hue')   count  = l4CollectorNearInt(target.count, 1, cfg.countMax, 1);
+      if(mode !== 'count') hueIdx = l4CollectorNearInt(target.hueIdx, 0, cfg.colorSteps-1, 2);
+      // страховка от совпадения с эталоном (если у края диапазона сдвинуть не вышло)
+      if(count === target.count && hueIdx === target.hueIdx){
+        count = l4CollectorNearInt(target.count, 1, cfg.countMax, 1);
+        if(count === target.count) hueIdx = l4CollectorNearInt(target.hueIdx, 0, cfg.colorSteps-1, 2);
       }
       jars[i] = { hue: idxToVal(hueIdx, cfg.colorSteps, 360), count, shapeIdx, seed: randInt(1,99999), correct:false };
     }
@@ -3428,11 +3452,14 @@
   // зелёная = 75%, синяя (бычий глаз) = 100%, красная (УР.4) = 0% (ловушка),
   // мимо всех зон = 0%. Зоны/пороги растут по уровню (труднее).
   // half-widths — доли трека (0..1); score — доля попадания.
+  // Правка пользователя: «идеал или около того» — не одно значение, а несколько.
+  // Ядро зачёта (dark/blue) РАСШИРЕНО, а внешняя блёклая зелёная (green) — сужена,
+  // чтобы градиент читался как чёткая цель, а не размытое пятно.
   const ENG_ZONES = {
-    1: { green:{w:0.20, v:1.00} },
-    2: { green:{w:0.17, v:0.75}, dark:{w:0.07, v:1.00} },
-    3: { green:{w:0.15, v:0.70}, dark:{w:0.08, v:0.85}, blue:{w:0.035, v:1.00} },
-    4: { green:{w:0.14, v:0.70}, dark:{w:0.075, v:0.85}, blue:{w:0.03, v:1.00}, red:{w:0.24, v:0.00} }
+    1: { green:{w:0.18, v:1.00} },
+    2: { green:{w:0.14, v:0.80}, dark:{w:0.10, v:1.00} },
+    3: { green:{w:0.12, v:0.75}, dark:{w:0.10, v:0.90}, blue:{w:0.05, v:1.00} },
+    4: { green:{w:0.11, v:0.75}, dark:{w:0.095, v:0.90}, blue:{w:0.045, v:1.00}, red:{w:0.22, v:0.00} }
   };
   // правка пользователя: медленнее и плавнее (но не слишком)
   const ENG_PERIOD_MS = { 1:2500, 2:2200, 3:1900, 4:1600 }; // период пробега указателя
@@ -3462,11 +3489,12 @@
   // ярче всего (bull's-eye), к краям зелёный тускнеет; на УР.4 снаружи — красный.
   function engGradient(c, lvl){
     const z = ENG_ZONES[lvl] || ENG_ZONES[1];
+    // Правка пользователя: цвета ярче/плотнее (были полупрозрачные, «выцветшие»).
     const base = '#1a2233';
-    const core = z.blue ? '#48b4ff' : '#5cff77';        // ядро (синий/яркий-зелёный)
-    const mid  = 'rgba(125,255,106,.92)';               // тёмно-зелёная зона
-    const soft = 'rgba(125,255,106,.34)';               // край зелёной, тускнеет
-    const red  = 'rgba(255,93,106,.85)';                // красная ловушка (УР.4)
+    const core = z.blue ? '#48b4ff' : '#6dff88';        // ядро (синий/яркий-зелёный)
+    const mid  = 'rgba(125,255,106,1)';                 // тёмно-зелёная зона — плотная
+    const soft = 'rgba(125,255,106,.6)';                // край зелёной, тускнеет мягче
+    const red  = 'rgba(255,93,106,.92)';                // красная ловушка (УР.4)
     const gw = z.green.w, dw = z.dark ? z.dark.w : gw * 0.5;
     const st = (f, col) => `${col} ${(engClamp01(f) * 100).toFixed(1)}%`;
     const s = [ st(0, base) ];
@@ -3934,7 +3962,8 @@
     // Пассивки — часть системы персонажей: открываются вместе с вкладкой
     // персонажей (Ур.2). До этого кнопка ⚡ скрыта.
     setVis('passivesBtn', !isCoopMode && (isDailyMode || progMechUnlocked('characters')));
-    const cl = $('cycleLenVal'); if(cl) cl.textContent = isCoopMode ? 3 : (isDailyMode ? 10 : progCycleDays());
+    refreshQuestDock(); // Задания: видимость кнопки-дока (Ур.2+, не дейлик/кооп)
+    const cl = $('cycleLenVal'); if(cl) cl.textContent = isCoopMode ? COOP_CYCLE_DAYS : (isDailyMode ? 10 : progCycleDays());
     // Фаза 5: счётчик чаевых виден после открытия (Ур.4), в дейлике — нет
     const tipsC = $('tipsCounter');
     if(tipsC){
@@ -4676,6 +4705,8 @@
   // от хоста, оба видят одинаковый список из 4 «фиолетовых» НПС, оба выбирают —
   // игра берёт случайного из выбранных (детерминированно, по общему сиду).
   let isCoopMode = false;
+  // Правка пользователя: длина кооп-цикла (1 заказ = 1 день). Было 3 — стало 7.
+  const COOP_CYCLE_DAYS = 7;
   let coopRound = null; // { seed, day, score, pool:[cfg×4], mySel, chosenIdx, sel3Timer }
   // Общая цель (Стадия 4): ведомый ставит сюда снапшот target от хоста ПЕРЕД
   // вызовом startOrder — там он применяется вместо собственной генерации.
@@ -5169,6 +5200,279 @@
     host.innerHTML = html;
   }
 
+  // ============================================================
+  //  ЗАДАНИЯ НА ЦИКЛ (Ур.2+; закрепление до 3 — Ур.9). Перед каждым новым
+  //  циклом предлагаются 3 задания; выбранное(ые) действуют до конца цикла.
+  //  Типы: play (сыграть за N персонажей не на брак), skip (пропустить N),
+  //  perfect (N идеалов), rating (суммарный рейтинг), nobad (без единого брака).
+  //  Персонажи play/skip раскидываются по РАЗНЫМ дням (questAssignDays).
+  //  Награда — ОДНА на задание (чаевые / прогрессия / репутация задействованным).
+  //  Состояние живёт в localStorage; непинованные сбрасываются с новым циклом,
+  //  пины (Ур.9) переживают цикл, пока не выполнены.
+  // ============================================================
+  const QUEST_LS_KEY = 'potionshop_quests_v1';
+  const QUEST_RATING_PER_DAY = 100; // тюн: порог задания «рейтинг» ≈ дни × это (округл. до 50)
+  const QUEST_RW = { // одна награда на задание (kind: tips | xp | rep)
+    play:    { kind:'rep',  amount:2 },
+    skip:    { kind:'xp',   amount:120 },
+    perfect: { kind:'tips', amount:60 },
+    rating:  { kind:'tips', amount:50 },
+    nobad:   { kind:'xp',   amount:150 }
+  };
+  let questState = { cycleId:0, offers:[], active:[], selOffers:new Set() };
+  let questProceedFn = null;
+  let questIdSeq = 1;
+  function questSave(){
+    try { localStorage.setItem(QUEST_LS_KEY, JSON.stringify({ cycleId:questState.cycleId, active:questState.active })); } catch(_){}
+  }
+  function questLoad(){
+    try {
+      const o = JSON.parse(localStorage.getItem(QUEST_LS_KEY) || 'null');
+      if(o){ questState.cycleId = o.cycleId || 0; questState.active = Array.isArray(o.active) ? o.active : []; }
+    } catch(_){}
+  }
+  function questScaleN(type, D){
+    switch(type){
+      case 'play':    return Math.min(6, Math.max(3, Math.round(D*0.55)));
+      case 'skip':    return Math.min(9, Math.min(D, Math.max(5, Math.round(D*0.9))));
+      case 'perfect': return Math.min(D, Math.max(2, Math.round(D*0.4)));
+      case 'rating':  return Math.max(50, Math.round(D*QUEST_RATING_PER_DAY/50)*50);
+      default:        return 1;
+    }
+  }
+  function questAssignDays(targets, D){
+    const days = shuffleArr(Array.from({length:D}, (_,i)=>i+1)).slice(0, targets.length);
+    const sched = {}; targets.forEach((id,i)=> sched[id] = days[i] || ((i % D) + 1));
+    return sched;
+  }
+  function questMake(type, D, unlocked){
+    const q = { id:'q'+(questIdSeq++), type, targets:[], schedule:{}, goal:0,
+                reward:{...QUEST_RW[type]}, progress:0, satisfied:{}, done:false, failed:false, pinned:false };
+    if(type === 'play' || type === 'skip'){
+      const n = Math.min(questScaleN(type, D), Math.max(0, unlocked.length - 1));
+      q.targets = shuffleArr(unlocked.slice()).slice(0, n);
+      q.schedule = questAssignDays(q.targets, D);
+      q.goal = q.targets.length;
+    } else { q.goal = questScaleN(type, D); }
+    return q;
+  }
+  function questGenOffers(){
+    const D = progCycleDays();
+    const set = progUnlockedNpcSet();
+    const unlocked = set ? [...set] : (typeof ALL_NPCS !== 'undefined' ? ALL_NPCS.map(n=>n.id) : []);
+    let types = ['play','skip','perfect','rating','nobad'];
+    if(unlocked.length < 6) types = types.filter(t => t !== 'play' && t !== 'skip');
+    types = shuffleArr(types).slice(0, 3);
+    while(types.length < 3) types.push('rating');
+    return types.map(t => questMake(t, D, unlocked));
+  }
+  // ----- тексты -----
+  function questTitleObj(q){ return UI_TEXT['QUEST_T_' + q.type.toUpperCase() + '_NAME']; }
+  function questTitle(q){ return LT(questTitleObj(q)); }
+  function questNames(q){ return (q.targets||[]).map(id=>{ const c = cfgById(id); return c ? LT(c.name) : id; }).join(', '); }
+  function questDesc(q){
+    let s = LT(UI_TEXT['QUEST_T_' + q.type.toUpperCase() + '_DESC']);
+    return s.replace('{n}', q.goal).replace('{names}', questNames(q));
+  }
+  function questRewardText(q){
+    const r = q.reward || {};
+    if(r.kind === 'tips') return LT(UI_TEXT.QUEST_RW_TIPS).replace('{n}', r.amount);
+    if(r.kind === 'xp')   return LT(UI_TEXT.QUEST_RW_XP).replace('{n}', r.amount);
+    if(r.kind === 'rep')  return LT(UI_TEXT.QUEST_RW_REP).replace('{n}', r.amount);
+    return '';
+  }
+  function questProgressText(q){
+    if(q.type === 'perfect') return q.progress + ' / ' + q.goal;
+    if(q.type === 'play' || q.type === 'skip'){ const d = (q.targets||[]).filter(id=>q.satisfied[id]).length; return d + ' / ' + q.goal; }
+    if(q.type === 'rating') return Math.min(score, q.goal) + ' / ' + q.goal;
+    return '';
+  }
+  // ----- награда / завершение -----
+  function questGrant(q){
+    if(!window.PotionProfile) return;
+    const r = q.reward || {};
+    if(r.kind === 'tips' && window.PotionProfile.addTips) window.PotionProfile.addTips(r.amount);
+    else if(r.kind === 'xp' && window.PotionProfile.addProgressionXp) window.PotionProfile.addProgressionXp(r.amount);
+    else if(r.kind === 'rep' && window.PotionProfile.adjustReputation) (q.targets||[]).forEach(id => window.PotionProfile.adjustReputation(id, r.amount));
+  }
+  function questMarkDone(q){
+    if(q.done) return; q.done = true; q.failed = false;
+    questGrant(q);
+    showToast({ icon:'📜', prefix: UI_TEXT.QUEST_DONE_TOAST, name: questTitle(q) });
+    questSave(); refreshQuestDock();
+  }
+  function questMarkFailed(q){
+    if(q.failed || q.done) return; q.failed = true;
+    showToast({ icon:'📜', prefix: UI_TEXT.QUEST_FAILED_TOAST, name: questTitle(q) });
+    questSave(); refreshQuestDock();
+  }
+  // ----- хуки цикла/заказа -----
+  function questResetForNewCycle(){
+    questState.cycleId = (questState.cycleId || 0) + 1;
+    // непинованные убираем; пины оставляем (кроме выполненных) и перевзводим
+    questState.active = questState.active.filter(q => q.pinned && !q.done);
+    const D = progCycleDays();
+    questState.active.forEach(q=>{
+      q.progress = 0; q.satisfied = {}; q.failed = false;
+      if(q.type === 'play' || q.type === 'skip') q.schedule = questAssignDays(q.targets, D);
+    });
+    questSave();
+  }
+  function questOfferForNewCycle(proceedFn){
+    questResetForNewCycle();
+    if(isDailyMode || isCoopMode || !progMechUnlocked('quests')){ if(proceedFn) proceedFn(); return; }
+    questState.offers = questGenOffers();
+    questState.selOffers = new Set();
+    questProceedFn = proceedFn;
+    renderQuestOverlay('offer');
+    $('questOverlay').classList.add('show');
+  }
+  function questConfirmSelection(){
+    const pin = progMechUnlocked('quests_pin');
+    questState.selOffers.forEach(i=>{
+      const q = questState.offers[i]; if(!q) return;
+      q.pinned = pin; // на Ур.9 взятые задания закреплены (живут между циклами)
+      questState.active.push(q);
+    });
+    questState.offers = []; questState.selOffers = new Set();
+    questSave(); refreshQuestDock();
+  }
+  function questOnOrderStart(cfg){
+    if(isDailyMode || isCoopMode || !cfg) return;
+    questState.active.forEach(q=>{
+      if(q.done || q.failed) return;
+      if(q.type === 'skip' && q.targets.includes(cfg.id)) questMarkFailed(q); // сыграл нежеланного → провал
+    });
+  }
+  function questOnResult(cfg, perfect, bad){
+    if(isDailyMode || isCoopMode || !cfg) return;
+    const D = progCycleDays();
+    questState.active.forEach(q=>{
+      if(q.done || q.failed) return;
+      switch(q.type){
+        case 'play':
+          if(q.targets.includes(cfg.id) && !bad){
+            q.satisfied[cfg.id] = true;
+            if(q.targets.every(id => q.satisfied[id])) questMarkDone(q);
+          }
+          break;
+        case 'skip':
+          // цель, назначенная на СЕГОДНЯ и не сыгранная → засчитана как пропущенная
+          q.targets.forEach(id=>{ if(q.schedule[id] === dayNum && id !== cfg.id) q.satisfied[id] = true; });
+          if(q.targets.every(id => q.satisfied[id])) questMarkDone(q);
+          break;
+        case 'perfect':
+          if(perfect){ q.progress++; if(q.progress >= q.goal){ questMarkDone(q); break; } }
+          if(!q.done && (q.goal - q.progress) > (D - dayNum)) questMarkFailed(q); // уже не успеть
+          break;
+        case 'rating':
+          if(score >= q.goal) questMarkDone(q);
+          break;
+        case 'nobad':
+          if(bad) questMarkFailed(q);
+          break;
+      }
+    });
+    questSave();
+  }
+  function questOnCycleEnd(){
+    if(isDailyMode || isCoopMode) return;
+    questState.active.forEach(q=>{
+      if(q.done || q.failed) return;
+      if(q.type === 'nobad') questMarkDone(q);               // дожили без брака
+      else if(q.type === 'rating' && score >= q.goal) questMarkDone(q);
+      else q.failed = true;                                  // не добрали цель за цикл
+    });
+    questSave();
+  }
+  // форсим целевых НПС (play/skip) на их день — как guaranteedNextNpc, но списком
+  function questInjectDayTargets(orders){
+    if(isDailyMode || isCoopMode || !questState.active.length) return;
+    const need = [];
+    questState.active.forEach(q=>{
+      if(q.done || q.failed) return;
+      if(q.type !== 'play' && q.type !== 'skip') return;
+      q.targets.forEach(id=>{ if(q.schedule[id] === dayNum && !orders.some(o => o.cfg.id === id)) need.push(id); });
+    });
+    [...new Set(need)].forEach(id=>{
+      const gcfg = cfgById(id); if(!gcfg) return;
+      let idx = orders.findIndex(o => !need.includes(o.cfg.id)); // не выкидываем другую цель
+      if(idx < 0) idx = randInt(0, orders.length - 1);
+      orders[idx] = buildOrderDescriptor(gcfg);
+    });
+  }
+  // ----- UI -----
+  function questItemInnerHTML(q, withStatus){
+    let h = '<div class="quest-item-name">' + escapeHtml(questTitle(q)) + '</div>'
+          + '<div class="quest-item-desc">' + escapeHtml(questDesc(q)) + '</div>'
+          + '<div class="quest-item-reward">' + LT(UI_TEXT.QUEST_REWARD_LABEL) + ' ' + escapeHtml(questRewardText(q)) + '</div>';
+    if(withStatus){
+      const st = q.done ? 'st-done' : (q.failed ? 'st-failed' : 'st-active');
+      const txt = q.done ? LT(UI_TEXT.QUEST_STATUS_DONE) : (q.failed ? LT(UI_TEXT.QUEST_STATUS_FAILED) : LT(UI_TEXT.QUEST_STATUS_ACTIVE));
+      h += '<div class="quest-item-status ' + st + '">' + txt + '</div>';
+      const prog = questProgressText(q);
+      if(prog && !q.done) h += '<div class="quest-item-progress">' + LT(UI_TEXT.QUEST_PROGRESS_LABEL) + ' ' + prog + '</div>';
+    }
+    return h;
+  }
+  function questToggleOffer(i){
+    const sel = questState.selOffers;
+    const maxSel = progMechUnlocked('quests_pin') ? 3 : 1;
+    if(sel.has(i)) sel.delete(i);
+    else { if(maxSel === 1) sel.clear(); if(sel.size < maxSel) sel.add(i); }
+    renderQuestOverlay('offer');
+  }
+  function renderQuestOverlay(mode){
+    const list = $('questList'); if(!list) return;
+    const hint = $('questHint'), title = $('questOverlayTitle'), act = $('questActionBtn'), flavor = $('questFlavor');
+    const pin = progMechUnlocked('quests_pin');
+    list.innerHTML = '';
+    if(mode === 'offer'){
+      if(title) title.textContent = LT(UI_TEXT.QUEST_OVERLAY_TITLE);
+      if(flavor) flavor.textContent = LT(UI_TEXT.QUEST_FLAVOR);
+      if(hint){ hint.style.display = ''; hint.textContent = LT(pin ? UI_TEXT.QUEST_PICK_HINT_PIN : UI_TEXT.QUEST_PICK_HINT); }
+      questState.offers.forEach((q,i)=>{
+        const el = document.createElement('div');
+        el.className = 'quest-item selectable' + (questState.selOffers.has(i) ? ' chosen' : '');
+        el.innerHTML = questItemInnerHTML(q, false);
+        el.addEventListener('click', ()=>{ SFX.uiClick(); questToggleOffer(i); });
+        list.appendChild(el);
+      });
+      if(act){
+        act.textContent = LT(UI_TEXT.QUEST_START_BTN);
+        act.onclick = ()=>{ SFX.uiClick(); questConfirmSelection(); $('questOverlay').classList.remove('show'); const fn = questProceedFn; questProceedFn = null; if(fn) fn(); };
+      }
+    } else {
+      if(title) title.textContent = LT(UI_TEXT.QUEST_CURRENT_TITLE);
+      if(flavor) flavor.textContent = '';
+      if(hint) hint.style.display = 'none';
+      if(!questState.active.length){
+        list.innerHTML = '<div class="quest-item">' + LT(UI_TEXT.QUEST_NONE_ACTIVE) + '</div>';
+      } else {
+        questState.active.forEach(q=>{
+          const el = document.createElement('div');
+          el.className = 'quest-item' + (q.done ? ' done' : '') + (q.failed ? ' failed' : '');
+          el.innerHTML = questItemInnerHTML(q, true);
+          list.appendChild(el);
+        });
+      }
+      if(act){ act.textContent = LT(UI_TEXT.QUEST_CLOSE_BTN); act.onclick = ()=>{ SFX.uiClick(); $('questOverlay').classList.remove('show'); }; }
+    }
+  }
+  function openQuestView(){ renderQuestOverlay('view'); $('questOverlay').classList.add('show'); }
+  function refreshQuestDock(){
+    const btn = $('questBtn'); if(!btn) return;
+    const on = !isDailyMode && !isCoopMode && progMechUnlocked('quests');
+    btn.style.display = on ? '' : 'none';
+    if(!on) return;
+    const anyActive = questState.active.length > 0;
+    const allDone = anyActive && questState.active.every(q => q.done);
+    btn.classList.toggle('has-active', anyActive && !allDone);
+    btn.classList.toggle('all-done', allDone);
+  }
+  questLoad();
+  { const _qb = $('questBtn'); if(_qb) _qb.addEventListener('click', ()=>{ SFX.uiClick(); openQuestView(); }); }
+
   function showSelectScreen(){
     $('roundScreen').classList.remove('show');
     $('selectScreen').classList.add('show');
@@ -5214,6 +5518,9 @@
       }
       guaranteedNextNpc = null;
     }
+
+    // Задания: форсим целевых НПС (play/skip) на назначенный им день цикла.
+    questInjectDayTargets(currentOrders);
 
     // Патч (Хранитель): пока идёт кампания печатей — в каждой тройке одно
     // задание отмечается печатью (кроме самого Хранителя). Заряд тратится
@@ -5295,6 +5602,7 @@
     const allowLevel4 = isCoopMode ? true : (cfg.dailyLevels ? cfg.dailyLevels.includes(4) : level4Available(cfg));
     if(regLevel === 4 && !allowLevel4) regLevel = 3; // защита: 4 доступен только там, где разрешён
     currentOrd = ord;
+    questOnOrderStart(cfg); // задания: сыгранный нежеланный НПС → провал skip-задания
     currentOrd.regLevel = regLevel;
     orderNum++;
     // Фаза 3: отмечаем первую встречу персонажа. markNpcMet вернёт true ровно
@@ -5901,6 +6209,18 @@
     $('lblSize').textContent = Math.round(size) + '%';
     $('lblCount').textContent = count;
     $('lblBsize').textContent = Math.round(bsize) + '%';
+    // Правка пользователя (Инспектор): подписи ползунков — в НОМЕРАХ ДЕЛЕНИЙ,
+    // в тех же единицах, что и «Допуски» + допуск, чтобы сверять напрямую
+    // (раньше бумага в градусах/%, а шкала по делениям — не сходилось).
+    if(mechActive('guild_inspector')){
+      const notch = (sVal, steps) => (sVal + 1) + '/' + steps;
+      $('lblColor').textContent = notch(S.color.value, cfg.colorSteps);
+      $('lblSize').textContent  = notch(S.size.value,  cfg.sizeSteps);
+      $('lblBsize').textContent = notch(S.bsize.value, cfg.bsizeSteps);
+      if(flags.hasGradient) $('lblColorB').textContent = notch(S.colorB.value, cfg.colorSteps);
+      if(flags.hasSat)      $('lblSat').textContent    = notch(S.sat.value, 10);
+      // count (число) и shape (название формы) уже совпадают с бумагой — не трогаем
+    }
     const r = 3 + (bsize/100)*9;
     // если и число, и размер сгустков недоступны на текущей сложности —
     // игра вообще их не генерирует (нечего показывать/угадывать)
@@ -6378,6 +6698,8 @@
 
     if(perfect) stickerCounts.perfect++; else if(good) stickerCounts.good++; else if(swill) stickerCounts.swill++; else stickerCounts.bad++;
     updateStickerTally();
+    // Задания: брак = ниже пойла (!good && !swill). Обновляем прогресс/провал.
+    questOnResult(cfg, perfect, !good && !swill);
 
     // Фаза 7: начисление зарядов умений (аркада; в дейлике умений нет).
     //  • каждые 3 идеала за цикл → +1 заряд;
@@ -6719,8 +7041,8 @@
       $('roundScreen').classList.remove('show');
       if(coopRound){
         coopRound.orderIndex = (coopRound.orderIndex || 0) + 1; // роли чередуются со следующего заказа
-        // 1 заказ = 1 день; после 3-го дня — конец цикла (кооп-лидерборд)
-        if(coopRound.orderIndex >= 3){ coopCycleEnd(); return; }
+        // 1 заказ = 1 день; после последнего дня цикла — конец (кооп-лидерборд)
+        if(coopRound.orderIndex >= COOP_CYCLE_DAYS){ coopCycleEnd(); return; }
         coopRound.day = coopRound.orderIndex + 1;
       }
       coopShowSelect();
@@ -7672,6 +7994,9 @@
           showToast({ icon:'🪙', prefix: UI_TEXT.TIPS_EARNED_TOAST, name: '+' + tip });
         }
       }
+      // Задания: итог цикла (nobad → выполнено, недобор цели → провал). Читает
+      // ещё не обнулённый score как суммарный рейтинг цикла.
+      questOnCycleEnd();
       checkGeneralAchievements();
     }
     $('resultOverlay').classList.remove('show');
@@ -7732,7 +8057,9 @@
     $('saveScoreBtn').disabled = false;
     $('saveScoreBtn').textContent = LT(UI_TEXT.SAVE_SCORE_BTN);
     $('weekOverlay').classList.remove('show');
-    showSelectScreen();
+    // Задания: перед новым циклом предложить выбор (окно). Если заданий нет
+    // (не открыты / дейлик) — сразу к экрану выбора персонажей.
+    questOfferForNewCycle(showSelectScreen);
   });
 
   // ---------- эмбиент + громкость ----------
@@ -7922,6 +8249,10 @@
       ambientTryPlay();
       dismissSplash();
       updateNickBadge(); // Фаза 4: показать ник внизу при входе в аркаду
+      // Задания: первый цикл сессии — тоже предложить выбор (перестроит экран
+      // выбора с учётом расписания целевых НПС). Если заданий нет — просто
+      // перерисует экран выбора.
+      questOfferForNewCycle(showSelectScreen);
     });
   }
 
@@ -8240,7 +8571,7 @@
   function coopLevelsFor(cfg){ return COOP_NPC_LEVELS[cfg.id] || COOP_LEVELS; }
   function coopRenderSelect(){
     const host = $('coopSelectCards'); if(!host) return;
-    const dayEl = $('coopSelectDay'); if(dayEl) dayEl.textContent = coopRound.day + ' / 3';
+    const dayEl = $('coopSelectDay'); if(dayEl) dayEl.textContent = coopRound.day + ' / ' + COOP_CYCLE_DAYS;
     const st = $('coopSelectStatus'); if(st) st.textContent = LT(UI_TEXT.COOP_SELECT_PICK);
     host.innerHTML = '';
     coopRound.pool.forEach((cfg, i)=>{
@@ -8544,7 +8875,9 @@
     $('resultOverlay').classList.add('show');
   }
   // ---------- Стадия 5: конец цикла (после 3-го дня) + кооп-лидерборд ----------
-  const COOP_LB_LOCAL_KEY = 'potionshop_coop_v1';
+  // Правка пользователя: сброс кооп-рейтинга — бампим ключ (_v1 → _v2), старые
+  // счёты 3-дневных циклов больше не грузятся; доска стартует пустой.
+  const COOP_LB_LOCAL_KEY = 'potionshop_coop_v2';
   function coopSaveLocalScore(name, sc){
     let list = [];
     try { list = JSON.parse(localStorage.getItem(COOP_LB_LOCAL_KEY) || '[]'); } catch(_){}

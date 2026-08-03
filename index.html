@@ -6,7 +6,7 @@
 <title>Зельеварня — лавка на краю вселенной</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Jura:wght@500;700&family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=29">
+<link rel="stylesheet" href="style.css?v=33">
 </head>
 <body>
 
@@ -203,10 +203,15 @@
         <div class="sticker-tally" id="stickerTally"></div>
       </div>
     </div>
-    <!-- Фаза 6: магазин/инвентарь. Скрыт до Ур.4. -->
-    <div class="shop-dock" id="shopDock" style="display:none">
-      <button id="shopBtn" class="shop-dock-btn" data-i18n-title="SHOP_BTN_TITLE" title="Магазин">🛒</button>
-      <button id="inventoryBtn" class="shop-dock-btn" data-i18n-title="INV_BTN_TITLE" title="Инвентарь">🎒</button>
+    <!-- Правый док: магазин/инвентарь (Ур.4) + кнопка заданий (Ур.2, длиннее). -->
+    <div class="right-dock" id="rightDock">
+      <!-- Фаза 6: магазин/инвентарь. Скрыт до Ур.4. -->
+      <div class="shop-dock" id="shopDock" style="display:none">
+        <button id="shopBtn" class="shop-dock-btn" data-i18n-title="SHOP_BTN_TITLE" title="Магазин">🛒</button>
+        <button id="inventoryBtn" class="shop-dock-btn" data-i18n-title="INV_BTN_TITLE" title="Инвентарь">🎒</button>
+      </div>
+      <!-- Задания на цикл. Скрыта до Ур.2. Длиннее кнопок магазина. -->
+      <button id="questBtn" class="quest-dock-btn" data-i18n="QUEST_DOCK_BTN" style="display:none">📜 Задание</button>
     </div>
   </div>
 
@@ -418,6 +423,20 @@
   </div>
 </div>
 
+<!-- Задания на цикл. Окно служит и выбором заданий (перед циклом), и просмотром
+     текущего (клик по кнопке дока). Наполняется в game.js (renderQuestOverlay).
+     ART-SWAP: assets/ui/quest.png — своя картинка; если файла нет, прячется. -->
+<div class="week-overlay" id="questOverlay">
+  <div class="week-card quest-card">
+    <img class="quest-art" id="questArt" src="assets/ui/quest.png" alt="" onerror="this.style.display='none'">
+    <h3 id="questOverlayTitle" data-i18n="QUEST_OVERLAY_TITLE">Заказ-наряд от Гильдии</h3>
+    <p class="quest-flavor" id="questFlavor" data-i18n="QUEST_FLAVOR"></p>
+    <div class="quest-hint" id="questHint"></div>
+    <div class="quest-list" id="questList"></div>
+    <button class="next-btn" id="questActionBtn">Начать цикл</button>
+  </div>
+</div>
+
 <div class="week-overlay" id="lbOverlay">
   <div class="week-card">
     <h3 data-i18n="LB_TITLE">🏆 Глобальный рейтинг</h3>
@@ -563,14 +582,14 @@
 </div>
 
 <!-- порядок важен: сначала профиль (Фаза F), потом контент, потом логика -->
-<script src="profile.js?v=29"></script>
-<script src="content.js?v=29"></script>
+<script src="profile.js?v=33"></script>
+<script src="content.js?v=33"></script>
 <!-- Фаза 12: кооп — Firebase Realtime Database (CDN, compat) + сетевой модуль.
      Грузятся ПЕРЕД game.js, чтобы window.Coop уже существовал. Если CDN не
      доступен — coop-net.js выставит Coop.available=false, игра работает как есть. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-<script src="coop-net.js?v=29"></script>
-<script src="game.js?v=29"></script>
+<script src="coop-net.js?v=33"></script>
+<script src="game.js?v=33"></script>
 </body>
 </html>

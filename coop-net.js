@@ -141,7 +141,9 @@
        вызывающий код падает в локальный лидерборд (см. coopCycleEnd). */
     async submitCoopScore(name, score){
       if(!available) throw new Error('FIREBASE_UNAVAILABLE');
-      await db.ref('coop_scores').push({
+      // Правка пользователя: сброс кооп-рейтинга — путь бампнут (coop_scores → _v2),
+      // синхронно с локальным ключом (см. COOP_LB_LOCAL_KEY в game.js).
+      await db.ref('coop_scores_v2').push({
         name: String(name || '').slice(0, 60),
         score: score | 0,
         at: firebase.database.ServerValue.TIMESTAMP
@@ -150,7 +152,7 @@
     },
     async loadCoopScores(limit){
       if(!available) throw new Error('FIREBASE_UNAVAILABLE');
-      const snap = await db.ref('coop_scores').orderByChild('score').limitToLast(limit || 50).get();
+      const snap = await db.ref('coop_scores_v2').orderByChild('score').limitToLast(limit || 50).get();
       const rows = [];
       snap.forEach(ch => { const v = ch.val() || {}; rows.push({ name: v.name, score: v.score,
         date: v.at ? new Date(v.at).toLocaleDateString() : '' }); });
