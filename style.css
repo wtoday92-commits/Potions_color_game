@@ -2657,3 +2657,18 @@ body::after{
   opacity:.95; background:rgba(255,70,70,.85); border-color:#ff9a9a; color:#fff;
   box-shadow:0 0 12px rgba(255,70,70,.6);
 }
+
+/* ============================================================
+   Правка пользователя: центральная панель (название + стикеры) —
+   уже, ниже к верхней панели, подзаголовок убран. Бар прогресса поднят
+   под стикеры. Зазоры сверху и снизу от панели РАВНЫ (topbar→панель ==
+   панель→прогресс). Блок в конце файла — переопределяет ранние правила.
+   ============================================================ */
+.game-header{ min-height:0; padding:6px 14px 8px; }
+.game-header-inner .title{ font-size:clamp(17px, 3.4vw, 24px); }
+.game-header-inner .sticker-tally{ margin-top:6px; }
+.sticker-tally{ margin-bottom:0; }
+/* равные зазоры: верхний = .topbar margin-bottom, нижний = .prog-bar margin-top */
+.header-row{ margin:0 auto; }
+.topbar{ margin-bottom:12px; }
+.prog-bar{ margin-top:12px; }
