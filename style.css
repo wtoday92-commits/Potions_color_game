@@ -1749,6 +1749,7 @@ body::after{
   background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
   font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; }
 .cs-chip .cs-chip-i{ font-size:15px; }
+.cs-chip img.cs-chip-i{ height:18px; width:auto; display:inline-block; vertical-align:middle; }
 .cs-chip.perfect{ color:var(--good); border-color:rgba(93,255,176,.4); }
 .cs-chip.good{ color:#bfe9ff; }
 .cs-chip.swill{ color:#e9c987; }

@@ -3516,10 +3516,10 @@
     const z = ENG_ZONES[lvl] || ENG_ZONES[1];
     // Правка пользователя: цвета ярче/плотнее (были полупрозрачные, «выцветшие»).
     const base = '#1a2233';
-    const core = z.blue ? '#48b4ff' : '#6dff88';        // ядро (синий/яркий-зелёный)
-    const mid  = 'rgba(125,255,106,1)';                 // тёмно-зелёная зона — плотная
-    const soft = 'rgba(125,255,106,.6)';                // край зелёной, тускнеет мягче
-    const red  = 'rgba(255,93,106,.92)';                // красная ловушка (УР.4)
+    const core = z.blue ? '#8fd4ff' : '#ccffb4';        // ядро — светящийся bull's-eye (ярко)
+    const mid  = 'rgba(150,255,120,1)';                 // неон-зелёная зона — плотная и яркая
+    const soft = 'rgba(125,255,106,.92)';               // край — почти не выцветает (было .6)
+    const red  = 'rgba(255,74,92,.96)';                 // красная ловушка (УР.4)
     const gw = z.green.w, dw = z.dark ? z.dark.w : gw * 0.5;
     const st = (f, col) => `${col} ${(engClamp01(f) * 100).toFixed(1)}%`;
     const s = [ st(0, base) ];
@@ -8043,10 +8043,12 @@
       worst = npcs.reduce((a,b)=> b.score < a.score ? b : a);
     }
     const snap = cs.repSnapshot || {};
-    const repRows = npcs.map(n => ({ n, d: repValueOf(n.id) - (snap[n.id] || 0) }))
+    // репутация за цикл — округляем до 1 знака (сырые дельты — длинные дроби)
+    const repRows = npcs.map(n => ({ n, d: Math.round((repValueOf(n.id) - (snap[n.id] || 0)) * 10) / 10 }))
                         .filter(r => r.d !== 0)
                         .sort((a,b)=> b.d - a.d);
     const fmt = n => (n > 0 ? '+' : '') + n;
+    const fmtRep = d => (d > 0 ? '+' : '') + (Number.isInteger(d) ? d : d.toFixed(1));
     const items = []; let t = 0;
     const add = (html, dt) => { items.push(`<div class="cs-item" style="animation-delay:${t}ms">${html}</div>`); t += dt; };
 
@@ -8054,13 +8056,17 @@
     add(`<div class="cs-score"><div class="cs-score-num" id="csScoreNum">0</div>
          <div class="cs-score-lbl">${LT(UI_TEXT.CS_SCORE_LBL)}</div></div>`, 460);
     // 2) разбивка результатов
-    const chips = [`<span class="cs-chip"><span class="cs-chip-i">🧪</span>${cs.orders}</span>`];
-    if(cs.perfect) chips.push(`<span class="cs-chip perfect"><span class="cs-chip-i">✨</span>${cs.perfect}</span>`);
-    if(cs.good)    chips.push(`<span class="cs-chip good"><span class="cs-chip-i">👍</span>${cs.good}</span>`);
-    if(cs.swill)   chips.push(`<span class="cs-chip swill"><span class="cs-chip-i">🫗</span>${cs.swill}</span>`);
-    if(cs.bad)     chips.push(`<span class="cs-chip bad"><span class="cs-chip-i">💩</span>${cs.bad}</span>`);
-    if(cs.bestStreak >= 2) chips.push(`<span class="cs-chip streak"><span class="cs-chip-i">🔥</span>${cs.bestStreak}</span>`);
-    if(cs.tips > 0) chips.push(`<span class="cs-chip tips"><span class="cs-chip-i">🪙</span>${cs.tips}</span>`);
+    // иконки чипов: уже существующие стикеры (perfect/good/swill/bad) и streak.png;
+    // для «заказов»/«чаевых» — свои PNG (ART-SWAP) с эмодзи-фолбэком, пока файла нет.
+    const stickerI = arr => visualHTML(first(arr), 'cs-chip-i');
+    const iconI = (path, emoji) => `<img class="cs-chip-i" src="${path}" alt="" onerror="this.replaceWith('${emoji}')">`;
+    const chips = [`<span class="cs-chip">${iconI('assets/ui/orders.png','🧪')}${cs.orders}</span>`];
+    if(cs.perfect) chips.push(`<span class="cs-chip perfect">${stickerI(STICKERS.perfect)}${cs.perfect}</span>`);
+    if(cs.good)    chips.push(`<span class="cs-chip good">${stickerI(STICKERS.good)}${cs.good}</span>`);
+    if(cs.swill)   chips.push(`<span class="cs-chip swill">${stickerI(STICKERS.swill)}${cs.swill}</span>`);
+    if(cs.bad)     chips.push(`<span class="cs-chip bad">${stickerI(STICKERS.bad)}${cs.bad}</span>`);
+    if(cs.bestStreak >= 2) chips.push(`<span class="cs-chip streak">${iconI('assets/ui/streak.png','🔥')}${cs.bestStreak}</span>`);
+    if(cs.tips > 0) chips.push(`<span class="cs-chip tips">${iconI('assets/ui/tips.png','🪙')}${cs.tips}</span>`);
     add(`<div class="cs-breakdown">${chips.join('')}</div>`, 520);
 
     // 3) звезда цикла / тяжелее всего (по рейтингу)
@@ -8089,7 +8095,7 @@
         return `<div class="cs-rep-row" style="animation-delay:${repDelay + j*95}ms">
           <div class="cs-rep-portrait">${visualHTML(r.n.img, 'cs-rep-pic')}</div>
           <div class="cs-rep-name">${LT(r.n.name)}</div>
-          <div class="cs-rep-delta ${cls}">${fmt(r.d)}</div>
+          <div class="cs-rep-delta ${cls}">${fmtRep(r.d)}</div>
         </div>`;
       }).join('');
       add(`<div><div class="cs-section-lbl">${LT(UI_TEXT.CS_REP_LBL)}</div>
