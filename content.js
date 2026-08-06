@@ -1434,7 +1434,7 @@ const NPC_STAT_EXPLAIN = {
     intern_beep:    { capImg: 'assets/Potions/3.png', capImgAspect: 0.663, capImgWidthMult: 0.72 },
     trucker_chrome: { capImg: 'assets/Potions/4.png', capImgAspect: 0.804, capImgWidthMult: 0.72 },
     fashionista:    { capImg: 'assets/Potions/5.png', capImgAspect: 0.686, capImgWidthMult: 0.72 },
-    collector_gz:   { capImg: 'assets/Potions/6.png', capImgAspect: 1.064, capImgWidthMult: 0.72 },
+    collector_gz:   { capImg: 'assets/Potions/6.png', capImgAspect: 1.064, capImgWidthMult: 0.72, capImgDx: 0.048 },
     dj_pulsar:      { capImg: 'assets/Potions/7.png', capImgAspect: 0.493, capImgWidthMult: 0.72 },
     tentacloid:     { capImg: 'assets/Potions/8.png', capImgAspect: 0.650, capImgWidthMult: 0.72 }
   };

@@ -725,12 +725,21 @@
     if(decor && decor.capImg){
       // по умолчанию крышка ~на 30% уже банки (см. референсы бутылей —
       // крышка у них всегда заметно уже тела, не вровень с ним)
-      const cw = w * (decor.capImgWidthMult ?? 0.7);
-      const ch = cw * (decor.capImgAspect ?? 1);
+      let cw = w * (decor.capImgWidthMult ?? 0.7);
+      let ch = cw * (decor.capImgAspect ?? 1);
       // нахлёст на тело банки — та же логика, что и у процедурных крышек,
       // но заметно скромнее (крышка не должна казаться утопленной в горлышко)
       const overlap = decor.capImgOverlap ?? Math.min(8, ch*0.15);
       const seamY = topY + 18 + overlap;
+      // Фикс: на макс. объёме высокая крышка вылезала выше верха viewBox (y=0)
+      // и обрезалась. Если не влезает по высоте — ужимаем ВСЮ крышку целиком
+      // (пропорции сохраняются, без сплющивания), чтобы её верх оставался в кадре.
+      const CAP_TOP_PAD = 2;
+      const maxCapH = seamY - CAP_TOP_PAD;
+      if(ch > maxCapH){ cw *= maxCapH / ch; ch = maxCapH; }
+      // Горизонтальный сдвиг для несимметричного арта (спираль коллекционера
+      // смещена вбок) — доля от ширины крышки, +вправо. По умолчанию 0.
+      const capDx = (decor.capImgDx ?? 0) * cw;
       // Патч (дуотон): растровая крышка рисовалась в своём "фотографичном"
       // металлическом стиле (штриховка, градиенты) — визуально не сочетался
       // с плоской векторной банкой (одна линия, заливка цветом). Вместо
@@ -755,7 +764,7 @@
         </filter>`;
       }
       const filterAttr = customBottle ? '' : ` filter="url(#${cFilter})"`;
-      capImgEl = `<image href="${decor.capImg}" x="${(cx-cw/2).toFixed(1)}" y="${(seamY-ch).toFixed(1)}" width="${cw.toFixed(1)}" height="${ch.toFixed(1)}" preserveAspectRatio="none"${filterAttr}/>`;
+      capImgEl = `<image href="${decor.capImg}" x="${(cx-cw/2+capDx).toFixed(1)}" y="${(seamY-ch).toFixed(1)}" width="${cw.toFixed(1)}" height="${ch.toFixed(1)}" preserveAspectRatio="none"${filterAttr}/>`;
     }
     if(decor && decor.stickerImg){
       const yTopBody = topY+18;
@@ -2132,7 +2141,7 @@
     // тут не признак, поэтому sizePct/bubbleR фиксированы.
     const inner = buildJarMarkup({
       hue: jar.hue, sizePct: 50, bubbleCount: Math.min(jar.count, 10), bubbleR: 7,
-      seed: jar.seed, shapeIdx: jar.shapeIdx
+      seed: jar.seed, shapeIdx: jar.shapeIdx, decor: target.decor // крышка коллекционера и в сетке
     }, `col${idx}_`);
     return `<svg viewBox="0 0 200 260" class="collector-jar-svg">${inner}</svg>`;
   }

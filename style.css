@@ -449,17 +449,18 @@
   }
   /* Фаза ИГРЫ: прямая подсказка; читаемость на ЛЮБОМ фоне — светлый текст с
      плотной тёмной обводкой; само ДЕЙСТВИЕ (<b>) — крупнее и цветом. */
+  /* Весь текст подсказки — жирный, с ЧЁТКОЙ обводкой (paint-order: stroke под
+     заливкой), а не размытыми тенями: так читается и на светлом «пергаменте»,
+     и на тёмном фоне, оставаясь аккуратным. */
   .phase-label.phase-craft{
-    font-size:14px;font-weight:600;color:#fff;letter-spacing:.03em;
-    text-shadow:0 0 2px #04060f, 0 0 4px #04060f, 0 1px 3px rgba(0,0,0,.95),
-                0 0 8px rgba(0,0,0,.9);
-    -webkit-text-stroke:.4px rgba(4,6,15,.85);
+    font-size:15px;font-weight:800;color:#fff;letter-spacing:.02em;
+    -webkit-text-stroke:1.8px #0a0d1a; paint-order:stroke fill;
+    text-shadow:0 1px 2px rgba(0,0,0,.5);
   }
   .phase-label.phase-craft b, .phase-action{
-    font-size:1.55em;font-weight:800;color:var(--good);letter-spacing:.04em;
-    text-shadow:0 0 2px #04060f, 0 0 5px #04060f, 0 1px 3px rgba(0,0,0,.95),
-                0 0 12px rgba(93,255,176,.6);
-    -webkit-text-stroke:.5px rgba(4,6,15,.8);
+    font-size:1.5em;font-weight:900;color:var(--good);letter-spacing:.03em;
+    -webkit-text-stroke:2.2px #06140c; paint-order:stroke fill;
+    text-shadow:0 1px 2px rgba(0,0,0,.45);
   }
 
   .control-row{display:grid;grid-template-columns:216px auto 216px;align-items:center;column-gap:20px;margin-bottom:16px;}
