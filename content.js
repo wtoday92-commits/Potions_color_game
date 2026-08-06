@@ -1743,7 +1743,7 @@ const NPC_STAT_EXPLAIN = {
       t:[3, 5, 10] },
 
     // Фаза 2 (П7): ачивка на «Пойло» — грейд между браком и годнотой
-    { id:'swill_total', icon:'🫗', img:null,
+    { id:'swill_total', icon:'🫗', img:'assets/ach/12.png',
       name:{ ru:'Разливщик пойла', en:'Swill pourer' },
       desc:{ ru:'Сколько всего «пойла» ты налил за всю историю лавки. Не идеал, но и не брак.', en:'How much "swill" you have poured across the shop\'s history. Not perfect, not a reject.' },
       value:p => ((p.stats.stickersLifetime && p.stats.stickersLifetime.swill) || 0),

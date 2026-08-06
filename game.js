@@ -99,6 +99,32 @@
   };
   window.addEventListener('pointerdown', zzfxEnsureCtx, {once:true});
 
+  // Патч (пользовательские звуки): если в assets/sound/ лежит <ключ>.mp3 —
+  // играем его ВМЕСТО процедурного ZzFX (ключи совпадают с именами в SFX);
+  // где файла нет — молча остаётся ZzFX. Громкость — по ползунку громкости
+  // (мьют работает). Файлы грузятся лениво; 404 просто оставляет ZzFX.
+  const customSfx = {};
+  Object.keys(SFX).forEach(k=>{
+    const a = new Audio('assets/sound/' + k + '.mp3');
+    a.preload = 'auto';
+    a.addEventListener('canplaythrough', ()=>{ customSfx[k] = a; }, { once:true });
+    a.addEventListener('error', ()=>{}, { once:true });
+    const zz = SFX[k];
+    SFX[k] = ()=>{
+      const src = customSfx[k];
+      if(src){
+        try{
+          const c = src.cloneNode();
+          const vs = document.getElementById('volumeSlider');
+          c.volume = vs ? Math.max(0, Math.min(1, vs.value/100)) : .6;
+          c.play().catch(()=>{});
+          return;
+        }catch(e){}
+      }
+      zz();
+    };
+  });
+
   function mulberry32(a){
     return function(){
       a |= 0; a = a + 0x6D2B79F5 | 0;
