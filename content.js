@@ -1422,13 +1422,19 @@ const NPC_STAT_EXPLAIN = {
   //   stickerYFrac     — 0..1, где по высоте жидкости она сидит (0=верх,1=низ)
   // Пока пусто — заполняется по мере появления готовых картинок.
   // aspect = высота/ширина обрезанного PNG (замерено по alpha-боксу файла).
-  // Три рисованных крышки развешены на легкодоступных тир-1 персонажах,
-  // чтобы их сразу было видно в игре — при желании переносятся на любых
-  // других правкой id ниже.
+  // Единый рисованный сет крышек (assets/Potions/1..8.png) — первые 8 из
+  // 23 по списку CAP_PROMPTS.md, каждая под свой силуэт/тему персонажа.
+  // aspect = высота/ширина обрезанного по alpha-боксу файла (замерено PIL).
+  // widthMult — стартовое 0.72, подстраивается на глаз при желании.
   const NPC_DECOR = {
-    trucker_chrome: { capImg: 'assets/Potions/Cap_2.png', capImgAspect: 0.509, capImgWidthMult: 0.72 },
-    janitor:        { capImg: 'assets/Potions/Cap_3.png', capImgAspect: 0.713, capImgWidthMult: 0.62 },
-    intern_beep:    { capImg: 'assets/Potions/Cap_4.png', capImgAspect: 0.509, capImgWidthMult: 0.72 }
+    drone:          { capImg: 'assets/Potions/1.png', capImgAspect: 0.856, capImgWidthMult: 0.72 },
+    janitor:        { capImg: 'assets/Potions/2.png', capImgAspect: 0.798, capImgWidthMult: 0.72 },
+    intern_beep:    { capImg: 'assets/Potions/3.png', capImgAspect: 0.663, capImgWidthMult: 0.72 },
+    trucker_chrome: { capImg: 'assets/Potions/4.png', capImgAspect: 0.804, capImgWidthMult: 0.72 },
+    fashionista:    { capImg: 'assets/Potions/5.png', capImgAspect: 0.686, capImgWidthMult: 0.72 },
+    collector_gz:   { capImg: 'assets/Potions/6.png', capImgAspect: 1.064, capImgWidthMult: 0.72 },
+    dj_pulsar:      { capImg: 'assets/Potions/7.png', capImgAspect: 0.493, capImgWidthMult: 0.72 },
+    tentacloid:     { capImg: 'assets/Potions/8.png', capImgAspect: 0.650, capImgWidthMult: 0.72 }
   };
 
   // Патч (кастомные рисованные бутыли): каждая запись — один и тот же сосуд,
