@@ -80,6 +80,10 @@
   :root{
     --cursor-idle: url('assets/ui/cursor.png') 4 2, auto;
     --cursor-press: url('assets/ui/cursor_press.png') 6 4, pointer;
+    /* Третий тип (ART-SWAP): курсор-подсказка с вопросиком — на элементах,
+       у которых только всплывающий тултип, а не действие (метки прогрессии,
+       значки заданий). Пока файла нет — мягко падает в системный `help`. */
+    --cursor-help: url('assets/ui/cursor_help.png') 4 2, help;
   }
   body{ cursor: var(--cursor-idle); }
   body.cursor-press{ cursor: var(--cursor-press); }
@@ -87,11 +91,13 @@
      pointer и «нажатое» состояние на них не видно). .window-frame сюда НЕ
      входит — механики-курсоры остаются как есть. */
   button, .vslide-wrap, .customer-card, .coop-npc-card, .coop-level-btn,
-  .level-card, .prog-mark, [class*="-btn"]{ cursor: var(--cursor-idle); }
+  .level-card, [class*="-btn"]{ cursor: var(--cursor-idle); }
   body.cursor-press button, body.cursor-press .vslide-wrap,
   body.cursor-press .customer-card, body.cursor-press .coop-npc-card,
   body.cursor-press .coop-level-btn, body.cursor-press .level-card,
-  body.cursor-press .prog-mark, body.cursor-press [class*="-btn"]{ cursor: var(--cursor-press); }
+  body.cursor-press [class*="-btn"]{ cursor: var(--cursor-press); }
+  /* Пункт 6: элементы-подсказки носят курсор-вопросик (перекрывает idle/press). */
+  .prog-mark, .quest-badge, [data-hint]{ cursor: var(--cursor-help) !important; }
   /* starfield + туманность (итоговые правила — ранее были раскиданы по ПАТЧ-1/2/3 внизу файла) */
   body:before{
     content:"";display:block;position:fixed;inset:0;pointer-events:none;opacity:.5;z-index:0;
@@ -433,19 +439,27 @@
     color:var(--ink-dim);text-transform:uppercase;letter-spacing:.18em;
     margin:0 0 10px;
   }
-  /* Правка пользователя: фаза ЗАПОМИНАНИЯ — крупно и с обводкой, чтобы бросалось
-     в глаза (игроки не понимали, что делать). */
+  /* Правка пользователя: фаза ЗАПОМИНАНИЯ — крупно, тёмно-синий текст в белой
+     подсветке/обводке (читается на тёмном фоне за счёт белого ореола). */
   .phase-label.phase-scan{
-    font-size:22px;font-weight:700;color:var(--neon-light);letter-spacing:.08em;
-    text-shadow:0 0 2px #04060f, 0 0 4px #04060f, 0 2px 6px rgba(0,0,0,.85),
-                0 0 14px rgba(53,224,255,.55);
-    -webkit-text-stroke:.6px rgba(4,6,15,.9);
+    font-size:22px;font-weight:800;color:#1e3fb0;letter-spacing:.08em;
+    text-shadow:0 0 2px #fff, 0 0 5px #fff, 0 0 11px rgba(255,255,255,.95),
+                0 1px 0 #fff, 0 -1px 0 #fff;
+    -webkit-text-stroke:.7px rgba(255,255,255,.95);
   }
-  /* Фаза ИГРЫ: прямая подсказка; само ДЕЙСТВИЕ (<b>) — крупнее и цветом. */
-  .phase-label.phase-craft{ font-size:13px;color:var(--ink); }
+  /* Фаза ИГРЫ: прямая подсказка; читаемость на ЛЮБОМ фоне — светлый текст с
+     плотной тёмной обводкой; само ДЕЙСТВИЕ (<b>) — крупнее и цветом. */
+  .phase-label.phase-craft{
+    font-size:14px;font-weight:600;color:#fff;letter-spacing:.03em;
+    text-shadow:0 0 2px #04060f, 0 0 4px #04060f, 0 1px 3px rgba(0,0,0,.95),
+                0 0 8px rgba(0,0,0,.9);
+    -webkit-text-stroke:.4px rgba(4,6,15,.85);
+  }
   .phase-label.phase-craft b, .phase-action{
     font-size:1.55em;font-weight:800;color:var(--good);letter-spacing:.04em;
-    text-shadow:0 0 10px rgba(93,255,176,.55);
+    text-shadow:0 0 2px #04060f, 0 0 5px #04060f, 0 1px 3px rgba(0,0,0,.95),
+                0 0 12px rgba(93,255,176,.6);
+    -webkit-text-stroke:.5px rgba(4,6,15,.8);
   }
 
   .control-row{display:grid;grid-template-columns:216px auto 216px;align-items:center;column-gap:20px;margin-bottom:16px;}
@@ -1689,6 +1703,28 @@ body::after{
   color:#0a0c1a; background:var(--tier-color, #ffd98a);
   border:2px solid rgba(6,8,20,.9); box-shadow:0 0 9px var(--tier-color, #ffd98a);
 }
+/* Пункт 4: значок задания снизу на портрете — сразу читается «бери / не бери».
+   📜 (через ::before) сигналит, что это про задание; цвет+галка/крест — вердикт. */
+.npc-icon .quest-badge{
+  position:absolute; left:50%; bottom:-7px; transform:translateX(-50%);
+  display:flex; align-items:center; justify-content:center; gap:3px;
+  min-width:30px; height:23px; padding:0 8px; border-radius:12px; z-index:5;
+  font-size:14px; font-weight:900; line-height:1; color:#fff; white-space:nowrap;
+  border:2px solid rgba(255,255,255,.95);
+  box-shadow:0 2px 7px rgba(0,0,0,.55), 0 0 12px rgba(0,0,0,.4);
+}
+.npc-icon .quest-badge::before{
+  content:'📜'; font-size:12px; line-height:1;
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.6));
+}
+.npc-icon .quest-badge.want{ background:linear-gradient(180deg,#2fd07a,#149a56);
+  text-shadow:0 1px 2px rgba(0,0,0,.5); }
+.npc-icon .quest-badge.avoid{ background:linear-gradient(180deg,#ff6f60,#c0322a);
+  text-shadow:0 1px 2px rgba(0,0,0,.5); }
+/* лёгкое «дыхание», чтобы значок ловил взгляд среди тройки карточек */
+@keyframes questBadgePulse{ 0%,100%{ box-shadow:0 2px 7px rgba(0,0,0,.55), 0 0 10px rgba(0,0,0,.35); }
+  50%{ box-shadow:0 2px 9px rgba(0,0,0,.6), 0 0 16px rgba(255,255,255,.35); } }
+.npc-icon .quest-badge{ animation:questBadgePulse 2.4s ease-in-out infinite; }
 
 /* ---------- Фаза 3: шкала прогрессии лавки ---------- */
 /* Тёмная подложка обязательна: без неё шкала и подписи тонут на светлом

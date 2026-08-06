@@ -5070,6 +5070,9 @@
           </div>
           ${ord.sealed ? `<div class="seal-badge" title="${LT(UI_TEXT.ARCH_SEAL_TAG)}">📜</div>` : ''}
           ${cfg.gradedFrom ? `<div class="grade-badge" title="${LT(UI_TEXT.GRADE_UP_TAG)}">↑</div>` : ''}
+          ${(()=>{ const qb = questBadgeForNpc(cfg.id); if(!qb) return '';
+            const t = LT(qb==='want' ? UI_TEXT.QUEST_BADGE_WANT : UI_TEXT.QUEST_BADGE_AVOID);
+            return `<div class="quest-badge ${qb}" data-hint="${t}" title="${t}">${qb==='want'?'✓':'✕'}</div>`; })()}
           <div class="icon-name-reveal"><span>${npcNameStr}</span></div>
         </div>
         <div class="plaque-stack">
@@ -5246,8 +5249,15 @@
     return sched;
   }
   function questMake(type, D, unlocked){
+    const reward = {...QUEST_RW[type]};
+    // Пункт 3: пока чаевые не открыты по прогрессии — не предлагаем награду-чаевые
+    // (иначе игрок видит награду, которой в его лавке ещё не существует).
+    // Тип задания остаётся, награда подменяется на прогрессию лавки.
+    if(reward.kind === 'tips' && !progMechUnlocked('tips')){
+      reward.kind = 'xp'; reward.amount = reward.amount * 2;
+    }
     const q = { id:'q'+(questIdSeq++), type, targets:[], schedule:{}, goal:0,
-                reward:{...QUEST_RW[type]}, progress:0, satisfied:{}, done:false, failed:false, pinned:false };
+                reward, progress:0, satisfied:{}, done:false, failed:false, pinned:false };
     if(type === 'play' || type === 'skip'){
       const n = Math.min(questScaleN(type, D), Math.max(0, unlocked.length - 1));
       q.targets = shuffleArr(unlocked.slice()).slice(0, n);
@@ -5374,6 +5384,22 @@
       }
     });
     questSave();
+  }
+  // Пункт 4: статус НПС для значка на портрете в выборе. play → «бери» (want),
+  // skip → «не бери» (avoid). Только аркада, только активные незакрытые задания
+  // и только пока цель по этому НПС ещё не засчитана (не мельтешим).
+  function questBadgeForNpc(id){
+    if(isDailyMode || isCoopMode || !id) return null;
+    let want = false, avoid = false;
+    questState.active.forEach(q=>{
+      if(q.done || q.failed || !q.targets || !q.targets.includes(id)) return;
+      if(q.satisfied && q.satisfied[id]) return;
+      if(q.type === 'skip') avoid = true;
+      else if(q.type === 'play') want = true;
+    });
+    if(avoid) return 'avoid';   // приоритет: пропуск важнее (сыграл — сразу провал)
+    if(want)  return 'want';
+    return null;
   }
   function questOnCycleEnd(){
     if(isDailyMode || isCoopMode) return;
@@ -8114,6 +8140,8 @@
     if($('selectScreen').classList.contains('show') && currentOrders.length){
       renderSelectBanners(); // Патч: баннеры Ир/печатей тоже переводим
       renderCustomerCards(currentOrders);
+      renderProgressionBar(); // Пункт 5: title меток прогрессии ставятся через LT
+                              // напрямую (не data-i18n) — перерисуем под новый язык
     }
     if($('roundScreen').classList.contains('show') && target && currentOrd){
       // Патч: фишки активных эффектов в шапке заказа

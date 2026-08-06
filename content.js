@@ -239,6 +239,8 @@ const UI_TEXT = {
 
   // ---------- Задания на цикл (выдаются перед каждым новым циклом с ур.2) ----------
   // ART-SWAP: положить свою картинку в assets/ui/quest.png (иначе — эмодзи-заглушка).
+  QUEST_BADGE_WANT:    { ru:'Задание: выбери этого посетителя', en:'Quest: pick this visitor' },
+  QUEST_BADGE_AVOID:   { ru:'Задание: НЕ выбирай — этого надо пропустить', en:'Quest: do NOT pick — skip this one' },
   QUEST_DOCK_BTN:      { ru:'📜 Задание', en:'📜 Quest' },
   QUEST_OVERLAY_TITLE: { ru:'Заказ-наряд от Гильдии', en:'A Guild work-order' },
   QUEST_FLAVOR:        { ru:'Перед новым циклом почтовый дрон приносит запечатанный наряд. Выбери, за что взяться — печать действует до конца цикла.', en:'Before the new cycle a courier drone brings a sealed work-order. Pick what to take on — the seal holds until the cycle ends.' },
