@@ -1,0 +1,11 @@
+# --- Dev-only файлы (НЕ выкладываются на GitHub) ---
+CLAUDE.md
+ROADMAP.md
+PROMPTS.md
+comments_from_me.txt
+.claude/
+
+# --- Служебное ОС ---
+Thumbs.db
+Desktop.ini
+.DS_Store
