@@ -6,7 +6,7 @@
 <title>Зельеварня — лавка на краю вселенной</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Jura:wght@500;700&family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=36">
+<link rel="stylesheet" href="style.css?v=37">
 </head>
 <body>
 
@@ -412,6 +412,15 @@
   </div>
 </div>
 
+<!-- Итоги цикла: анимированная статистика (появляется поочерёдно) ПЕРЕД доской. -->
+<div class="week-overlay" id="cycleStatsOverlay">
+  <div class="week-card cyclestats-card">
+    <h3 class="cs-title" data-i18n="CS_TITLE">Итоги цикла</h3>
+    <div class="cyclestats-body" id="cycleStatsBody"></div>
+    <button class="next-btn cs-next-btn" id="cycleStatsNextBtn" data-i18n="CS_NEXT_BTN">Дальше →</button>
+  </div>
+</div>
+
 <div class="week-overlay" id="weekOverlay">
   <div class="week-card">
     <h3 data-i18n="WEEK_TITLE">Цикл завершён!</h3>
@@ -582,14 +591,14 @@
 </div>
 
 <!-- порядок важен: сначала профиль (Фаза F), потом контент, потом логика -->
-<script src="profile.js?v=36"></script>
-<script src="content.js?v=36"></script>
+<script src="profile.js?v=37"></script>
+<script src="content.js?v=37"></script>
 <!-- Фаза 12: кооп — Firebase Realtime Database (CDN, compat) + сетевой модуль.
      Грузятся ПЕРЕД game.js, чтобы window.Coop уже существовал. Если CDN не
      доступен — coop-net.js выставит Coop.available=false, игра работает как есть. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-<script src="coop-net.js?v=36"></script>
-<script src="game.js?v=36"></script>
+<script src="coop-net.js?v=37"></script>
+<script src="game.js?v=37"></script>
 </body>
 </html>

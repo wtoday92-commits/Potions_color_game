@@ -1727,6 +1727,82 @@ body::after{
   50%{ box-shadow:0 2px 9px rgba(0,0,0,.6), 0 0 16px rgba(255,255,255,.35); } }
 .npc-icon .quest-badge{ animation:questBadgePulse 2.4s ease-in-out infinite; }
 
+/* ---------- Экран итогов цикла (анимированная статистика) ---------- */
+.cyclestats-card{ max-width:540px; width:calc(100% - 32px); }
+.cs-title{ text-align:center; }
+.cyclestats-body{ display:flex; flex-direction:column; gap:16px; margin:14px 0 6px; }
+/* каждый блок появляется поочерёдно; задержку ставит JS (animation-delay) */
+.cs-item{ opacity:0; transform:translateY(16px) scale(.98);
+  animation:csReveal .52s cubic-bezier(.2,.75,.3,1) both; }
+@keyframes csReveal{ to{ opacity:1; transform:none; } }
+
+/* Заголовочный счёт цикла */
+.cs-score{ text-align:center; }
+.cs-score-num{ font-family:'IBM Plex Mono',monospace; font-size:46px; font-weight:800;
+  color:var(--neon-light); line-height:1; text-shadow:0 0 20px rgba(53,224,255,.55); }
+.cs-score-lbl{ font-size:11px; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--ink-dim); margin-top:5px; }
+
+/* Разбивка результатов — чипы */
+.cs-breakdown{ display:flex; justify-content:center; gap:9px; flex-wrap:wrap; }
+.cs-chip{ display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border-radius:20px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+  font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; }
+.cs-chip .cs-chip-i{ font-size:15px; }
+.cs-chip.perfect{ color:var(--good); border-color:rgba(93,255,176,.4); }
+.cs-chip.good{ color:#bfe9ff; }
+.cs-chip.swill{ color:#e9c987; }
+.cs-chip.bad{ color:#ff8080; border-color:rgba(255,110,110,.35); }
+.cs-chip.streak{ color:#ffd76a; }
+.cs-chip.tips{ color:#ffe08a; border-color:rgba(255,208,106,.4); }
+
+/* Лучший / худший НПС */
+.cs-section-lbl{ text-align:center; font-size:11px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--ink-dim); margin-bottom:8px; }
+.cs-npc-cards{ display:flex; gap:14px; justify-content:center; align-items:stretch; }
+.cs-npc-card{ flex:1 1 0; max-width:210px; padding:14px 10px 12px; border-radius:16px;
+  text-align:center; border:2px solid rgba(255,255,255,.15); background:rgba(4,7,18,.35); }
+.cs-npc-card.best{ border-color:#ffd76a;
+  box-shadow:0 0 22px rgba(255,215,106,.28), inset 0 0 18px rgba(255,215,106,.08); }
+.cs-npc-card.worst{ border-color:#8391b8; }
+.cs-npc-tag{ font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; font-weight:800; }
+.cs-npc-card.best .cs-npc-tag{ color:#ffd76a; }
+.cs-npc-card.worst .cs-npc-tag{ color:#9fb0d8; }
+.cs-npc-portrait{ width:76px; height:76px; border-radius:50%; margin:8px auto 8px; overflow:hidden;
+  border:2px solid currentColor; background:radial-gradient(circle at 35% 30%, #171c38, #0a0d20 72%);
+  display:flex; align-items:center; justify-content:center; font-size:34px; }
+.cs-npc-card.best .cs-npc-portrait{ color:#ffd76a; box-shadow:0 0 16px rgba(255,215,106,.4); }
+.cs-npc-card.worst .cs-npc-portrait{ color:#8391b8; }
+.cs-npc-portrait img{ width:100%; height:100%; object-fit:cover; display:block; }
+.cs-npc-name{ font-weight:700; font-size:14px; margin:2px 0 1px; color:var(--ink); }
+.cs-npc-score{ font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:800;
+  font-variant-numeric:tabular-nums; }
+.cs-npc-card.best .cs-npc-score{ color:#ffe08a; }
+.cs-npc-card.worst .cs-npc-score{ color:#aebbdd; }
+.cs-npc-sub{ font-size:10.5px; color:var(--ink-dim); letter-spacing:.04em; margin-top:2px; }
+/* победная искорка на лучшем */
+.cs-npc-card.best{ animation:csBestPop .6s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes csBestPop{ 0%{ transform:scale(.9);} 60%{ transform:scale(1.05);} 100%{ transform:scale(1);} }
+
+/* Репутация по НПС */
+.cs-rep-list{ display:flex; flex-direction:column; gap:7px; max-width:340px; margin:0 auto; width:100%; }
+.cs-rep-row{ display:flex; align-items:center; gap:9px;
+  opacity:0; transform:translateX(-10px); animation:csRepReveal .4s ease both; }
+@keyframes csRepReveal{ to{ opacity:1; transform:none; } }
+.cs-rep-portrait{ width:30px; height:30px; border-radius:50%; overflow:hidden; flex:0 0 auto;
+  border:1.5px solid var(--tier-color, rgba(255,255,255,.25));
+  background:radial-gradient(circle at 35% 30%, #171c38, #0a0d20 72%);
+  display:flex; align-items:center; justify-content:center; font-size:16px; }
+.cs-rep-portrait img{ width:100%; height:100%; object-fit:cover; display:block; }
+.cs-rep-name{ flex:1; font-size:13px; color:var(--ink); white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; }
+.cs-rep-delta{ font-family:'IBM Plex Mono',monospace; font-weight:800; font-size:14px;
+  font-variant-numeric:tabular-nums; flex:0 0 auto; }
+.cs-rep-delta.up{ color:var(--good); }
+.cs-rep-delta.down{ color:#ff8080; }
+.cs-rep-delta.zero{ color:var(--ink-dim); }
+.cs-empty{ text-align:center; color:var(--ink-dim); font-size:13px; padding:8px 0; }
+
 /* ---------- Фаза 3: шкала прогрессии лавки ---------- */
 /* Тёмная подложка обязательна: без неё шкала и подписи тонут на светлом
    «пергаменте» игрового поля. */

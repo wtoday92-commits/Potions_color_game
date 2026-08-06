@@ -366,6 +366,22 @@
   let ingTimerHandle = null;
   const stickerCounts = { perfect:0, good:0, swill:0, bad:0 };
 
+  // Статистика ЗА ЦИКЛ (для анимированного экрана итогов). Обнуляется в начале
+  // цикла (beginCycleStats), копится в finalizeResult, читается в showWeekOverlay.
+  // byNpc[id] = { name, img, score (сумма рейтинга), orders }. repSnapshot — снимок
+  // репутации на старте цикла, чтобы посчитать «+N репутации» по каждому НПС.
+  function newCycleStats(){ return { perfect:0, good:0, swill:0, bad:0, orders:0, bestStreak:0, tips:0, byNpc:{}, repSnapshot:null }; }
+  let cycleStats = newCycleStats();
+  function snapshotReps(){
+    const R = (window.PotionProfile && window.PotionProfile.data && window.PotionProfile.data.npcReputation) || {};
+    const s = {}; for(const id in R) s[id] = (R[id] && R[id].value) || 0; return s;
+  }
+  function repValueOf(id){
+    const R = (window.PotionProfile && window.PotionProfile.data && window.PotionProfile.data.npcReputation) || {};
+    return (R[id] && R[id].value) || 0;
+  }
+  function beginCycleStats(){ cycleStats = newCycleStats(); cycleStats.repSnapshot = snapshotReps(); }
+
   let movingBubbles=null, movingGeom=null, movingProfile=null, movingR=0, movingLastT=0, movingRafId=null;
 
   // ---------- Фаза E: "плохие" пузыри (только уровень сложности 4) ----------
@@ -6551,6 +6567,9 @@
 
   function finalizeResult(scoreData, timeFrac){
     let { cfg, overall, components } = scoreData;
+    // Снимок репутации до любых изменений этого заказа (страховка на самый
+    // первый цикл, если beginCycleStats ещё не вызывался) — для дельты за цикл.
+    if(!isDailyMode && !isCoopMode && !cycleStats.repSnapshot) cycleStats.repSnapshot = snapshotReps();
     // Фаза 8 (8C): у Бипа механики больше нет — он самый базовый обучающий
     // персонаж, рейтинг считается как у обычного заказа.
     // Патч "УР.4" (Инспектор Гильдии): реальная цель — числа из листа
@@ -6733,6 +6752,18 @@
 
     if(perfect) stickerCounts.perfect++; else if(good) stickerCounts.good++; else if(swill) stickerCounts.swill++; else stickerCounts.bad++;
     updateStickerTally();
+    // Статистика за цикл (аркада): рейтинг и заказы по каждому НПС, счётчики
+    // результатов и лучшая серия — для экрана итогов цикла.
+    if(!isDailyMode && !isCoopMode){
+      cycleStats.orders++;
+      if(perfect) cycleStats.perfect++; else if(good) cycleStats.good++; else if(swill) cycleStats.swill++; else cycleStats.bad++;
+      if(streak > cycleStats.bestStreak) cycleStats.bestStreak = streak;
+      const b = cycleStats.byNpc[cfg.id] || (cycleStats.byNpc[cfg.id] = {
+        id: cfg.id, name: cfg.name,
+        img: (Array.isArray(cfg.img) ? cfg.img[0] : cfg.img) || cfg.emoji,
+        score: 0, orders: 0 });
+      b.score += delta; b.orders++;
+    }
     // Задания: брак = ниже пойла (!good && !swill). Обновляем прогресс/провал.
     questOnResult(cfg, perfect, !good && !swill);
 
@@ -7999,6 +8030,90 @@
     });
   }
 
+  // Анимированный экран итогов цикла: блоки появляются поочерёдно (как в
+  // рогаликах), счёт «набегает». Читает cycleStats. Кнопка «Дальше» → weekOverlay.
+  function showCycleStatsOverlay(){
+    const body = $('cycleStatsBody');
+    if(!body){ $('weekOverlay').classList.add('show'); return; }
+    const cs = cycleStats;
+    const npcs = Object.values(cs.byNpc);
+    let best = null, worst = null;
+    if(npcs.length){
+      best  = npcs.reduce((a,b)=> b.score > a.score ? b : a);
+      worst = npcs.reduce((a,b)=> b.score < a.score ? b : a);
+    }
+    const snap = cs.repSnapshot || {};
+    const repRows = npcs.map(n => ({ n, d: repValueOf(n.id) - (snap[n.id] || 0) }))
+                        .filter(r => r.d !== 0)
+                        .sort((a,b)=> b.d - a.d);
+    const fmt = n => (n > 0 ? '+' : '') + n;
+    const items = []; let t = 0;
+    const add = (html, dt) => { items.push(`<div class="cs-item" style="animation-delay:${t}ms">${html}</div>`); t += dt; };
+
+    // 1) итоговый счёт (набегает)
+    add(`<div class="cs-score"><div class="cs-score-num" id="csScoreNum">0</div>
+         <div class="cs-score-lbl">${LT(UI_TEXT.CS_SCORE_LBL)}</div></div>`, 460);
+    // 2) разбивка результатов
+    const chips = [`<span class="cs-chip"><span class="cs-chip-i">🧪</span>${cs.orders}</span>`];
+    if(cs.perfect) chips.push(`<span class="cs-chip perfect"><span class="cs-chip-i">✨</span>${cs.perfect}</span>`);
+    if(cs.good)    chips.push(`<span class="cs-chip good"><span class="cs-chip-i">👍</span>${cs.good}</span>`);
+    if(cs.swill)   chips.push(`<span class="cs-chip swill"><span class="cs-chip-i">🫗</span>${cs.swill}</span>`);
+    if(cs.bad)     chips.push(`<span class="cs-chip bad"><span class="cs-chip-i">💩</span>${cs.bad}</span>`);
+    if(cs.bestStreak >= 2) chips.push(`<span class="cs-chip streak"><span class="cs-chip-i">🔥</span>${cs.bestStreak}</span>`);
+    if(cs.tips > 0) chips.push(`<span class="cs-chip tips"><span class="cs-chip-i">🪙</span>${cs.tips}</span>`);
+    add(`<div class="cs-breakdown">${chips.join('')}</div>`, 520);
+
+    // 3) звезда цикла / тяжелее всего (по рейтингу)
+    if(best){
+      const card = (n, kind, tag) => `
+        <div class="cs-npc-card ${kind}">
+          <div class="cs-npc-tag">${tag}</div>
+          <div class="cs-npc-portrait">${visualHTML(n.img, 'cs-npc-pic')}</div>
+          <div class="cs-npc-name">${LT(n.name)}</div>
+          <div class="cs-npc-score">${fmt(n.score)}</div>
+          <div class="cs-npc-sub">${n.orders}× ${LT(UI_TEXT.CS_ORDERS_WORD)}</div>
+        </div>`;
+      // если сыгран лишь один НПС — показываем только «звезду»
+      const cards = (worst && worst.id !== best.id)
+        ? card(best, 'best', LT(UI_TEXT.CS_BEST_TAG)) + card(worst, 'worst', LT(UI_TEXT.CS_WORST_TAG))
+        : card(best, 'best', LT(UI_TEXT.CS_BEST_TAG));
+      add(`<div><div class="cs-section-lbl">${LT(UI_TEXT.CS_HILITE_LBL)}</div>
+           <div class="cs-npc-cards">${cards}</div></div>`, 560);
+    }
+
+    // 4) репутация по персонажам (только у кого изменилась)
+    if(repRows.length){
+      const repDelay = t + 150;
+      const rows = repRows.map((r, j) => {
+        const cls = r.d > 0 ? 'up' : (r.d < 0 ? 'down' : 'zero');
+        return `<div class="cs-rep-row" style="animation-delay:${repDelay + j*95}ms">
+          <div class="cs-rep-portrait">${visualHTML(r.n.img, 'cs-rep-pic')}</div>
+          <div class="cs-rep-name">${LT(r.n.name)}</div>
+          <div class="cs-rep-delta ${cls}">${fmt(r.d)}</div>
+        </div>`;
+      }).join('');
+      add(`<div><div class="cs-section-lbl">${LT(UI_TEXT.CS_REP_LBL)}</div>
+           <div class="cs-rep-list">${rows}</div></div>`, 300);
+      t = repDelay + repRows.length * 95; // общий хвост — после последней строки
+    }
+
+    body.innerHTML = items.join('');
+    $('cycleStatsNextBtn').style.animationDelay = (t + 200) + 'ms';
+    $('cycleStatsNextBtn').classList.add('cs-item');
+    $('cycleStatsOverlay').classList.add('show');
+
+    // count-up итогового счёта
+    const numEl = $('csScoreNum'); const target = score;
+    if(numEl){
+      const dur = 750, t0 = performance.now();
+      const step = now => {
+        const k = Math.min(1, (now - t0) / dur);
+        numEl.textContent = Math.round(target * (1 - Math.pow(1 - k, 3)));
+        if(k < 1) requestAnimationFrame(step);
+      };
+      setTimeout(() => requestAnimationFrame(step), 180);
+    }
+  }
   async function showWeekOverlay(){
     SFX.weekEnd();
     // Патч "Ежедневный заказ": цикл-аккаунтинг (recordCycleEnd/общие ачивки)
@@ -8024,6 +8139,7 @@
       if(progMechUnlocked('tips') && window.PotionProfile){
         const tipsMult = 1 + (computePassiveFx('').tips || 0);
         const tip = Math.round(score * 0.05 * tipsMult + peteDegreeTipBonus + passiveFlatSum('tipsFlat'));
+        cycleStats.tips = tip; // для экрана итогов цикла
         if(tip > 0){
           window.PotionProfile.addTips(tip);
           showToast({ icon:'🪙', prefix: UI_TEXT.TIPS_EARNED_TOAST, name: '+' + tip });
@@ -8054,7 +8170,13 @@
       sbtn.textContent = LT(isRecord ? UI_TEXT.SAVE_SCORE_BTN : UI_TEXT.SAVE_SCORE_NOT_RECORD);
     }
     renderLeaderboard(list, null, 'leaderboardList');
-    $('weekOverlay').classList.add('show');
+    // Экран итогов цикла (аркада) — анимированная статистика ПЕРЕД доской.
+    // Его кнопка «Дальше» открывает уже подготовленный weekOverlay.
+    if(!isDailyMode && !isCoopMode){
+      showCycleStatsOverlay();
+    } else {
+      $('weekOverlay').classList.add('show');
+    }
   }
   $('saveScoreBtn').addEventListener('click', async ()=>{
     SFX.uiClick();
@@ -8075,6 +8197,11 @@
       if(rank >= 0 && rank < 10) unlockManualAchievement('leaderboard', rank === 0 ? 2 : 1);
     }
   });
+  $('cycleStatsNextBtn').addEventListener('click', ()=>{
+    SFX.uiClick();
+    $('cycleStatsOverlay').classList.remove('show');
+    $('weekOverlay').classList.add('show');
+  });
   $('newWeekBtn').addEventListener('click', ()=>{
     SFX.uiClick();
     dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; peteDegreeTipBonus = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
@@ -8083,6 +8210,7 @@
       // счётчики "за цикл" (picksCycle) в профиле обнуляются
       cycleStarted = false;
       if(window.PotionProfile) window.PotionProfile.startCycle();
+      beginCycleStats(); // обнулить статистику итогов + снять снимок репутации
     } else {
       // тот же день можно переиграть — сид персонажей не меняется до полуночи
       loadDailyYesterdayTop();
@@ -8263,10 +8391,11 @@
     dayNum = 1; score = 0; streak = 0; stage = 0; perfectStreakAtMax = 0; goodStreakAtMax = 0; peteDegreeTipBonus = 0; pogromRemovedIds.clear(); pendingItemFx.timeBonusMs = 0; pendingItemFx.memBonusMs = 0; bannedNpcs.clear(); guaranteedNextNpc = null;
     cycleStarted = false;
     if(window.PotionProfile) window.PotionProfile.startCycle();
+    beginCycleStats(); // обнулить статистику итогов + снять снимок репутации
     $('scoreVal').textContent = score;
     $('streakVal').textContent = streak;
     $('dayVal').textContent = dayNum;
-    ['resultOverlay','weekOverlay','dailyDifficultyOverlay'].forEach(id=>{
+    ['resultOverlay','weekOverlay','cycleStatsOverlay','dailyDifficultyOverlay'].forEach(id=>{
       const o = $(id); if(o) o.classList.remove('show');
     });
     showSelectScreen();
