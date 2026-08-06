@@ -7528,9 +7528,8 @@
         window.PotionProfile.unlockLorePhrase(npcId, unlockedCount);
         unlockedCount++; opened++;
       }
-      if(opened > 0 && npc){
-        showToast({ icon:'📖', prefix: UI_TEXT.LORE_TOAST_PREFIX, name: npc.name });
-      }
+      // Правка пользователя: уведомление о новой лорной фразе убрано —
+      // фраза по-прежнему открывается (видна в досье персонажа), просто без тоста.
     }
     // награда за полный комплект золота
     const storedNow = (p.achievements.npc && p.achievements.npc[npcId]) || {};
@@ -8060,13 +8059,13 @@
     // для «заказов»/«чаевых» — свои PNG (ART-SWAP) с эмодзи-фолбэком, пока файла нет.
     const stickerI = arr => visualHTML(first(arr), 'cs-chip-i');
     const iconI = (path, emoji) => `<img class="cs-chip-i" src="${path}" alt="" onerror="this.replaceWith('${emoji}')">`;
-    const chips = [`<span class="cs-chip">${iconI('assets/ui/orders.png','🧪')}${cs.orders}</span>`];
+    const chips = [`<span class="cs-chip">${iconI('assets/ui/statistic_potions.png','🧪')}${cs.orders}</span>`];
     if(cs.perfect) chips.push(`<span class="cs-chip perfect">${stickerI(STICKERS.perfect)}${cs.perfect}</span>`);
     if(cs.good)    chips.push(`<span class="cs-chip good">${stickerI(STICKERS.good)}${cs.good}</span>`);
     if(cs.swill)   chips.push(`<span class="cs-chip swill">${stickerI(STICKERS.swill)}${cs.swill}</span>`);
     if(cs.bad)     chips.push(`<span class="cs-chip bad">${stickerI(STICKERS.bad)}${cs.bad}</span>`);
     if(cs.bestStreak >= 2) chips.push(`<span class="cs-chip streak">${iconI('assets/ui/streak.png','🔥')}${cs.bestStreak}</span>`);
-    if(cs.tips > 0) chips.push(`<span class="cs-chip tips">${iconI('assets/ui/tips.png','🪙')}${cs.tips}</span>`);
+    if(cs.tips > 0) chips.push(`<span class="cs-chip tips">${iconI('assets/ui/statistic_coins.png','🪙')}${cs.tips}</span>`);
     add(`<div class="cs-breakdown">${chips.join('')}</div>`, 520);
 
     // 3) звезда цикла / тяжелее всего (по рейтингу)
