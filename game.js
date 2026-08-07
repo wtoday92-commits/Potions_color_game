@@ -3638,10 +3638,12 @@
     const z = ENG_ZONES[lvl] || ENG_ZONES[1];
     // Правка пользователя: цвета ярче/плотнее (были полупрозрачные, «выцветшие»).
     const base = '#141b2b';
-    const core = z.blue ? '#18c6ff' : '#37ff5f';        // НАСЫЩЕННОЕ неон-ядро (не белёсое)
-    const mid  = z.blue ? 'rgba(24,198,255,1)' : 'rgba(40,235,80,1)';  // плотная сочная зона
-    const soft = z.blue ? 'rgba(24,198,255,.95)' : 'rgba(55,255,95,.95)'; // край почти без спада
-    const red  = 'rgba(255,60,80,.98)';                 // красная ловушка (УР.4) — тоже ярче
+    // Зона — ВСЕГДА яркая насыщенная зелёная (контрастирует с циан-UI, поэтому
+    // хорошо видна); синим подсвечивается только ЯДРО-«яблочко» на высоких уровнях.
+    const core = z.blue ? '#4fd4ff' : '#b6ff7a';        // светлое ядро (bull's-eye)
+    const mid  = 'rgba(64,255,96,1)';                   // сочная яркая зелёная зона
+    const soft = 'rgba(96,255,128,.95)';                // край чуть светлее, почти без спада
+    const red  = 'rgba(255,60,80,.98)';                 // красная ловушка (УР.4)
     const gw = z.green.w, dw = z.dark ? z.dark.w : gw * 0.5;
     const st = (f, col) => `${col} ${(engClamp01(f) * 100).toFixed(1)}%`;
     const s = [ st(0, base) ];
@@ -8179,7 +8181,7 @@
     // 2) разбивка результатов
     // иконки чипов: уже существующие стикеры (perfect/good/swill/bad) и streak.png;
     // для «заказов»/«чаевых» — свои PNG (ART-SWAP) с эмодзи-фолбэком, пока файла нет.
-    const stickerI = arr => visualHTML(first(arr), 'cs-chip-i');
+    const stickerI = arr => visualHTML(Array.isArray(arr) ? arr[0] : arr, 'cs-chip-i');
     const iconI = (path, emoji) => `<img class="cs-chip-i" src="${path}" alt="" onerror="this.replaceWith('${emoji}')">`;
     const chips = [`<span class="cs-chip">${iconI('assets/ui/statistic_potions.png','🧪')}${cs.orders}</span>`];
     if(cs.perfect) chips.push(`<span class="cs-chip perfect">${stickerI(STICKERS.perfect)}${cs.perfect}</span>`);

@@ -442,10 +442,9 @@
   /* Правка пользователя: фаза ЗАПОМИНАНИЯ — крупно, тёмно-синий текст в белой
      подсветке/обводке (читается на тёмном фоне за счёт белого ореола). */
   .phase-label.phase-scan{
-    font-size:22px;font-weight:800;color:#1e3fb0;letter-spacing:.08em;
-    text-shadow:0 0 2px #fff, 0 0 5px #fff, 0 0 11px rgba(255,255,255,.95),
-                0 1px 0 #fff, 0 -1px 0 #fff;
-    -webkit-text-stroke:.7px rgba(255,255,255,.95);
+    font-size:23px;font-weight:900;color:#1e3fb0;letter-spacing:.06em;
+    -webkit-text-stroke:2.6px #fff; paint-order:stroke fill; /* белая обводка ПОД заливкой — жирно и с подсветкой */
+    text-shadow:0 0 6px rgba(255,255,255,.92), 0 0 13px rgba(255,255,255,.6);
   }
   /* Фаза ИГРЫ: прямая подсказка; читаемость на ЛЮБОМ фоне — светлый текст с
      плотной тёмной обводкой; само ДЕЙСТВИЕ (<b>) — крупнее и цветом. */
