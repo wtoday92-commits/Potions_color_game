@@ -6,7 +6,7 @@
 <title>Зельеварня — лавка на краю вселенной</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Jura:wght@500;700&family=IBM+Plex+Mono:wght@500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=40">
+<link rel="stylesheet" href="style.css?v=41">
 </head>
 <body>
 
@@ -177,9 +177,13 @@
         <button id="settingsBtn" class="lang-btn settings-btn" data-i18n-title="SETTINGS_BTN_TITLE" title="Настройки (язык, громкость)">⚙</button>
         <div class="settings-menu" id="settingsMenu">
           <button id="langBtn" class="lang-btn" data-i18n-title="LANG_BTN_TITLE" title="Сменить язык">EN</button>
-          <div class="volume-control" data-i18n-title="VOLUME_TITLE" title="Громкость эмбиента">
-            <span class="volume-icon" id="volumeIcon">🔊</span>
+          <div class="volume-control" data-i18n-title="VOLUME_MUSIC_TITLE" title="Громкость музыки">
+            <span class="volume-icon" id="volumeIcon">🎵</span>
             <input type="range" id="volumeSlider" min="0" max="100" value="60" step="1">
+          </div>
+          <div class="volume-control" data-i18n-title="VOLUME_SFX_TITLE" title="Громкость звуков">
+            <span class="volume-icon" id="sfxIcon">🔊</span>
+            <input type="range" id="sfxSlider" min="0" max="100" value="70" step="1">
           </div>
         </div>
       </div>
@@ -591,14 +595,14 @@
 </div>
 
 <!-- порядок важен: сначала профиль (Фаза F), потом контент, потом логика -->
-<script src="profile.js?v=40"></script>
-<script src="content.js?v=40"></script>
+<script src="profile.js?v=41"></script>
+<script src="content.js?v=41"></script>
 <!-- Фаза 12: кооп — Firebase Realtime Database (CDN, compat) + сетевой модуль.
      Грузятся ПЕРЕД game.js, чтобы window.Coop уже существовал. Если CDN не
      доступен — coop-net.js выставит Coop.available=false, игра работает как есть. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
-<script src="coop-net.js?v=40"></script>
-<script src="game.js?v=40"></script>
+<script src="coop-net.js?v=41"></script>
+<script src="game.js?v=41"></script>
 </body>
 </html>

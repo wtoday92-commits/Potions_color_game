@@ -43,6 +43,8 @@ const UI_TEXT = {
   RATING_LABEL:      { ru:'РЕЙТИНГ:', en:'RATING:' },
   LB_BTN_TITLE:      { ru:'Глобальный рейтинг', en:'Global leaderboard' },
   VOLUME_TITLE:      { ru:'Громкость эмбиента', en:'Ambient volume' },
+  VOLUME_MUSIC_TITLE:{ ru:'Громкость музыки', en:'Music volume' },
+  VOLUME_SFX_TITLE:  { ru:'Громкость звуков', en:'Sound effects volume' },
   LANG_BTN_TITLE:    { ru:'Сменить язык', en:'Switch language' },
   DIFF_BTN_LABEL:    { ru:'УР.', en:'LV.' },
   DIFF_BTN_TITLE_1:  { ru:'Сложность 1 — размер банки и цвет.', en:'Difficulty 1 — jar size and color.' },
@@ -1750,7 +1752,7 @@ const NPC_STAT_EXPLAIN = {
       t:[10, 40, 120, 300, 700] },
 
     // Фаза 5 (П4): ачивка на суммарные чаевые за всю историю лавки
-    { id:'tips_total', icon:'🪙', img:null,
+    { id:'tips_total', icon:'🪙', img:'assets/ach/13.png',
       name:{ ru:'Звонкая касса', en:'Ringing till' },
       desc:{ ru:'Всего чаевых заработано за всю историю лавки.', en:'Total tips earned across the shop\'s history.' },
       value:p => ((p.tips && p.tips.lifetime) || 0),

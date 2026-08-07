@@ -63,6 +63,9 @@
 
   // ---------- ZzFX micro sound engine (public domain, zzfx.3d2k.com) ----------
   let zzfxV=.3, zzfxX;
+  // Отдельная громкость ЗВУКОВ (0..1) — общая для ZzFX и пользовательских mp3
+  // (музыка/эмбиент регулируется отдельным ползунком). zzfxV = sfxVolume*0.45.
+  let sfxVolume = .7;
   function zzfxEnsureCtx(){ if(!zzfxX){ try{ zzfxX = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
   function zzfx(...t){
     if(!zzfxX) return;
@@ -115,8 +118,7 @@
       if(src){
         try{
           const c = src.cloneNode();
-          const vs = document.getElementById('volumeSlider');
-          c.volume = vs ? Math.max(0, Math.min(1, vs.value/100)) : .6;
+          c.volume = Math.max(0, Math.min(1, sfxVolume));
           c.play().catch(()=>{});
           return;
         }catch(e){}
@@ -8258,8 +8260,11 @@
 
   // ---------- эмбиент + громкость ----------
   const ambientAudio = $('ambientAudio');
-  const volumeSlider = $('volumeSlider');
+  const volumeSlider = $('volumeSlider');   // музыка/эмбиент
   const volumeIcon = $('volumeIcon');
+  const sfxSlider = $('sfxSlider');          // звуки (SFX)
+  const sfxIcon = $('sfxIcon');
+  const MUSIC_VOL_KEY = 'potionshop_vol_music', SFX_VOL_KEY = 'potionshop_vol_sfx';
   // Патч (Диджей Пульсар): на время его заказа общий эмбиент приглушаем до
   // нуля — свой ритм он ставит сам, второй трек поверх только мешает
   let djAmbientDucked = false;
@@ -8268,18 +8273,35 @@
     djAmbientDucked = on;
     ambientAudio.volume = on ? 0 : (volumeSlider ? volumeSlider.value/100 : .6);
   }
-  function setVolumeIcon(v){
-    if(!volumeIcon) return;
-    volumeIcon.textContent = v <= 0 ? '🔇' : (v < .5 ? '🔉' : '🔊');
-  }
+  function setVolumeIcon(v){ if(volumeIcon) volumeIcon.textContent = v <= 0 ? '🔇' : '🎵'; }
+  function setSfxIcon(v){ if(sfxIcon) sfxIcon.textContent = v <= 0 ? '🔇' : (v < .5 ? '🔉' : '🔊'); }
+  // применяем громкость звуков и к ZzFX, и к пользовательским mp3 (через sfxVolume)
+  function applySfxVolume(v){ sfxVolume = Math.max(0, Math.min(1, v)); zzfxV = sfxVolume * 0.45; }
+  // начальные значения из localStorage (иначе — дефолт ползунка)
+  const savedMusic = parseFloat(localStorage.getItem(MUSIC_VOL_KEY));
+  if(!isNaN(savedMusic) && volumeSlider) volumeSlider.value = Math.round(savedMusic * 100);
+  const savedSfx = parseFloat(localStorage.getItem(SFX_VOL_KEY));
+  if(!isNaN(savedSfx) && sfxSlider) sfxSlider.value = Math.round(savedSfx * 100);
   if(ambientAudio){ ambientAudio.volume = volumeSlider ? volumeSlider.value/100 : .6; }
   setVolumeIcon(ambientAudio ? ambientAudio.volume : .6);
+  applySfxVolume(sfxSlider ? sfxSlider.value/100 : .7);
+  setSfxIcon(sfxVolume);
   if(volumeSlider){
     volumeSlider.addEventListener('input', ()=>{
       const v = volumeSlider.value/100;
       if(ambientAudio) ambientAudio.volume = v;
       setVolumeIcon(v);
+      try{ localStorage.setItem(MUSIC_VOL_KEY, v); }catch(_){}
     });
+  }
+  if(sfxSlider){
+    sfxSlider.addEventListener('input', ()=>{
+      const v = sfxSlider.value/100;
+      applySfxVolume(v); setSfxIcon(v);
+      try{ localStorage.setItem(SFX_VOL_KEY, v); }catch(_){}
+    });
+    // короткий сэмпл при отпускании — подобрать громкость на слух
+    sfxSlider.addEventListener('change', ()=>{ if(sfxVolume > 0) SFX.uiClick(); });
   }
   // диагностика: если трек не грузится (неверный путь/имя файла —
   // самая частая причина "музыка не играет"), пишем в консоль, чтобы
