@@ -98,7 +98,12 @@
     pawClick:  ()=>zzfx(.4,.05,300,.005,.03,.06,0,1.3,-3,0,0,0,0,.25,0,0,0,.6,.01),
     meow:      ()=>{ const V=[[.55,.05,560,.03,.14,.18,0,1.1,9,-7,0,0,0,0,0,0,0,.55,.06],
                               [.5,.05,690,.03,.12,.16,0,1.2,7,-9,0,0,0,0,0,0,0,.5,.05]];
-                     zzfx(...V[Math.floor(Math.random()*V.length)]); }
+                     zzfx(...V[Math.floor(Math.random()*V.length)]); },
+    // Атмосферные (только пользовательские mp3 из assets/sound/; без файла — тишина).
+    // Вешаются на события: размер зелья → liquidUp/Down, спектр → colorShift,
+    // перетаскивание сгустков (Векс/Навигатор) → blobGrab/Drag/Snap и т.д.
+    liquidUp:()=>{}, liquidDown:()=>{}, blobGrab:()=>{}, blobDrag:()=>{},
+    blobSnap:()=>{}, bubble:()=>{}, colorShift:()=>{}, stir:()=>{}
   };
   window.addEventListener('pointerdown', zzfxEnsureCtx, {once:true});
 
@@ -106,17 +111,25 @@
   // играем его ВМЕСТО процедурного ZzFX (ключи совпадают с именами в SFX);
   // где файла нет — молча остаётся ZzFX. Громкость — по ползунку громкости
   // (мьют работает). Файлы грузятся лениво; 404 просто оставляет ZzFX.
-  const customSfx = {};
-  Object.keys(SFX).forEach(k=>{
-    const a = new Audio('assets/sound/' + k + '.mp3');
-    a.preload = 'auto';
-    a.addEventListener('canplaythrough', ()=>{ customSfx[k] = a; }, { once:true });
+  // варианты: у ключа может быть несколько файлов (<key>.mp3, <key>2.mp3, …) —
+  // при воспроизведении берётся случайный (напр. 3 версии blobSnap).
+  const SFX_VARIANTS = { blobSnap: 3 };
+  const customSfx = {};   // key -> [Audio, …]
+  function loadSfxFile(key, url){
+    const a = new Audio(url); a.preload = 'auto';
+    a.addEventListener('canplaythrough', ()=>{ (customSfx[key] || (customSfx[key] = [])).push(a); }, { once:true });
     a.addEventListener('error', ()=>{}, { once:true });
+  }
+  Object.keys(SFX).forEach(k=>{
+    loadSfxFile(k, 'assets/sound/' + k + '.mp3');
+    const n = SFX_VARIANTS[k] || 0;
+    for(let i=2;i<=n;i++) loadSfxFile(k, 'assets/sound/' + k + i + '.mp3');
     const zz = SFX[k];
     SFX[k] = ()=>{
-      const src = customSfx[k];
-      if(src){
+      const list = customSfx[k];
+      if(list && list.length){
         try{
+          const src = list[Math.floor(Math.random()*list.length)];
           const c = src.cloneNode();
           c.volume = Math.max(0, Math.min(1, sfxVolume));
           c.play().catch(()=>{});
@@ -126,6 +139,68 @@
       zz();
     };
   });
+
+  // ---------- Музыка: сплэш-трек + случайная перетасовка игровых с кросс-фейдом ----------
+  // track_6 — фон стартового экрана; остальные (1-5,7) играют в игре в случайном
+  // порядке, на стыке — плавный кросс-фейд (последние ~3с трека). Сплэш↔игра —
+  // тоже кросс-фейд. Громкость — по ползунку "музыка"; DJ Пульсар глушит (duck).
+  const Music = (() => {
+    const SPLASH_SRC = 'assets/track_6.mp3';
+    const GAME_SRCS = [1,2,3,4,5,7].map(n => 'assets/track_' + n + '.mp3');
+    const FADE_MS = 2500;   // кросс-фейд сплэш↔игра и старт трека
+    const TAIL_S = 3.0;     // за сколько секунд до конца завести следующий трек
+    let queue = [], active = null, mode = null, ducked = false;
+    function musicVol(){ const vs = document.getElementById('volumeSlider'); return vs ? Math.max(0, Math.min(1, vs.value/100)) : .6; }
+    function target(){ return ducked ? 0 : musicVol(); }
+    function fade(a, to, ms, done){
+      if(!a) return;
+      const from = a.volume, t0 = performance.now();
+      (function step(now){
+        const k = ms > 0 ? Math.min(1, (now - t0) / ms) : 1;
+        a.volume = Math.max(0, Math.min(1, from + (to - from) * k));
+        if(k < 1) requestAnimationFrame(step); else if(done) done();
+      })(performance.now());
+    }
+    function fadeOutStop(a, ms){ if(a) fade(a, 0, ms, ()=>{ try{ a.pause(); }catch(e){} }); }
+    function mk(src, loop){ const a = new Audio(src); a.loop = !!loop; a.preload = 'auto'; a.volume = 0; return a; }
+    function shuffle(){ queue = GAME_SRCS.slice(); for(let i=queue.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [queue[i],queue[j]] = [queue[j],queue[i]]; } }
+    function playNextGame(){
+      if(!queue.length) shuffle();           // все проиграны → снова перетасовать
+      const a = mk(queue.shift(), false);
+      a.play().catch(()=>{});
+      fade(a, target(), FADE_MS);
+      a.addEventListener('timeupdate', ()=>{
+        if(mode !== 'game' || a !== active || a._crossed) return;
+        if(a.duration && (a.duration - a.currentTime) <= TAIL_S){
+          a._crossed = true; const prev = a;
+          playNextGame();                    // следующий станет active и зафейдится вверх
+          fadeOutStop(prev, TAIL_S * 1000);  // текущий плавно гаснет к своему концу
+        }
+      });
+      a.addEventListener('ended', ()=>{ if(mode === 'game' && a === active && !a._crossed) playNextGame(); });
+      active = a;
+    }
+    return {
+      enterSplash(){
+        if(mode === 'splash' && active) return;
+        mode = 'splash'; const prev = active;
+        const a = mk(SPLASH_SRC, true); a.play().catch(()=>{}); fade(a, target(), FADE_MS);
+        active = a; fadeOutStop(prev, FADE_MS);
+      },
+      enterGame(){
+        if(mode === 'game') return;
+        mode = 'game'; const prev = active; shuffle(); playNextGame(); fadeOutStop(prev, FADE_MS);
+      },
+      setVolume(){ if(active && !ducked) active.volume = musicVol(); },
+      duck(on){ ducked = !!on; if(active) fade(active, target(), 400); },
+      get mode(){ return mode; }
+    };
+  })();
+  // старт музыки сплэша при первом взаимодействии (обход автоплей-политики браузера)
+  window.addEventListener('pointerdown', ()=>{
+    const sp = document.getElementById('splashScreen');
+    if(sp && sp.style.display !== 'none' && !Music.mode) Music.enterSplash();
+  }, { once:true });
 
   function mulberry32(a){
     return function(){
@@ -330,6 +405,20 @@
     // стандартном режиме это ведомый; в поочерёдном — тот, чей сейчас ход, и
     // только по своей половине ползунков (см. coopShouldSyncSlider).
     if(coopShouldSyncSlider(key)) coopWriteGuess(key, v);
+    // Атмосферные звуки поверх «тика» ползунка (троттлинг ~110мс, чтобы не строчить)
+    atmoSliderSound(key, v, old);
+  }
+  let _atmoSoundT = 0;
+  function atmoSliderSound(key, v, old){
+    if(v === old) return;
+    const now = performance.now();
+    if(now - _atmoSoundT < 110) return;
+    let s = null;
+    if(key === 'size' || key === 'size2') s = v > old ? 'liquidUp' : 'liquidDown';
+    else if(key === 'color' || key === 'colorB') s = 'colorShift';
+    else if(key === 'count' || key === 'bsize') s = 'bubble';
+    else if(key === 'sat' || key === 'degree') s = 'stir';
+    if(s && SFX[s]){ _atmoSoundT = now; SFX[s](); }
   }
 
   // ---------- Фаза 10 (Пьяница Пит): «градус» — риск/награда с живыми эффектами ----------
@@ -2002,6 +2091,7 @@
       item.dragging = true;
       try{ el.setPointerCapture(e.pointerId); }catch(err){}
       el.classList.add('dragging');
+      SFX.blobGrab(); // звук: взяли сгусток
     });
     el.addEventListener('pointermove', e=>{
       if(!item.dragging) return;
@@ -2012,6 +2102,7 @@
       // а не под курсором — курсор просто выбирает, к какому узлу тянуть
       const idx = l4VexNearestFreeNodeIdx(rawX, rawY, item);
       if(idx !== -1){
+        if(idx !== item.gridIdx) SFX.blobSnap(); // звук: сгусток защёлкнулся в новом узле
         item.gridIdx = idx;
         item.x = l4VexGridCache[idx].x; item.y = l4VexGridCache[idx].y;
         el.style.left = item.x+'%'; el.style.top = item.y+'%';
@@ -3149,6 +3240,7 @@
       fly.dragging = true;
       try{ el.setPointerCapture(e.pointerId); }catch(err){}
       el.classList.add('dragging');
+      SFX.blobGrab(); // звук: взяли деталь
     });
     el.addEventListener('pointermove', e=>{
       if(!fly.dragging) return;
@@ -3156,6 +3248,8 @@
       fly.x = Math.max(2, Math.min(98, (e.clientX-rect.left)/rect.width*100));
       fly.y = Math.max(2, Math.min(98, (e.clientY-rect.top)/rect.height*100));
       el.style.left = fly.x+'%'; el.style.top = fly.y+'%';
+      const now = performance.now(); // звук волочения — троттлинг ~130мс
+      if(!fly._dragSndT || now - fly._dragSndT > 130){ fly._dragSndT = now; SFX.blobDrag(); }
     });
     el.addEventListener('pointerup', ()=>{
       if(!fly.dragging) return;
@@ -3165,7 +3259,7 @@
       el.classList.toggle('inside', fly.inside);
       l4FlyUpdateCount();
       updatePlayerJar();
-      SFX.tick();
+      if(fly.inside) SFX.blobSnap(); else SFX.tick(); // встала в банку → «щелчок»
     });
   }
   function l4FlyRandomWalk(fly){
@@ -3543,11 +3637,11 @@
   function engGradient(c, lvl){
     const z = ENG_ZONES[lvl] || ENG_ZONES[1];
     // Правка пользователя: цвета ярче/плотнее (были полупрозрачные, «выцветшие»).
-    const base = '#1a2233';
-    const core = z.blue ? '#8fd4ff' : '#ccffb4';        // ядро — светящийся bull's-eye (ярко)
-    const mid  = 'rgba(150,255,120,1)';                 // неон-зелёная зона — плотная и яркая
-    const soft = 'rgba(125,255,106,.92)';               // край — почти не выцветает (было .6)
-    const red  = 'rgba(255,74,92,.96)';                 // красная ловушка (УР.4)
+    const base = '#141b2b';
+    const core = z.blue ? '#18c6ff' : '#37ff5f';        // НАСЫЩЕННОЕ неон-ядро (не белёсое)
+    const mid  = z.blue ? 'rgba(24,198,255,1)' : 'rgba(40,235,80,1)';  // плотная сочная зона
+    const soft = z.blue ? 'rgba(24,198,255,.95)' : 'rgba(55,255,95,.95)'; // край почти без спада
+    const red  = 'rgba(255,60,80,.98)';                 // красная ловушка (УР.4) — тоже ярче
     const gw = z.green.w, dw = z.dark ? z.dark.w : gw * 0.5;
     const st = (f, col) => `${col} ${(engClamp01(f) * 100).toFixed(1)}%`;
     const s = [ st(0, base) ];
@@ -8269,9 +8363,9 @@
   // нуля — свой ритм он ставит сам, второй трек поверх только мешает
   let djAmbientDucked = false;
   function setDjAmbientDuck(on){
-    if(!ambientAudio || on === djAmbientDucked) return;
+    if(on === djAmbientDucked) return;
     djAmbientDucked = on;
-    ambientAudio.volume = on ? 0 : (volumeSlider ? volumeSlider.value/100 : .6);
+    Music.duck(on); // приглушить музыку на заказ Диджея (у него свой ритм)
   }
   function setVolumeIcon(v){ if(volumeIcon) volumeIcon.textContent = v <= 0 ? '🔇' : '🎵'; }
   function setSfxIcon(v){ if(sfxIcon) sfxIcon.textContent = v <= 0 ? '🔇' : (v < .5 ? '🔉' : '🔊'); }
@@ -8289,7 +8383,7 @@
   if(volumeSlider){
     volumeSlider.addEventListener('input', ()=>{
       const v = volumeSlider.value/100;
-      if(ambientAudio) ambientAudio.volume = v;
+      Music.setVolume(); // громкость музыки менеджера (сплэш/игровые треки)
       setVolumeIcon(v);
       try{ localStorage.setItem(MUSIC_VOL_KEY, v); }catch(_){}
     });
@@ -8454,6 +8548,7 @@
     showSelectScreen();
     const s = $('splashScreen');
     if(s){ s.style.display = ''; s.classList.remove('fade-out'); }
+    Music.enterSplash(); // игровой трек плавно гаснет, возвращается сплэш-трек
     updateNickBadge(); // Фаза 4: вернулись на сплэш — прячем ник-бейдж
   }
   // ---------- стартовый экран: кнопка "Пришвартоваться" (обычная аркада) ----------
@@ -8465,7 +8560,7 @@
     dockBtn.addEventListener('click', ()=>{
       if($('splashScreen').style.display === 'none') return;
       SFX.dock();
-      ambientTryPlay();
+      Music.enterGame();   // сплэш-трек плавно гаснет, заводится игровой
       dismissSplash();
       updateNickBadge(); // Фаза 4: показать ник внизу при входе в аркаду
       // Задания: первый цикл сессии — тоже предложить выбор (перестроит экран
@@ -8487,7 +8582,7 @@
   }
   function chooseDailyDifficulty(diffKey){
     SFX.dock();
-    ambientTryPlay();
+    Music.enterGame();
     $('dailyDifficultyOverlay').classList.remove('show');
     dismissSplash();
     enterDailyMode(diffKey);
