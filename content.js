@@ -1778,7 +1778,7 @@ const NPC_STAT_EXPLAIN = {
         { hint:{ ru:'Идеал тира 5 на макс. сложности в первую треть таймера', en:'Perfect tier-5 at max difficulty within the first third of the timer' } }
       ] },
 
-    { id:'leaderboard', icon:'🏆', img:'assets/ach/11.png', manual:true,
+    { id:'leaderboard', icon:'🏆', img:'assets/ach/10.png', manual:true,
       name:{ ru:'Слава галактики', en:'Galactic fame' },
       desc:{ ru:'Твоё место в глобальном рейтинге.', en:'Your place on the global leaderboard.' },
       tiers:[
