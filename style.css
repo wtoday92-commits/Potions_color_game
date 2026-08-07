@@ -1086,9 +1086,19 @@ img.focus-img{width:32px;height:32px;vertical-align:-10px;}
 .plaque-img{
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; pointer-events: none;
-  opacity: 0; transition: opacity .48s ease;
+  opacity: 0; transition: opacity .48s ease, filter .22s ease;
 }
 .plaque-img.show{ opacity: 1; }
+/* Подсветка надписи при наведении на её кликабельную зону (текст вырезан из
+   плашек, поэтому drop-shadow светится по буквам, а не по прямоугольнику).
+   :has() уже используется в проекте. */
+.splash-plaques:has(.plaque-dock:hover)  img[src*="_dock"],
+.splash-plaques:has(.plaque-daily:hover) img[src*="_daily"]{
+  filter: drop-shadow(0 0 4px rgba(255,205,120,.95))
+          drop-shadow(0 0 12px rgba(255,160,60,.85))
+          drop-shadow(0 0 24px rgba(255,120,30,.55))
+          brightness(1.12);
+}
 /* Прозрачные кликабельные зоны поверх плашек (позиции — те же переменные). */
 .plaque-hotspot{
   position: absolute; pointer-events: auto; cursor: pointer;
