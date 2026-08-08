@@ -3634,27 +3634,36 @@
   // фон-градиент трека: правка пользователя — ПЛАВНЫЕ переходы между зонами
   // (одиночные стопы, CSS сам интерполирует), а не резкие полосы. Центр c —
   // ярче всего (bull's-eye), к краям зелёный тускнеет; на УР.4 снаружи — красный.
+  // Правка пользователя: ЧЁТКИЕ полосы-зоны (как в Stardew), а не размытый
+  // градиент. Концентрические кольца вокруг цели c с РЕЗКИМИ границами (двойные
+  // стопы). Цвет — по ЦЕННОСТИ зоны: синий=100%, тёмно-зелёный=90%, зелёный=75%,
+  // красный=ловушка(0%, УР.4), остальное — чёрный провал. Границы полос = ровно
+  // те же радиусы, по которым считается рейтинг (engZoneScore) — куда целишься,
+  // то и получаешь.
   function engGradient(c, lvl){
     const z = ENG_ZONES[lvl] || ENG_ZONES[1];
-    // Правка пользователя: цвета ярче/плотнее (были полупрозрачные, «выцветшие»).
-    const base = '#141b2b';
-    // Зона — ВСЕГДА яркая насыщенная зелёная (контрастирует с циан-UI, поэтому
-    // хорошо видна); синим подсвечивается только ЯДРО-«яблочко» на высоких уровнях.
-    const core = z.blue ? '#4fd4ff' : '#b6ff7a';        // светлое ядро (bull's-eye)
-    const mid  = 'rgba(64,255,96,1)';                   // сочная яркая зелёная зона
-    const soft = 'rgba(96,255,128,.95)';                // край чуть светлее, почти без спада
-    const red  = 'rgba(255,60,80,.98)';                 // красная ловушка (УР.4)
-    const gw = z.green.w, dw = z.dark ? z.dark.w : gw * 0.5;
-    const st = (f, col) => `${col} ${(engClamp01(f) * 100).toFixed(1)}%`;
-    const s = [ st(0, base) ];
-    if(z.red){ const rw = z.red.w; s.push(st(c - rw, base)); s.push(st(c - (gw + rw) / 2, red)); }
-    s.push(st(c - gw, soft));
-    s.push(st(c - dw, mid));
-    s.push(st(c, core));
-    s.push(st(c + dw, mid));
-    s.push(st(c + gw, soft));
-    if(z.red){ const rw = z.red.w; s.push(st(c + (gw + rw) / 2, red)); s.push(st(c + rw, base)); }
-    s.push(st(1, base));
+    const BASE = '#0b1018', BLUE = '#38b2ff', DGREEN = '#0f9a44', GREEN = '#8ff06a', RED = '#ff3646';
+    const valCol = v => v >= 0.98 ? BLUE : v >= 0.85 ? DGREEN : v >= 0.60 ? GREEN : BASE;
+    // кольца: радиус от центра + цвет (по значению зоны); красная — своим цветом
+    const rings = [];
+    if(z.blue) rings.push({ r: z.blue.w, col: valCol(z.blue.v) });
+    if(z.dark) rings.push({ r: z.dark.w, col: valCol(z.dark.v) });
+    rings.push({ r: z.green.w, col: valCol(z.green.v) });
+    if(z.red)  rings.push({ r: z.red.w,  col: RED });
+    rings.sort((a, b) => a.r - b.r);
+    const P = f => (Math.max(0, Math.min(1, f)) * 100).toFixed(2) + '%';
+    const s = [];
+    const outer = rings[rings.length - 1].r;
+    s.push(BASE + ' 0%', BASE + ' ' + P(c - outer));           // провал снизу
+    for(let i = rings.length - 1; i >= 0; i--){                 // нижняя половина: внешние→внутренние
+      const col = rings[i].col;
+      s.push(col + ' ' + P(c - rings[i].r), col + ' ' + P(c - (i > 0 ? rings[i - 1].r : 0)));
+    }
+    for(let i = 0; i < rings.length; i++){                      // верхняя половина: зеркально
+      const col = rings[i].col;
+      s.push(col + ' ' + P(c + (i > 0 ? rings[i - 1].r : 0)), col + ' ' + P(c + rings[i].r));
+    }
+    s.push(BASE + ' ' + P(c + outer), BASE + ' 100%');          // провал сверху
     return 'linear-gradient(to top,' + s.join(',') + ')';
   }
   function engStopKey(key){
